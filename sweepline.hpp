@@ -12,11 +12,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#if 1
-#include <iostream>
-#include <istream>
-#include <ostream>
-#endif
 
 #include <cassert>
 #include <cmath>
@@ -284,14 +279,6 @@ private :
         mutable edge_iterator l, r;
         mutable event_iterator event_;
 
-        friend
-        std::ostream &
-        operator << (std::ostream & _out, arc const & _arc)
-        {
-            auto const & p = *_arc.focus_->p;
-            return _out << p.x << ' ' << p.y;
-        }
-
     };
 
     struct arc_less
@@ -395,16 +382,6 @@ private :
     event_less event_less_{eps};
     events events_{event_less_};
     event_iterator const noe = std::end(events_);
-
-    friend
-    std::ostream &
-    operator << (std::ostream & _out, beach_line const & b)
-    {
-        for (arc const & arc_ : b) {
-            _out << arc_ << std::endl;
-        }
-        return _out << std::endl;
-    }
 
     void
     delete_event(event_iterator const e)
