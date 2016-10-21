@@ -81,15 +81,22 @@ struct sweepline
     vertex_iterator const vend = std::end(vertices_);
     edge_iterator const inf = std::end(edges_);
 
+    struct side
+    {
+
+        site const & l;
+        site const & r;
+
+    };
+
     static
     value_type // ordinate
-    intersect(edge const & _edge,
-              bool const _ccw,
+    intersect(side const & _side,
               value_type _directrix,
               value_type const & _eps)
     {
-        auto const & u = *(_ccw ? _edge.l : _edge.r);
-        auto const & v = *(_ccw ? _edge.r : _edge.l);
+        auto const & u = *_side.l;
+        auto const & v = *_side.r;
         {
             bool const v_degenerated_ = !(v.x + _eps < _directrix);
             if (!(u.x + _eps < _directrix)) {
@@ -143,19 +150,6 @@ struct sweepline
     }
 
 private :
-
-    struct site_less
-    {
-
-        bool
-        operator () (site const & _lhs, site const & _rhs) const // lexicographically compare w/o tolerance
-        {
-            auto const & lhs_ = *_lhs;
-            auto const & rhs_ = *_rhs;
-            return std::tie(lhs_.x, lhs_.y) < std::tie(rhs_.x, rhs_.y);
-        }
-
-    };
 
     edge_iterator
     start_edge(site const l, site const r, vertex_iterator const v) // begin from vertex
@@ -281,6 +275,30 @@ private :
 
     };
 
+    static
+    side
+    left(arc const & _arc)
+    {
+        edge const & edge_ = *_arc.r;
+        if (_arc.focus_ == edge_.l) {
+            return {edge_.l, edge_.r};
+        } else {
+            return {edge_.r, edge_.l};
+        }
+    }
+
+    static
+    side
+    right(arc const & _arc)
+    {
+        edge const & edge_ = *_arc.l;
+        if (_arc.focus_ == edge_.r) {
+            return {edge_.l, edge_.r};
+        } else {
+            return {edge_.r, edge_.l};
+        }
+    }
+
     struct arc_less
     {
 
@@ -306,11 +324,7 @@ private :
             if (_rhs.r == _lhs.l) {
                 return false;
             }
-            edge const & lhs_ = *_lhs.r;
-            edge const & rhs_ = *_rhs.l;
-            value_type const l = intersect(lhs_, (_lhs.focus_ == lhs_.l), directrix_, eps_);
-            value_type const r = intersect(rhs_, (_rhs.focus_ == rhs_.r), directrix_, eps_);
-            return l + eps_ < r;
+            return intersect(left(_lhs), directrix_, eps_) + eps_ < intersect(right(_rhs), directrix_, eps_);
         }
 
         bool
@@ -319,11 +333,11 @@ private :
             if (_lhs.r == inf_) {
                 return false;
             }
-            edge const & lhs_ = *_lhs.r;
             auto const & focus_ = *_lhs.focus_;
             auto const & point_ = *_rhs;
+            side const left_ = left(_lhs);
             if (focus_.x + eps_ < point_.x) {
-                value_type const intersection_ = intersect(lhs_, (_lhs.focus_ == lhs_.l), point_.x, eps_);
+                value_type const intersection_ = intersect(left_, point_.x, eps_);
                 if (intersection_ + eps_ < point_.y) {
                     return true;
                 } else if (point_.y + eps_ < intersection_) {
@@ -333,7 +347,7 @@ private :
                     return false;
                 }
             } else {
-                auto const & right_ = *((_lhs.focus_ == lhs_.l) ? lhs_.r : lhs_.l);
+                auto const & right_ = *left_.r;
                 if (right_.x + eps_ < focus_.x) {
                     return focus_.y + eps_ < point_.y;
                 } else {
@@ -349,11 +363,11 @@ private :
             if (_rhs.l == inf_) {
                 return false;
             }
-            edge const & rhs_ = *_rhs.l;
             auto const & focus_ = *_rhs.focus_;
             auto const & point_ = *_lhs;
+            side const right_ = right(_rhs);
             if (focus_.x + eps_ < point_.x) {
-                value_type const intersection_ = intersect(rhs_, (_rhs.focus_ == rhs_.r), point_.x, eps_);
+                value_type const intersection_ = intersect(right_, point_.x, eps_);
                 if (point_.y + eps_ < intersection_) {
                     return true;
                 } else if (intersection_ + eps_ < point_.y) {
@@ -363,7 +377,7 @@ private :
                     return false;
                 }
             } else {
-                auto const & left_ = *((_rhs.focus_ == rhs_.r) ? rhs_.l : rhs_.r);
+                auto const & left_ = *right_.l;
                 if (left_.x + eps_ < focus_.x) {
                     return point_.y + eps_ < focus_.y;
                 } else {
@@ -577,7 +591,6 @@ private :
         beach_line_.erase(_event.l, rr); // then remove supported arcs
         assert(std::next(ll) == rr);
         ll->r = rr->l = start_edge(ll->focus_, rr->focus_, _event.circumcenter_);
-        //if (ll->event_ != rr->event_) {
         disable_event(ll);
         disable_event(rr);
         if (ll != std::cbegin(beach_line_)) {
@@ -586,7 +599,6 @@ private :
         if (std::next(rr) != blend) {
             check_event(ll, rr, std::next(rr));
         }
-        //}
     }
 
 public :
@@ -601,7 +613,13 @@ public :
         while (beg != end) {
             sites_.push_back(beg++);
         }
-        std::sort(std::begin(sites_), std::end(sites_), site_less{});
+        auto const site_less_ = [&] (site const & _lhs, site const & _rhs) -> bool
+        {
+            auto const & lhs_ = *_lhs;
+            auto const & rhs_ = *_rhs;
+            return std::tie(lhs_.x, lhs_.y) < std::tie(rhs_.x, rhs_.y); // lexicographically compare w/o tolerance
+        };
+        std::sort(std::begin(sites_), std::end(sites_), site_less_);
         beach_line_.insert({sites_.front(), inf, inf, noe});
         sites_.pop_front();
         for (site const & site_ : sites_) {
