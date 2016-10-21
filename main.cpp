@@ -113,7 +113,7 @@ main()
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 15);
+    generate(in_, 2);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"
@@ -148,7 +148,7 @@ main()
     sweepline_type sweepline_{eps};
     sweepline_(std::cbegin(points_), std::cend(points_));
     {
-        value_type const vbox = value_type(3) * bbox;
+        value_type const vbox = value_type(2) * bbox;
         {
             gnuplot_ << "set size square;\n"
                         "set key left;\n";
@@ -240,7 +240,8 @@ main()
                         gnuplot_ << e.x << ' ' << e.y << '\n';
                         gnuplot_ << "\n";
                     } else {
-                        assert(!beg && !end);
+                        // TODO: need to implement
+                        assert(false);
                     }
                 }
                 gnuplot_ << "e\n";

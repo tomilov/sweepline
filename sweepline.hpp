@@ -49,7 +49,7 @@ struct sweepline
         value_type const & eps_;
 
         bool
-        operator () (vertex const & _lhs, vertex const & _rhs) const // lexicographically compare
+        operator () (vertex const & _lhs, vertex const & _rhs) const // lexicographically compare w/ tolerance
         {
             value_type const & x = _lhs.x + eps_;
             value_type const & y = _lhs.y + eps_;
@@ -158,13 +158,8 @@ private :
     }
 
     edge_iterator
-    make_edge(site l, site r)
+    make_edge(site const l, site const r)
     {
-        auto const & u = *l;
-        auto const & v = *r;
-        if ((v.y < u.y) || (!(u.y < v.y) && !(u.x < v.x))) {
-            std::swap(l, r);
-        }
         return start_edge(l, r, vend);
     }
 
@@ -178,21 +173,20 @@ private :
             auto const & l = *_edge.l;
             auto const & r = *_edge.r;
             vertex const & p = *v;
-            bool swap = false;
             if (r.x < l.x) {
-                if (l.y < p.y) {
-                    swap = true;
+                if (p.y < l.y) {
+                    return;
                 }
             } else if (l.x < r.x) {
-                if (p.y < r.y) {
-                    swap = true;
+                if (r.y < p.y) {
+                    return;
                 }
             } else {
-                swap = true;
+                if (r.y < l.y) {
+                    return; // unrecheable
+                }
             }
-            if (swap) {
-                std::swap(_edge.l, _edge.r);
-            }
+            std::swap(_edge.l, _edge.r);
         } else {
             assert(_edge.b != v);
             assert(_edge.e == vend);
@@ -305,8 +299,8 @@ private :
         using is_transparent = void;
 
         value_type const & eps_;
-        edge_iterator const & inf_;
         value_type const & directrix_;
+        edge_iterator const & inf_;
         //bool instant_circle_event_ = false;
 
         bool
@@ -390,9 +384,11 @@ private :
     };
 
     value_type directrix_;
-    arc_less arc_less_{eps, inf, directrix_};
+
+    arc_less const arc_less_{eps, directrix_, inf};
     beach_line beach_line_{arc_less_};
-    typename beach_line::const_iterator blend = std::cend(beach_line_);
+    arc_iterator const brink = std::cend(beach_line_);
+
     event_less event_less_{eps};
     events events_{event_less_};
     event_iterator const noe = std::end(events_);
@@ -524,14 +520,14 @@ private :
     }
 
     void
-    add_arc(site const & s)
+    add_arc(site const & _site)
     {
         assert(!beach_line_.empty());
-        auto const & point_ = *s;
+        auto const & point_ = *_site;
         directrix_ = point_.x;
-        auto const range = beach_line_.equal_range(s);
-        assert(!arc_less_(*range.first, s));
-        assert(!arc_less_(s, *range.first));
+        auto const range = beach_line_.equal_range(_site);
+        assert(!arc_less_(*range.first, _site));
+        assert(!arc_less_(_site, *range.first));
         assert(range.first != range.second); // because beach line is not empty
         auto const second = std::next(range.first);
         arc const & arc_ = *range.first;
@@ -543,25 +539,25 @@ private :
         if (second == range.second) { // 1 arc
             auto const & focus_ = *f;
             if (focus_.x + eps < point_.x) {
-                edge_iterator const e = make_edge(f, s);
+                edge_iterator const e = make_edge(f, _site);
                 arc_iterator const l = beach_line_.insert(second, {f, ll, e,  noe});
-                arc_iterator const a = beach_line_.insert(second, {s, e,  e,  noe});
+                arc_iterator const a = beach_line_.insert(second, {_site, e,  e,  noe});
                 arc_iterator const r = beach_line_.insert(second, {f, e,  rr, noe});
                 assert(arc_less_(*l, *a));
                 assert(arc_less_(*a, *r));
                 if (l != std::cbegin(beach_line_)) {
                     check_event(std::prev(l), l, a);
                 }
-                if (second != blend) {
+                if (second != brink) {
                     check_event(a, r, second);
                 }
-            } else if (second == blend) { // degenerated arc (horizontal line)
+            } else if (second == brink) { // degenerated arc (horizontal line)
                 assert(!(point_.x + eps < focus_.x));
                 // horizontal line
                 assert(focus_.y + eps < point_.y);
-                edge_iterator const e = make_edge(f, s);
+                edge_iterator const e = make_edge(f, _site);
                 beach_line_.insert(second, {f, ll, e, noe});
-                beach_line_.insert(second, {s, e, inf, noe});
+                beach_line_.insert(second, {_site, e, inf, noe});
             } else {
                 assert(false);
             }
@@ -579,10 +575,10 @@ private :
     remove_arcs(event const & _event)
     {
         assert(!beach_line_.empty());
-        assert(_event.r != blend);
+        assert(_event.r != brink);
         arc_iterator const ll = std::prev(_event.l);
         arc_iterator const rr = std::next(_event.r);
-        assert(rr != blend);
+        assert(rr != brink);
         for (auto a = ll; a != rr; ++a) { // finish all the edges which are between interstitial arcs
             assert(a->r != inf);
             assert((a == ll) || (&*a->event_ == &_event));
@@ -596,7 +592,7 @@ private :
         if (ll != std::cbegin(beach_line_)) {
             check_event(std::prev(ll), ll, rr);
         }
-        if (std::next(rr) != blend) {
+        if (std::next(rr) != brink) {
             check_event(ll, rr, std::next(rr));
         }
     }
@@ -610,9 +606,9 @@ public :
             return;
         }
         std::deque< site > sites_;
-        while (beg != end) {
-            sites_.push_back(beg++);
-        }
+        do {
+            sites_.push_back(beg);
+        } while (++beg != end);
         auto const site_less_ = [&] (site const & _lhs, site const & _rhs) -> bool
         {
             auto const & lhs_ = *_lhs;
