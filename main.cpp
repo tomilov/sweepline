@@ -146,18 +146,9 @@ main()
     using point_iterator = typename points::const_iterator;
     using sweepline_type = sweepline< point_iterator, value_type >;
     sweepline_type sweepline_{eps};
-    {
-        auto const pend = std::cend(points_);
-        for (auto p = std::cbegin(points_); p != pend; ++p) {
-            sweepline_.sites_.push_back(p);
-        }
-    }
-    sweepline_();
+    sweepline_(std::cbegin(points_), std::cend(points_));
     {
         value_type const vbox = value_type(3) * bbox;
-        using site = typename sweepline_type::site;
-        using edge = typename sweepline_type::edge;
-        using vertex = typename sweepline_type::vertex;
         {
             gnuplot_ << "set size square;\n"
                         "set key left;\n";
@@ -173,28 +164,26 @@ main()
             }
             gnuplot_ << ";\n";
             {
-                for (site const & site_ : sweepline_.sites_) {
-                    auto const & point_ = *site_;
+                for (auto const & point_ : points_) {
                     gnuplot_ << point_.x << ' ' << point_.y << '\n';
                 }
                 gnuplot_ << "e\n";
             }
             {
-                point_iterator const & pbeg = std::cbegin(points_);
-                for (site const & site_ : sweepline_.sites_) {
-                    auto const & point_ = *site_;
-                    gnuplot_ << point_.x << ' ' << point_.y << ' ' << std::distance(pbeg, site_) << '\n';
+                size_type i = 0;
+                for (auto const & point_ : points_) {
+                    gnuplot_ << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
                 }
                 gnuplot_ << "e\n";
             }
             if (!sweepline_.edges_.empty()) {
-                for (edge const & edge_ : sweepline_.edges_) {
-                    auto const & l = **edge_.l;
-                    auto const & r = **edge_.r;
+                for (auto const & edge_ : sweepline_.edges_) {
+                    auto const & l = *edge_.l;
+                    auto const & r = *edge_.r;
                     bool const beg = (edge_.b != sweepline_.vend);
                     bool const end = (edge_.e != sweepline_.vend);
                     if (beg && !end) {
-                        vertex const & p = *edge_.b;
+                        auto const & p = *edge_.b;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
                             gnuplot_ << p.x << ' ' << p.y << '\n';
                             value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
@@ -245,9 +234,9 @@ main()
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
-                        vertex const & b = *edge_.b;
+                        auto const & b = *edge_.b;
                         gnuplot_ << b.x << ' ' << b.y << '\n';
-                        vertex const & e = *edge_.e;
+                        auto const & e = *edge_.e;
                         gnuplot_ << e.x << ' ' << e.y << '\n';
                         gnuplot_ << "\n";
                     } else {

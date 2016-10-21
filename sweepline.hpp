@@ -39,9 +39,6 @@ struct sweepline
 
     using site = point_iterator;
 
-    using sites = std::vector< site >;
-    using site_iterator = typename sites::iterator;
-
     // TODO: add references to edges and/or sites
     struct vertex
     {
@@ -72,7 +69,7 @@ struct sweepline
     struct edge // segment, ray or line
     {
 
-        site_iterator l, r; // for unfinished edges l, r, e is clockwise oriented triple
+        site l, r; // for unfinished edges l, r, e is clockwise oriented triple
         vertex_iterator b, e; // end iterator may be invalidated even at move operation
 
     };
@@ -80,9 +77,6 @@ struct sweepline
     using edges = std::list< edge >;
     using edge_iterator = typename edges::iterator;
 
-    // input
-    sites sites_;
-    // output
     vertex_less vertex_less_{eps};
     vertices vertices_{vertex_less_};
     edges edges_;
@@ -99,8 +93,8 @@ struct sweepline
               value_type _directrix,
               value_type const & _eps)
     {
-        auto const & u = **(_ccw ? _edge.l : _edge.r);
-        auto const & v = **(_ccw ? _edge.r : _edge.l);
+        auto const & u = *(_ccw ? _edge.l : _edge.r);
+        auto const & v = *(_ccw ? _edge.r : _edge.l);
         {
             bool const v_degenerated_ = !(v.x + _eps < _directrix);
             if (!(u.x + _eps < _directrix)) {
@@ -169,17 +163,17 @@ private :
     };
 
     edge_iterator
-    start_edge(site_iterator const l, site_iterator const r, vertex_iterator const v) // begin from vertex
+    start_edge(site const l, site const r, vertex_iterator const v) // begin from vertex
     {
         return edges_.insert(std::cend(edges_), {l, r, v, vend});
     }
 
     edge_iterator
-    make_edge(site_iterator l, site_iterator r)
+    make_edge(site l, site r)
     {
-        auto const & L = **l;
-        auto const & R = **r;
-        if ((R.y < L.y) || (!(L.y < R.y) && !(L.x < R.x))) {
+        auto const & u = *l;
+        auto const & v = *r;
+        if ((v.y < u.y) || (!(u.y < v.y) && !(u.x < v.x))) {
             std::swap(l, r);
         }
         return start_edge(l, r, vend);
@@ -192,8 +186,8 @@ private :
         assert(_edge.e != v);
         if (_edge.b == vend) {
             _edge.b = v;
-            auto const & l = **_edge.l;
-            auto const & r = **_edge.r;
+            auto const & l = *_edge.l;
+            auto const & r = *_edge.r;
             vertex const & p = *v;
             bool swap = false;
             if (r.x < l.x) {
@@ -286,7 +280,7 @@ private :
     struct arc
     {
 
-        site_iterator focus_;
+        site focus_;
         mutable edge_iterator l, r;
         mutable event_iterator event_;
 
@@ -339,7 +333,7 @@ private :
                 return false;
             }
             edge const & lhs_ = *_lhs.r;
-            auto const & focus_ = **_lhs.focus_;
+            auto const & focus_ = *_lhs.focus_;
             auto const & point_ = *_rhs;
             if (focus_.x + eps_ < point_.x) {
                 value_type const intersection_ = intersect(lhs_, (_lhs.focus_ == lhs_.l), point_.x, eps_);
@@ -352,7 +346,7 @@ private :
                     return false;
                 }
             } else {
-                auto const & right_ = **((_lhs.focus_ == lhs_.l) ? lhs_.r : lhs_.l);
+                auto const & right_ = *((_lhs.focus_ == lhs_.l) ? lhs_.r : lhs_.l);
                 if (right_.x + eps_ < focus_.x) {
                     return focus_.y + eps_ < point_.y;
                 } else {
@@ -369,7 +363,7 @@ private :
                 return false;
             }
             edge const & rhs_ = *_rhs.l;
-            auto const & focus_ = **_rhs.focus_;
+            auto const & focus_ = *_rhs.focus_;
             auto const & point_ = *_lhs;
             if (focus_.x + eps_ < point_.x) {
                 value_type const intersection_ = intersect(rhs_, (_rhs.focus_ == rhs_.r), point_.x, eps_);
@@ -382,7 +376,7 @@ private :
                     return false;
                 }
             } else {
-                auto const & left_ = **((_rhs.focus_ == rhs_.r) ? rhs_.l : rhs_.r);
+                auto const & left_ = *((_rhs.focus_ == rhs_.r) ? rhs_.l : rhs_.r);
                 if (left_.x + eps_ < focus_.x) {
                     return point_.y + eps_ < focus_.y;
                 } else {
@@ -467,9 +461,9 @@ private :
         assert(&l->focus_ != &a->focus_);
         assert(&r->focus_ != &a->focus_);
         assert(&l->focus_ != &r->focus_);
-        auto const & u = **l->focus_;
-        auto const & v = **a->focus_;
-        auto const & w = **r->focus_;
+        auto const & u = *l->focus_;
+        auto const & v = *a->focus_;
+        auto const & w = *r->focus_;
         value_type A = v.x - u.x;
         value_type B = v.y - u.y;
         value_type C = w.x - u.x;
@@ -539,25 +533,24 @@ private :
     }
 
     void
-    add_arc(site_iterator const & s)
+    add_arc(site const & s)
     {
         assert(!beach_line_.empty());
-        site const & site_ = *s;
-        auto const & point_ = *site_;
+        auto const & point_ = *s;
         directrix_ = point_.x;
-        auto const range = beach_line_.equal_range(site_);
-        assert(!arc_less_(*range.first, site_));
-        assert(!arc_less_(site_, *range.first));
+        auto const range = beach_line_.equal_range(s);
+        assert(!arc_less_(*range.first, s));
+        assert(!arc_less_(s, *range.first));
         assert(range.first != range.second); // because beach line is not empty
         auto const second = std::next(range.first);
         arc const & arc_ = *range.first;
         edge_iterator const ll = arc_.l;
         edge_iterator const rr = arc_.r;
-        site_iterator const f = arc_.focus_;
+        site const f = arc_.focus_;
         delete_event(arc_.event_);
         beach_line_.erase(range.first);
         if (second == range.second) { // 1 arc
-            auto const & focus_ = **f;
+            auto const & focus_ = *f;
             if (focus_.x + eps < point_.x) {
                 edge_iterator const e = make_edge(f, s);
                 arc_iterator const l = beach_line_.insert(second, {f, ll, e,  noe});
@@ -622,18 +615,21 @@ private :
 public :
 
     void
-    operator () ()
+    operator () (point_iterator beg, point_iterator const end)
     {
-        if (sites_.empty()) {
+        if (beg == end) {
             return;
         }
-        auto const send = std::end(sites_);
-        std::sort(std::begin(sites_), send, site_less{});
-        auto s = std::begin(sites_);
-        beach_line_.insert({s, inf, inf, noe});
-        while (++s != send) {
+        std::deque< site > sites_;
+        while (beg != end) {
+            sites_.push_back(beg++);
+        }
+        std::sort(std::begin(sites_), std::end(sites_), site_less{});
+        beach_line_.insert({sites_.front(), inf, inf, noe});
+        sites_.pop_front();
+        for (site const & site_ : sites_) {
             if (!events_.empty()) {
-                auto const & focus_ = **s;
+                auto const & focus_ = *site_;
                 do {
                     auto const e = events_.begin();
                     event const & event_ = *e;
@@ -652,7 +648,7 @@ public :
                     events_.erase(e);
                 } while (!events_.empty());
             }
-            add_arc(s);
+            add_arc(site_);
         }
         while (!events_.empty()) {
             auto const e = events_.begin();
