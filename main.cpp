@@ -113,7 +113,7 @@ main()
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 10);
+    generate(in_, 15);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"
@@ -149,12 +149,12 @@ main()
     {
         auto const pend = std::cend(points_);
         for (auto p = std::cbegin(points_); p != pend; ++p) {
-            sweepline_.sites_.emplace_back(p);
+            sweepline_.sites_.push_back(p);
         }
     }
     sweepline_();
     {
-        value_type const vbox = value_type(3.0) * bbox;
+        value_type const vbox = value_type(3) * bbox;
         using site = typename sweepline_type::site;
         using edge = typename sweepline_type::edge;
         using vertex = typename sweepline_type::vertex;
@@ -168,7 +168,9 @@ main()
             gnuplot_ << "plot";
             gnuplot_ << " '-' with points notitle"
                         ", '' with labels offset character 0, character 1 notitle";
-            gnuplot_ << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
+            if (!sweepline_.edges_.empty()) {
+                gnuplot_ << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
+            }
             gnuplot_ << ";\n";
             {
                 for (site const & site_ : sweepline_.sites_) {
@@ -185,37 +187,19 @@ main()
                 }
                 gnuplot_ << "e\n";
             }
-            {
+            if (!sweepline_.edges_.empty()) {
                 for (edge const & edge_ : sweepline_.edges_) {
                     auto const & l = **edge_.l;
                     auto const & r = **edge_.r;
                     bool const beg = (edge_.b != sweepline_.vend);
                     bool const end = (edge_.e != sweepline_.vend);
-                    if (beg != end) {
-                        vertex const & p = *(beg ? edge_.b : edge_.e);
+                    if (beg && !end) {
+                        vertex const & p = *edge_.b;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
                             gnuplot_ << p.x << ' ' << p.y << '\n';
-                            value_type dx = r.y - l.y;
-                            value_type dy = l.x - r.x;
-                            bool swap = false;
-                            if (end) {
-                                if (zero < dy) {
-                                    if (l.y < p.y) {
-                                        swap = true;
-                                    }
-                                } else if (dy < zero) {
-                                    if (p.y < r.y) {
-                                        swap = true;
-                                    }
-                                } else {
-                                    swap = true;
-                                }
-                            }
-                            if (swap) {
-                                dx = -dx;
-                                dy = -dy;
-                            }
-                            if (eps < dx) {
+                            value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
+                            value_type const dy = l.x - r.x;
+                            if (zero < dx) {
                                 if (zero < dy) {
                                     value_type yy = p.y + (vbox - p.x) * dy / dx;
                                     if (vbox < yy) {
@@ -233,7 +217,7 @@ main()
                                         gnuplot_ << vbox << ' ' << yy << '\n';
                                     }
                                 }
-                            } else if (dx < -eps) {
+                            } else if (dx < zero) {
                                 if (zero < dy) {
                                     value_type yy = p.y - (vbox + p.x) * dy / dx;
                                     if (vbox < yy) {
@@ -260,13 +244,14 @@ main()
                             }
                             gnuplot_ << "\n";
                         }
-                    } else if (beg) {
-                        assert(end);
+                    } else if (beg && end) {
                         vertex const & b = *edge_.b;
                         gnuplot_ << b.x << ' ' << b.y << '\n';
                         vertex const & e = *edge_.e;
                         gnuplot_ << e.x << ' ' << e.y << '\n';
                         gnuplot_ << "\n";
+                    } else {
+                        assert(!beg && !end);
                     }
                 }
                 gnuplot_ << "e\n";

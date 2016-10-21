@@ -189,13 +189,31 @@ private :
     finish_edge(edge & _edge, vertex_iterator const v) const
     {
         assert(v != vend);
-        assert(_edge.b != v);
-        if (_edge.e == vend) {
-            _edge.e = v;
-        } else {
-            assert(_edge.e != v);
-            assert(_edge.b == vend);
+        assert(_edge.e != v);
+        if (_edge.b == vend) {
             _edge.b = v;
+            auto const & l = **_edge.l;
+            auto const & r = **_edge.r;
+            vertex const & p = *v;
+            bool swap = false;
+            if (r.x < l.x) {
+                if (l.y < p.y) {
+                    swap = true;
+                }
+            } else if (l.x < r.x) {
+                if (p.y < r.y) {
+                    swap = true;
+                }
+            } else {
+                swap = true;
+            }
+            if (swap) {
+                std::swap(_edge.l, _edge.r);
+            }
+        } else {
+            assert(_edge.b != v);
+            assert(_edge.e == vend);
+            _edge.e = v;
         }
     }
 
@@ -512,7 +530,7 @@ private :
                     } else if (arc_less_(*event_.r, *l)) {
                         event_.r = a;
                     } else {
-                        assert(false); // leftmost arcs created first (if any), then sides
+                        assert(false); // leftmost arcs created first (if any), then upper and lower ones
                     }
                 }
                 a->event_ = pevent;
@@ -566,7 +584,7 @@ private :
         } else if (std::next(second) == range.second) { // 2 arcs
             //arc const ra = *second;
             beach_line_.erase(second);
-            // TODO: hit into the edge between two arcs, or even hit into the vertex
+            // TODO: hit the edge between two arcs, or even hit the vertex
             assert(false);
         } else {
             assert(false);
@@ -581,12 +599,11 @@ private :
         arc_iterator const ll = std::prev(_event.l);
         arc_iterator const rr = std::next(_event.r);
         assert(rr != blend);
-        for (auto a = ll; a != rr; ++a) { // finish all edges that are between interstitial arcs
+        for (auto a = ll; a != rr; ++a) { // finish all the edges which are between interstitial arcs
             assert(a->r != inf);
             assert((a == ll) || (&*a->event_ == &_event));
             finish_edge(*a->r, _event.circumcenter_);
         }
-        //directrix_ = _event.x;
         beach_line_.erase(_event.l, rr); // then remove supported arcs
         assert(std::next(ll) == rr);
         ll->r = rr->l = start_edge(ll->focus_, rr->focus_, _event.circumcenter_);
