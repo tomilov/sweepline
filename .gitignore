@@ -1,0 +1,7 @@
+CMakeCache.txt
+build/
+CMakeLists.txt.user
+Makefile
+cmake_install.cmake
+sweepline
+sweepline.cbp
