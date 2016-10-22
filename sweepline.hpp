@@ -199,25 +199,28 @@ private :
     using beach_line = std::set< arc, arc_less >;
     using arc_iterator = typename beach_line::iterator;
 
-    struct event
+    struct event_location
     {
 
         // non-copyable
 
         vertex_iterator circumcenter_; // vertex to be created
         value_type x;
-        mutable arc_iterator l, r;     // inclusive range of collapsing arcs to be removed
 
-        event(vertex_iterator _circumcenter,
-              value_type && _x,
-              arc_iterator const & a)
+        event_location(vertex_iterator _circumcenter,
+              value_type && _x)
             : circumcenter_(std::move(_circumcenter))
             , x(std::move(_x))
-            , l(a)
-            , r(a)
         { ; }
 
         value_type const & y() const { return circumcenter_->first.y; }
+
+    };
+
+    struct arc_range
+    {
+
+        arc_iterator l, r = l;     // inclusive range of collapsing arcs to be removed
 
     };
 
@@ -229,7 +232,7 @@ private :
         value_type const & eps_;
 
         bool
-        operator () (event const & _lhs, event const & _rhs) const
+        operator () (event_location const & _lhs, event_location const & _rhs) const
         {
             value_type const & x = _lhs.x + eps_;
             value_type const & y = _lhs.y() + eps_;
@@ -237,7 +240,7 @@ private :
         }
 
         bool
-        operator () (event const & _lhs, vertex const & _rhs) const
+        operator () (event_location const & _lhs, vertex const & _rhs) const
         {
             value_type const & x = _lhs.x + eps_;
             value_type const & y = _lhs.y() + eps_;
@@ -246,7 +249,7 @@ private :
         }
 
         bool
-        operator () (vertex const & _lhs, event const & _rhs) const
+        operator () (vertex const & _lhs, event_location const & _rhs) const
         {
             value_type const & x = _lhs.first.x + _lhs.second + eps_;
             value_type const & y = _lhs.first.y + eps_;
@@ -255,7 +258,8 @@ private :
 
     };
 
-    using events = std::set< event, event_less >;
+    using events = std::map< event_location, arc_range, event_less >;
+    using event = typename events::value_type;
     using event_iterator = typename events::iterator;
 
     struct arc
@@ -397,11 +401,11 @@ private :
         if (e == noe) {
             return;
         }
-        event const & event_ = *e;
+        arc_range const & arc_range_ = e->second;
         {
-            auto a = event_.l;
+            auto a = arc_range_.l;
             assert(a->event_ == e);
-            while (a != event_.r) {
+            while (a != arc_range_.r) {
                 if (a->event_ == e) {
                     a->event_ = noe;
                 }
@@ -410,7 +414,7 @@ private :
             assert(a->event_ == e);
             a->event_ = noe;
         }
-        vertices_.erase(event_.circumcenter_);
+        vertices_.erase(e->first.circumcenter_);
         events_.erase(e);
     }
 
@@ -421,15 +425,15 @@ private :
         if (e == noe) {
             return;
         }
-        event const & event_ = *e;
-        if (event_.l == event_.r) {
-            assert(event_.l == a);
-            vertices_.erase(event_.circumcenter_);
+        arc_range & arc_range_ = e->second;
+        if (arc_range_.l == arc_range_.r) {
+            assert(arc_range_.l == a);
+            vertices_.erase(e->first.circumcenter_);
             events_.erase(e);
-        } else if (event_.l == a) {
-            ++event_.l;
-        } else if (event_.r == a) {
-            --event_.r;
+        } else if (arc_range_.l == a) {
+            ++arc_range_.l;
+        } else if (arc_range_.r == a) {
+            --arc_range_.r;
         } else {
             // TODO: implement
             assert(false);
@@ -482,7 +486,7 @@ private :
         // R - radius
         auto const pvertex = vertices_.insert({{x, y}, R});
         if (pvertex.second) {
-            auto const ee = events_.emplace(pvertex.first, x + R, a);
+            auto const ee = events_.insert({{pvertex.first, x + R}, {a}});
             assert(ee.second);
             a->event_ = ee.first;
         } else {
@@ -492,22 +496,22 @@ private :
             if (R + eps < vertex_.second) {
                 vertex_.second = R;
                 delete_event(pevent);
-                auto const ee = events_.emplace(pvertex.first, x + R, a);
+                auto const ee = events_.insert({{pvertex.first, x + R}, {a}});
                 assert(ee.second);
                 a->event_ = ee.first;
             } else if (vertex_.second + eps < R) {
                 // nop
             } else { // equiv
-                event const & event_ = *pevent;
-                if (r == event_.l) {
-                    event_.l = a;
-                } else if (l == event_.r) {
-                    event_.r = a;
+                arc_range & arc_range_ = pevent->second;
+                if (r == arc_range_.l) {
+                    arc_range_.l = a;
+                } else if (l == arc_range_.r) {
+                    arc_range_.r = a;
                 } else {
-                    if (arc_less_(*r, *event_.l)) {
-                        event_.l = a;
-                    } else if (arc_less_(*event_.r, *l)) {
-                        event_.r = a;
+                    if (arc_less_(*r, *arc_range_.l)) {
+                        arc_range_.l = a;
+                    } else if (arc_less_(*arc_range_.r, *l)) {
+                        arc_range_.r = a;
                     } else {
                         assert(false); // leftmost arcs created first (if any), then upper and lower ones
                     }
@@ -570,21 +574,21 @@ private :
     }
 
     void
-    remove_arcs(event const & _event)
+    remove_arcs(event & _event)
     {
         assert(!beach_line_.empty());
-        assert(_event.r != brink);
-        arc_iterator const ll = std::prev(_event.l);
-        arc_iterator const rr = std::next(_event.r);
+        assert(_event.second.r != brink);
+        arc_iterator const ll = std::prev(_event.second.l);
+        arc_iterator const rr = std::next(_event.second.r);
         assert(rr != brink);
         for (auto a = ll; a != rr; ++a) { // finish all the edges which are between interstitial arcs
             assert(a->r != inf);
             assert((a == ll) || (&*a->event_ == &_event));
-            finish_edge(*a->r, _event.circumcenter_);
+            finish_edge(*a->r, _event.first.circumcenter_);
         }
-        beach_line_.erase(_event.l, rr); // then remove supported arcs
+        beach_line_.erase(_event.second.l, rr); // then remove supported arcs
         assert(std::next(ll) == rr);
-        ll->r = rr->l = start_edge(ll->focus_, rr->focus_, _event.circumcenter_);
+        ll->r = rr->l = start_edge(ll->focus_, rr->focus_, _event.first.circumcenter_);
         disable_event(ll);
         disable_event(rr);
         if (ll != std::cbegin(beach_line_)) {
@@ -621,12 +625,12 @@ public :
                 auto const & focus_ = *site_;
                 do {
                     auto const e = events_.begin();
-                    event const & event_ = *e;
-                    if (focus_.x + eps < event_.x) {
+                    event & event_ = *e;
+                    if (focus_.x + eps < event_.first.x) {
                         break;
                     }
-                    if (!(event_.x + eps < focus_.x)) {
-                        value_type const & y = event_.y();
+                    if (!(event_.first.x + eps < focus_.x)) {
+                        value_type const & y = event_.first.y();
                         if (!(y + eps < focus_.y)) {
                             if (!(focus_.y + eps < y)) {
                                 break; // if event and focus are equivalent points, then site should be processed first
