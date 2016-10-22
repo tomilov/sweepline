@@ -262,12 +262,22 @@ private :
     using event = typename events::value_type;
     using event_iterator = typename events::iterator;
 
+    struct arc_border
+    {
+
+        edge_iterator l, r;
+        event_iterator event_;
+
+    };
+
+    using arc_borders = std::list< arc_border >;
+    using arc_border_iterator = typename arc_borders::iterator;
+
     struct arc
     {
 
         site focus_;
-        mutable edge_iterator l, r;
-        mutable event_iterator event_;
+        arc_border_iterator b;
 
     };
 
@@ -275,7 +285,7 @@ private :
     side
     left(arc const & _arc)
     {
-        edge const & edge_ = *_arc.r;
+        edge const & edge_ = *_arc.b->r;
         if (_arc.focus_ == edge_.l) {
             return {edge_.l, edge_.r};
         } else {
@@ -287,7 +297,7 @@ private :
     side
     right(arc const & _arc)
     {
-        edge const & edge_ = *_arc.l;
+        edge const & edge_ = *_arc.b->l;
         if (_arc.focus_ == edge_.r) {
             return {edge_.l, edge_.r};
         } else {
@@ -308,16 +318,18 @@ private :
         bool
         operator () (arc const & _lhs, arc const & _rhs) const
         {
-            if ((_lhs.r == inf_) || (_rhs.l == inf_)) {
+            arc_border const & lhs_ = *_lhs.b;
+            arc_border const & rhs_ = *_rhs.b;
+            if ((lhs_.r == inf_) || (rhs_.l == inf_)) {
                 return false;
             }
-            if (_lhs.r == _rhs.l) {
+            if (lhs_.r == rhs_.l) {
                 return true;
             }
-            if ((_rhs.r == inf_) || (_lhs.l == inf_)) {
+            if ((rhs_.r == inf_) || (lhs_.l == inf_)) {
                 return true;
             }
-            if (_rhs.r == _lhs.l) {
+            if (rhs_.r == lhs_.l) {
                 return false;
             }
             return intersect(left(_lhs), directrix_, eps_) + eps_ < intersect(right(_rhs), directrix_, eps_);
@@ -326,7 +338,7 @@ private :
         bool
         operator () (arc const & _lhs, site const & _rhs) const
         {
-            if (_lhs.r == inf_) {
+            if (_lhs.b->r == inf_) {
                 return false;
             }
             auto const & focus_ = *_lhs.focus_;
@@ -356,7 +368,7 @@ private :
         bool
         operator () (site const & _lhs, arc const & _rhs) const
         {
-            if (_rhs.l == inf_) {
+            if (_rhs.b->l == inf_) {
                 return false;
             }
             auto const & focus_ = *_rhs.focus_;
@@ -387,6 +399,7 @@ private :
 
     value_type directrix_;
 
+    arc_borders arc_borders_;
     arc_less const arc_less_{eps, directrix_, inf};
     beach_line beach_line_{arc_less_};
     arc_iterator const brink = std::cend(beach_line_);
@@ -404,15 +417,15 @@ private :
         arc_range const & arc_range_ = e->second;
         {
             auto a = arc_range_.l;
-            assert(a->event_ == e);
+            assert(a->b->event_ == e);
             while (a != arc_range_.r) {
-                if (a->event_ == e) {
-                    a->event_ = noe;
+                if (a->b->event_ == e) {
+                    a->b->event_ = noe;
                 }
                 ++a;
             }
-            assert(a->event_ == e);
-            a->event_ = noe;
+            assert(a->b->event_ == e);
+            a->b->event_ = noe;
         }
         vertices_.erase(e->first.circumcenter_);
         events_.erase(e);
@@ -421,7 +434,7 @@ private :
     void
     disable_event(arc_iterator const & a)
     {
-        event_iterator & e = a->event_;
+        event_iterator & e = a->b->event_;
         if (e == noe) {
             return;
         }
@@ -446,7 +459,7 @@ private :
                 arc_iterator const & a,
                 arc_iterator const & r)
     {
-        assert(a->event_ == noe);
+        assert(a->b->event_ == noe);
         assert(&l->focus_ != &a->focus_);
         assert(&r->focus_ != &a->focus_);
         assert(&l->focus_ != &r->focus_);
@@ -488,7 +501,7 @@ private :
         if (pvertex.second) {
             auto const ee = events_.insert({{pvertex.first, x + R}, {a}});
             assert(ee.second);
-            a->event_ = ee.first;
+            a->b->event_ = ee.first;
         } else {
             vertex & vertex_ = *pvertex.first;
             auto pevent = events_.find(vertex_);
@@ -498,7 +511,7 @@ private :
                 delete_event(pevent);
                 auto const ee = events_.insert({{pvertex.first, x + R}, {a}});
                 assert(ee.second);
-                a->event_ = ee.first;
+                a->b->event_ = ee.first;
             } else if (vertex_.second + eps < R) {
                 // nop
             } else { // equiv
@@ -516,7 +529,7 @@ private :
                         assert(false); // leftmost arcs created first (if any), then upper and lower ones
                     }
                 }
-                a->event_ = pevent;
+                a->b->event_ = pevent;
             }
         }
     }
@@ -533,18 +546,19 @@ private :
         assert(range.first != range.second); // because beach line is not empty
         auto const second = std::next(range.first);
         arc const & arc_ = *range.first;
-        edge_iterator const ll = arc_.l;
-        edge_iterator const rr = arc_.r;
+        edge_iterator const ll = arc_.b->l;
+        edge_iterator const rr = arc_.b->r;
         site const f = arc_.focus_;
-        delete_event(arc_.event_);
+        delete_event(arc_.b->event_);
+        arc_borders_.erase(range.first->b);
         beach_line_.erase(range.first);
         if (second == range.second) { // 1 arc
             auto const & focus_ = *f;
             if (focus_.x + eps < point_.x) {
                 edge_iterator const e = make_edge(f, _site);
-                arc_iterator const l = beach_line_.insert(second, {f, ll, e,  noe});
-                arc_iterator const a = beach_line_.insert(second, {_site, e,  e,  noe});
-                arc_iterator const r = beach_line_.insert(second, {f, e,  rr, noe});
+                arc_iterator const l = beach_line_.insert(second, {f, arc_borders_.insert(std::cend(arc_borders_), {ll, e,  noe})});
+                arc_iterator const a = beach_line_.insert(second, {_site, arc_borders_.insert(std::cend(arc_borders_), {e,  e,  noe})});
+                arc_iterator const r = beach_line_.insert(second, {f, arc_borders_.insert(std::cend(arc_borders_), {e,  rr, noe})});
                 assert(arc_less_(*l, *a));
                 assert(arc_less_(*a, *r));
                 if (l != std::cbegin(beach_line_)) {
@@ -558,13 +572,14 @@ private :
                 // horizontal line
                 assert(focus_.y + eps < point_.y);
                 edge_iterator const e = make_edge(f, _site);
-                beach_line_.insert(second, {f, ll, e, noe});
-                beach_line_.insert(second, {_site, e, inf, noe});
+                beach_line_.insert(second, {f, arc_borders_.insert(std::cend(arc_borders_), {ll, e, noe})});
+                beach_line_.insert(second, {_site, arc_borders_.insert(std::cend(arc_borders_), {e, inf, noe})});
             } else {
                 assert(false);
             }
         } else if (std::next(second) == range.second) { // 2 arcs
             //arc const ra = *second;
+            arc_borders_.erase(second->b);
             beach_line_.erase(second);
             // TODO: hit the edge between two arcs, or even hit the vertex
             assert(false);
@@ -582,13 +597,16 @@ private :
         arc_iterator const rr = std::next(_event.second.r);
         assert(rr != brink);
         for (auto a = ll; a != rr; ++a) { // finish all the edges which are between interstitial arcs
-            assert(a->r != inf);
-            assert((a == ll) || (&*a->event_ == &_event));
-            finish_edge(*a->r, _event.first.circumcenter_);
+            assert(a->b->r != inf);
+            assert((a == ll) || (&*a->b->event_ == &_event));
+            finish_edge(*a->b->r, _event.first.circumcenter_);
         }
-        beach_line_.erase(_event.second.l, rr); // then remove supported arcs
+        for (auto l = _event.second.l; l != rr; ++l) {
+            arc_borders_.erase(l->b);
+            beach_line_.erase(l);
+        }
         assert(std::next(ll) == rr);
-        ll->r = rr->l = start_edge(ll->focus_, rr->focus_, _event.first.circumcenter_);
+        ll->b->r = rr->b->l = start_edge(ll->focus_, rr->focus_, _event.first.circumcenter_);
         disable_event(ll);
         disable_event(rr);
         if (ll != std::cbegin(beach_line_)) {
@@ -618,7 +636,7 @@ public :
             return std::tie(lhs_.x, lhs_.y) < std::tie(rhs_.x, rhs_.y); // lexicographically compare w/o tolerance
         };
         std::sort(std::begin(sites_), std::end(sites_), site_less_);
-        beach_line_.insert({sites_.front(), inf, inf, noe});
+        beach_line_.insert({sites_.front(), arc_borders_.insert(std::cend(arc_borders_), {inf, inf, noe})});
         sites_.pop_front();
         for (site const & site_ : sites_) {
             if (!events_.empty()) {
