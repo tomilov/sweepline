@@ -8,6 +8,7 @@
 #include <list>
 #include <numeric>
 #include <set>
+#include <map>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -16,7 +17,6 @@
 #include <cassert>
 #include <cmath>
 
-// TODO: map< k, v > instead of set< struct { k; mutable v; } >
 template< typename point_iterator, typename value_type >
 struct sweepline
 {
@@ -35,21 +35,20 @@ struct sweepline
     using site = point_iterator;
 
     // TODO: add references to edges and/or sites
-    struct vertex
+    struct point
     {
 
         value_type x, y;
-        mutable value_type R;
 
     };
 
-    struct vertex_less
+    struct point_less
     {
 
         value_type const & eps_;
 
         bool
-        operator () (vertex const & _lhs, vertex const & _rhs) const // lexicographically compare w/ tolerance
+        operator () (point const & _lhs, point const & _rhs) const // lexicographically compare w/ tolerance
         {
             value_type const & x = _lhs.x + eps_;
             value_type const & y = _lhs.y + eps_;
@@ -58,7 +57,8 @@ struct sweepline
 
     };
 
-    using vertices = std::set< vertex, vertex_less >;
+    using vertices = std::map< point, value_type, point_less >;
+    using vertex = typename vertices::value_type;
     using vertex_iterator = typename vertices::iterator;
 
     struct edge // segment, ray or line
@@ -72,13 +72,11 @@ struct sweepline
     using edges = std::list< edge >;
     using edge_iterator = typename edges::iterator;
 
-    vertex_less vertex_less_{eps};
-    vertices vertices_{vertex_less_};
-    edges edges_;
-    // TODO: clone() (not too stratiforward how to implement
-    // due to (cross-referenced) past-the-end iterators invalidation when whole container movied)
-
+    point_less point_less_{eps};
+    vertices vertices_{point_less_};
     vertex_iterator const vend = std::end(vertices_);
+
+    edges edges_;
     edge_iterator const inf = std::end(edges_);
 
     struct side
@@ -172,7 +170,7 @@ private :
             _edge.b = v;
             auto const & l = *_edge.l;
             auto const & r = *_edge.r;
-            vertex const & p = *v;
+            point const & p = v->first;
             if (r.x < l.x) {
                 if (p.y < l.y) {
                     return;
@@ -219,7 +217,7 @@ private :
             , r(a)
         { ; }
 
-        value_type const & y() const { return circumcenter_->y; }
+        value_type const & y() const { return circumcenter_->first.y; }
 
     };
 
@@ -243,15 +241,15 @@ private :
         {
             value_type const & x = _lhs.x + eps_;
             value_type const & y = _lhs.y() + eps_;
-            value_type const & xx = _rhs.x + _rhs.R;
-            return std::tie(x, y) < std::tie(xx, _rhs.y);
+            value_type const & xx = _rhs.first.x + _rhs.second;
+            return std::tie(x, y) < std::tie(xx, _rhs.first.y);
         }
 
         bool
         operator () (vertex const & _lhs, event const & _rhs) const
         {
-            value_type const & x = _lhs.x + _lhs.R + eps_;
-            value_type const & y = _lhs.y + eps_;
+            value_type const & x = _lhs.first.x + _lhs.second + eps_;
+            value_type const & y = _lhs.first.y + eps_;
             return std::tie(x, y) < std::tie(_rhs.x, _rhs.y());
         }
 
@@ -482,22 +480,22 @@ private :
         R *= (e + f + g);
         R = (e * f * g) / sqrt(std::move(R));
         // R - radius
-        auto const pvertex = vertices_.insert({x, y, R});
+        auto const pvertex = vertices_.insert({{x, y}, R});
         if (pvertex.second) {
             auto const ee = events_.emplace(pvertex.first, x + R, a);
             assert(ee.second);
             a->event_ = ee.first;
         } else {
-            vertex const & vertex_ = *pvertex.first;
+            vertex & vertex_ = *pvertex.first;
             auto pevent = events_.find(vertex_);
             assert(pevent != noe);
-            if (R + eps < vertex_.R) {
-                vertex_.R = R;
+            if (R + eps < vertex_.second) {
+                vertex_.second = R;
                 delete_event(pevent);
                 auto const ee = events_.emplace(pvertex.first, x + R, a);
                 assert(ee.second);
                 a->event_ = ee.first;
-            } else if (vertex_.R + eps < R) {
+            } else if (vertex_.second + eps < R) {
                 // nop
             } else { // equiv
                 event const & event_ = *pevent;

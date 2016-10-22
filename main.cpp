@@ -89,13 +89,11 @@ generate(std::ostream & _out, size_type const N = 10000)
                 norm = bbox * sqrt(zero_to_one_(g) / std::move(norm));
                 p.x *= norm;
                 p.y *= norm;
-                if (points_.insert(std::move(p)).second) {
-                    break;
-                }
             } else {
-                if (points_.insert({zero, zero}).second) {
-                    break;
-                }
+                p.x = p.y = zero;
+            }
+            if (points_.insert(std::move(p)).second) {
+                break;
             }
         }
     }
@@ -113,7 +111,7 @@ main()
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 2);
+    generate(in_, 10);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"
@@ -176,18 +174,19 @@ main()
                 }
                 gnuplot_ << "e\n";
             }
+#if 1
             if (!sweepline_.edges_.empty()) {
                 for (auto const & edge_ : sweepline_.edges_) {
                     auto const & l = *edge_.l;
                     auto const & r = *edge_.r;
+                    value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
+                    value_type const dy = l.x - r.x;
                     bool const beg = (edge_.b != sweepline_.vend);
                     bool const end = (edge_.e != sweepline_.vend);
                     if (beg && !end) {
-                        auto const & p = *edge_.b;
+                        auto const & p = edge_.b->first;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
                             gnuplot_ << p.x << ' ' << p.y << '\n';
-                            value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
-                            value_type const dy = l.x - r.x;
                             if (zero < dx) {
                                 if (zero < dy) {
                                     value_type yy = p.y + (vbox - p.x) * dy / dx;
@@ -234,18 +233,21 @@ main()
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
-                        auto const & b = *edge_.b;
+                        auto const & b = edge_.b->first;
                         gnuplot_ << b.x << ' ' << b.y << '\n';
-                        auto const & e = *edge_.e;
+                        auto const & e = edge_.e->first;
                         gnuplot_ << e.x << ' ' << e.y << '\n';
                         gnuplot_ << "\n";
                     } else {
-                        // TODO: need to implement
-                        assert(false);
+                        assert(!beg && !end);
+                        //value_type const x = (l.x + r.x) / value_type(2);
+                        //value_type const y = (l.y + r.y) / value_type(2);
+                        assert(false && "need to implement");
                     }
                 }
                 gnuplot_ << "e\n";
             }
+#endif
         }
     }
     return EXIT_SUCCESS;
