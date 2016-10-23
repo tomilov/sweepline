@@ -17,6 +17,9 @@
 #include <cassert>
 #include <cmath>
 
+static std::size_t numerator = 0;
+static std::size_t denominator = 0;
+
 template< typename point_iterator, typename value_type >
 struct sweepline
 {
@@ -308,6 +311,7 @@ private :
         bool
         operator () (arc const & _lhs, arc const & _rhs) const
         {
+            ++denominator;
             if ((_lhs.r == inf_) || (_rhs.l == inf_)) {
                 return false;
             }
@@ -320,6 +324,7 @@ private :
             if (_rhs.r == _lhs.l) {
                 return false;
             }
+            ++numerator;
             return intersect(left(_lhs), directrix_, eps_) + eps_ < intersect(right(_rhs), directrix_, eps_);
         }
 

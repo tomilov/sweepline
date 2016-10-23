@@ -111,7 +111,7 @@ main()
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 10);
+    generate(in_, 100);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"
@@ -250,5 +250,6 @@ main()
 #endif
         }
     }
+    std::cerr << numerator << ' ' << denominator << std::endl;
     return EXIT_SUCCESS;
 }
