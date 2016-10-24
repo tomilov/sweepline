@@ -131,11 +131,12 @@ main()
         assert(false);
     }
     assert(0 < N);
-    using points = std::vector< point >;
+    using point_type = point;
+    using points = std::vector< point_type >;
     points points_;
     points_.reserve(N);
     for (size_type n = 0; n < N; ++n) {
-        point & point_ = points_.emplace_back();
+        point_type & point_ = points_.emplace_back();
         if (!(in_ >> point_.x)) {
             assert(false);
         }
@@ -144,7 +145,7 @@ main()
         }
     }
     using point_iterator = typename points::const_iterator;
-    using sweepline_type = sweepline< point_iterator, value_type >;
+    using sweepline_type = sweepline< point_iterator, point_type, value_type >;
     sweepline_type sweepline_{eps};
     {
         using std::chrono::duration_cast;
@@ -193,11 +194,11 @@ main()
             }
             if (!sweepline_.edges_.empty()) {
                 for (auto const & edge_ : sweepline_.edges_) {
-                    auto const & l = *edge_.l;
-                    auto const & r = *edge_.r;
+                    auto const & l = *edge_.l.p;
+                    auto const & r = *edge_.r.p;
                     value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
                     value_type const dy = l.x - r.x;
-                    auto const pend = [&] (auto const & p) -> point
+                    auto const pend = [&] (auto const & p) -> point_type
                     {
                         if (eps < dx) {
                             value_type const yy = p.y + (vbox - p.x) * dy / dx;
@@ -238,8 +239,8 @@ main()
                             }
                         }
                     };
-                    bool const beg = (edge_.b != sweepline_.vend);
-                    bool const end = (edge_.e != sweepline_.vend);
+                    bool const beg = (edge_.b != sweepline_.nov);
+                    bool const end = (edge_.e != sweepline_.nov);
                     if (beg && !end) {
                         auto const & p = edge_.b->first;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
