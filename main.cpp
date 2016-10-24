@@ -27,6 +27,11 @@ struct point
 
     value_type x, y;
 
+    bool operator < (point const & _rhs) const
+    {
+        return std::tie(x, y) < std::tie(_rhs.x, _rhs.y);
+    }
+
 };
 
 struct point_less
@@ -145,7 +150,7 @@ main()
         }
     }
     using point_iterator = typename points::const_iterator;
-    using sweepline_type = sweepline< point_iterator, point_type, value_type >;
+    using sweepline_type = sweepline< point_iterator, point_type const, value_type >;
     sweepline_type sweepline_{eps};
     {
         using std::chrono::duration_cast;
@@ -194,8 +199,8 @@ main()
             }
             if (!sweepline_.edges_.empty()) {
                 for (auto const & edge_ : sweepline_.edges_) {
-                    auto const & l = *edge_.l.p;
-                    auto const & r = *edge_.r.p;
+                    auto const & l = *edge_.l;
+                    auto const & r = *edge_.r;
                     value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
                     value_type const dy = l.x - r.x;
                     auto const pend = [&] (auto const & p) -> point_type
