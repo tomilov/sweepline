@@ -10,6 +10,7 @@
 #include <random>
 #include <sstream>
 #include <vector>
+#include <chrono>
 
 #include <cassert>
 #include <cmath>
@@ -46,8 +47,8 @@ namespace
 {
 
 // bounding box
-value_type const bbox = value_type(10);
-value_type const delta = value_type(1E-3);
+value_type const bbox = value_type(100);
+value_type const delta = value_type(1E-12);
 
 value_type const eps = std::numeric_limits< value_type >::epsilon();
 value_type const zero = value_type(0);
@@ -59,7 +60,7 @@ std::ostream & gnuplot_ = std::cout;
 std::ostream & log_ = std::clog;
 
 void
-generate(std::ostream & _out, size_type const N = 10000)
+generate(std::ostream & _out, size_type const N = 100000)
 {
     using seed_type = typename std::mt19937::result_type;
 #if 0
@@ -107,11 +108,12 @@ generate(std::ostream & _out, size_type const N = 10000)
 int
 main()
 {
+    assert(!(delta < eps));
 #if 0
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 100);
+    generate(in_, 100000);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"
@@ -144,7 +146,18 @@ main()
     using point_iterator = typename points::const_iterator;
     using sweepline_type = sweepline< point_iterator, value_type >;
     sweepline_type sweepline_{eps};
-    sweepline_(std::cbegin(points_), std::cend(points_));
+    {
+        using std::chrono::duration_cast;
+        using std::chrono::microseconds;
+        using std::chrono::steady_clock;
+        steady_clock::time_point const start = steady_clock::now();
+        log_ << "begin sweepline\n";
+        sweepline_(std::cbegin(points_), std::cend(points_));
+        log_ << "sweepline time = "
+             << duration_cast< microseconds >(steady_clock::now() - start).count()
+             << "us" << std::endl;
+    }
+    log_ << numerator << ' ' << denominator << std::endl;
     {
         value_type const vbox = value_type(2) * bbox;
         {
@@ -161,9 +174,13 @@ main()
                 gnuplot_ << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
             }
             gnuplot_ << ";\n";
+            auto const pout = [&] (value_type const & x, value_type const & y)
+            {
+                gnuplot_ << x << ' ' << y << '\n';
+            };
             {
                 for (auto const & point_ : points_) {
-                    gnuplot_ << point_.x << ' ' << point_.y << '\n';
+                    pout(point_.x, point_.y);
                 }
                 gnuplot_ << "e\n";
             }
@@ -174,69 +191,68 @@ main()
                 }
                 gnuplot_ << "e\n";
             }
-#if 1
             if (!sweepline_.edges_.empty()) {
                 for (auto const & edge_ : sweepline_.edges_) {
                     auto const & l = *edge_.l;
                     auto const & r = *edge_.r;
                     value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
                     value_type const dy = l.x - r.x;
+                    auto const pend = [&] (auto const & p) -> point
+                    {
+                        if (eps < dx) {
+                            value_type const yy = p.y + (vbox - p.x) * dy / dx;
+                            if (eps < dy) {
+                                if (vbox < yy) {
+                                    value_type const xx = p.x + (vbox - p.y) * dx / dy;
+                                    return {xx, vbox};
+                                }
+                            } else if (dy < -eps) {
+                                if (yy < -vbox) {
+                                    value_type const xx = p.x - (vbox + p.y) * dx / dy;
+                                    return {xx, -vbox};
+                                }
+                            }
+                            return {vbox, yy};
+                        } else if (dx < eps) {
+                            value_type const yy = p.y - (vbox + p.x) * dy / dx;
+                            if (eps < dy) {
+                                if (vbox < yy) {
+                                    value_type const xx = p.x + (vbox - p.y) * dx / dy;
+                                    return {xx, vbox};
+                                }
+                            } else if (dy < -eps) {
+                                if (yy < -vbox) {
+                                    value_type const xx = p.x - (vbox + p.y) * dx / dy;
+                                    return {xx, -vbox};
+                                }
+                            }
+                            return {-vbox, yy};
+                        } else {
+                            if (eps < dy) {
+                                return {p.x, +vbox};
+                            } else if (dy < -eps) {
+                                return {p.x, -vbox};
+                            } else {
+                                assert(false);
+                                return {p.x, p.y};
+                            }
+                        }
+                    };
                     bool const beg = (edge_.b != sweepline_.vend);
                     bool const end = (edge_.e != sweepline_.vend);
                     if (beg && !end) {
                         auto const & p = edge_.b->first;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
-                            gnuplot_ << p.x << ' ' << p.y << '\n';
-                            if (zero < dx) {
-                                if (zero < dy) {
-                                    value_type yy = p.y + (vbox - p.x) * dy / dx;
-                                    if (vbox < yy) {
-                                        value_type xx = p.x + (vbox - p.y) * dx / dy;
-                                        gnuplot_ << xx << ' ' << vbox << '\n';
-                                    } else {
-                                        gnuplot_ << vbox << ' ' << yy << '\n';
-                                    }
-                                } else {
-                                    value_type yy = p.y + (vbox - p.x) * dy / dx;
-                                    if (yy < -vbox) {
-                                        value_type xx = p.x - (vbox + p.y) * dx / dy;
-                                        gnuplot_ << xx << ' ' << -vbox << '\n';
-                                    } else {
-                                        gnuplot_ << vbox << ' ' << yy << '\n';
-                                    }
-                                }
-                            } else if (dx < zero) {
-                                if (zero < dy) {
-                                    value_type yy = p.y - (vbox + p.x) * dy / dx;
-                                    if (vbox < yy) {
-                                        value_type xx = p.x + (vbox - p.y) * dx / dy;
-                                        gnuplot_ << xx << ' ' << vbox << '\n';
-                                    } else {
-                                        gnuplot_ << -vbox << ' ' << yy << '\n';
-                                    }
-                                } else {
-                                    value_type yy = p.y - (vbox + p.x) * dy / dx;
-                                    if (yy < -vbox) {
-                                        value_type xx = p.x - (vbox + p.y) * dx / dy;
-                                        gnuplot_ << xx << ' ' << -vbox << '\n';
-                                    } else {
-                                        gnuplot_ << -vbox << ' ' << yy << '\n';
-                                    }
-                                }
-                            } else {
-                                if (zero < dy) {
-                                    gnuplot_ << p.x << ' ' << +vbox << '\n';
-                                } else {
-                                    gnuplot_ << p.x << ' ' << -vbox << '\n';
-                                }
-                            }
+                            pout(p.x, p.y);
+                            auto const & e = pend(p);
+                            pout(e.x, e.y);
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
                         auto const & b = edge_.b->first;
-                        gnuplot_ << b.x << ' ' << b.y << '\n';
+                        pout(b.x, b.y);
                         auto const & e = edge_.e->first;
-                        gnuplot_ << e.x << ' ' << e.y << '\n';
+                        pout(e.x, e.y);
                         gnuplot_ << "\n";
                     } else {
                         assert(!beg && !end);
@@ -247,9 +263,7 @@ main()
                 }
                 gnuplot_ << "e\n";
             }
-#endif
         }
     }
-    std::cerr << numerator << ' ' << denominator << std::endl;
     return EXIT_SUCCESS;
 }
