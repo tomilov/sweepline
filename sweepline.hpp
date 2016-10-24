@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <experimental/optional>
 
 #include <cassert>
 #include <cmath>
@@ -47,6 +48,12 @@ struct sweepline
         { ; }
 
         point_iterator
+        value() const
+        {
+            return p;
+        }
+
+        point_iterator
         operator -> () const
         {
             return p;
@@ -60,7 +67,7 @@ struct sweepline
 
         bool operator < (site const & _rhs) const
         {
-            return operator * () < *_rhs;
+            return *p < *_rhs;
         }
 
     private :
@@ -121,48 +128,6 @@ private :
 
         pcell l, r;
 
-        // cached y:
-        value_type y = {};
-        std::size_t n = 0;
-
-    };
-
-    struct endpoint_less
-    {
-
-        value_type const & eps_;
-        value_type const & directrix_;
-
-        bool operator () (endpoint const & _lhs, endpoint const & _rhs) const
-        {
-            if (_lhs.r == _rhs.l) {
-                return true;
-            }
-            if (_lhs.l == _rhs.r) {
-                return false;
-            }
-            assert(false); // TODO: implement
-        }
-
-    };
-
-    using endpoints = std::set< endpoint, endpoint_less >;
-    using pendpoint = typename endpoints::iterator;
-
-    std::size_t n;
-    value_type directrix;
-    endpoint_less endpoint_less_{eps, directrix};
-    endpoints endpoints_{endpoint_less_};
-    pendpoint const noe = std::end(endpoints_);
-
-    struct endpoint_range
-    {
-
-        pendpoint b, e;
-
-        pendpoint begin() const { return b; }
-        pendpoint end()   const { return std::next(e); }
-
     };
 
     struct event_less
@@ -195,11 +160,41 @@ private :
             return std::make_pair(lhs_.x + eps_, lhs_.y + eps_) < std::make_pair(rhs_.first.x + rhs_.second, rhs_.first.y);
         }
 
+        value_type const & directrix_;
+        std::size_t const & n;
+
+        bool operator () (endpoint const & _lhs, endpoint const & _rhs) const
+        {
+            if (_lhs.r == _rhs.l) {
+                return true;
+            }
+            if (_lhs.l == _rhs.r) {
+                return false;
+            }
+            assert(false); // TODO: implement
+        }
+
+    };
+
+    using endpoints = std::map< endpoint, pvertex, event_less >;
+    using pendpoint = typename endpoints::iterator;
+
+    struct endpoint_range
+    {
+
+        pendpoint b, e;
+
+        pendpoint begin() const { return b; }
+        pendpoint end()   const { return e; }
+
     };
 
     using events = std::map< pvertex, endpoint_range, event_less >;
 
-    event_less event_less_{eps};
+    value_type directrix;
+    std::size_t n;
+    event_less event_less_{eps, directrix, n};
+    endpoints endpoints_{event_less_};
     events events_{event_less_};
 
     void
@@ -208,12 +203,11 @@ private :
 
     }
 
-    void
-    check_event(pendpoint const l, pendpoint const r)
+    std::experimental::optional< typename vertices::value_type >
+    make_vertex(point_type const & u,
+                point_type const & v,
+                point_type const & w) const
     {
-        point_type const & u = *l->l->first;
-        point_type const & v = *l->r->first;
-        point_type const & w = *r->r->first;
         value_type A = v.x - u.x;
         value_type B = v.y - u.y;
         value_type C = w.x - u.x;
@@ -222,7 +216,7 @@ private :
         if (!(eps * eps < G)) {
             // 1.) non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
-            return;
+            return {};
         }
         G += G;
         value_type E = A * (u.x + v.x) + B * (u.y + v.y);
@@ -240,41 +234,66 @@ private :
         value_type f = norm(v, w);
         value_type g = norm(w, u);
         value_type R = (e + f - g) * (e + g - f) * (f + g - e);
-        assert(eps * eps * eps < R); // are points too close to each other?
-        R *= (e + f + g);
-        R = (e * f * g) / sqrt(std::move(R));
+        assert(eps * eps * eps < R);
+        R = (e * f * g) / sqrt(std::move(R) * (e + f + g));
         // R - radius
-        auto const pv = vertices_.insert_or_assign(std::move(point_), R);
-        if (pv.second) {
-            if (!events_.insert({pv.first, {l, r}}).second) {
+        return {{std::move(point_), std::move(R)}};
+    }
+
+    void
+    replace_event(pvertex & v, pvertex V) const
+    {
+        if (v == nov) ; else if (event_less_(V, v)) {
+            // disable event (whatever it mean, I tired)
+        } else {
+            return;
+        }
+        v = std::move(V);
+    }
+
+    void
+    check_event(pendpoint const l, pendpoint const r)
+    {
+        assert(std::next(l) == r);
+        assert(l->first.r == r->first.l);
+        if (auto vertex_ = make_vertex(*l->first.l->first, *l->first.r->first, *r->first.r->first)) {
+            auto const v = vertices_.insert(std::move(*vertex_));
+            replace_event(l->second, v.first);
+            replace_event(r->second, v.first);
+            if (v.second) {
+                if (!events_.insert({v.first, {l, std::next(r)}}).second) {
+                    assert(false);
+                }
+            } else {
+                // implement
                 assert(false);
             }
         }
     }
 
     void
-    finish_cell(pvertex const & _circumcenter, endpoint_range const & _range)
+    finish_cell(pvertex const & _circumcenter, endpoint_range _range)
     {
         assert(1 < endpoints_.size()); // endpoints are removed at least by two
-        for (endpoint const & endpoint_ : _range) {
-            // finish right edge of *endpoint_.l at _circumcenter vertex
+        assert(1 < std::distance(_range.b, _range.e));
+        for (auto const & endpoint_ : _range) {
+            // finish right edge of *endpoint_.first.l at _circumcenter vertex
             (void)_circumcenter;
             (void)endpoint_;
             assert(false); // TODO: implement
         }
-        endpoint endpoint_{_range.b->l, _range.e->r};
-        pendpoint const pe = _range.end();
-        endpoints_.erase(_range.begin(), pe);
+        endpoint endpoint_{_range.b->first.l, std::prev(_range.e)->first.r};
+        endpoints_.erase(_range.b, _range.e);
         // make new edge
         // add new edge to endpoint_.r->second.push_front() and to endpoint_.l->second.push_back()
-        assert(endpoints_.find(endpoint_) == noe);
-        pendpoint const m = endpoints_.insert(pe, std::move(endpoint_));
+        assert(endpoints_.find(endpoint_) == std::end(endpoints_));
+        _range.b = endpoints_.insert(_range.e, {std::move(endpoint_), nov});
         // disable events for endpoint_
-        if (m != std::begin(endpoints_)) {
-            check_event(std::prev(m), m);
+        if (_range.b != std::begin(endpoints_)) {
+            check_event(std::prev(_range.b), _range.b);
         }
-        if (pe != noe) {
-            check_event(m, pe);
+        if (_range.e != std::end(endpoints_)) {
+            check_event(_range.b, _range.e);
         }
     }
 
