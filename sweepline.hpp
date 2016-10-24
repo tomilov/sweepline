@@ -122,8 +122,8 @@ private :
         pcell l, r;
 
         // cached y:
-        std::size_t n;
-        value_type y;
+        value_type y = {};
+        std::size_t n = 0;
 
     };
 
@@ -149,15 +149,19 @@ private :
     using endpoints = std::set< endpoint, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
+    std::size_t n;
     value_type directrix;
     endpoint_less endpoint_less_{eps, directrix};
     endpoints endpoints_{endpoint_less_};
     pendpoint const noe = std::end(endpoints_);
 
-    struct event
+    struct endpoint_range
     {
 
-        pendpoint l, r;
+        pendpoint b, e;
+
+        pendpoint begin() const { return b; }
+        pendpoint end()   const { return std::next(e); }
 
     };
 
@@ -193,7 +197,7 @@ private :
 
     };
 
-    using events = std::map< pvertex, event, event_less >;
+    using events = std::map< pvertex, endpoint_range, event_less >;
 
     event_less event_less_{eps};
     events events_{event_less_};
@@ -205,9 +209,73 @@ private :
     }
 
     void
-    finish_cell(pvertex const, event const &)
+    check_event(pendpoint const l, pendpoint const r)
     {
+        point_type const & u = *l->l->first;
+        point_type const & v = *l->r->first;
+        point_type const & w = *r->r->first;
+        value_type A = v.x - u.x;
+        value_type B = v.y - u.y;
+        value_type C = w.x - u.x;
+        value_type D = w.y - u.y;
+        value_type G = B * (w.x - v.x) - A * (w.y - v.y);
+        if (!(eps * eps < G)) {
+            // 1.) non-concave triple of points => circumcircle don't cross the sweep line
+            // 2.) G is small: collinear points => edges never cross
+            return;
+        }
+        G += G;
+        value_type E = A * (u.x + v.x) + B * (u.y + v.y);
+        value_type F = C * (u.x + w.x) + D * (u.y + w.y);
+        point_type point_{(B * F - D * E) / G, (C * E - A * F) / G};
+        // x, y - circumcenter
+        using std::sqrt;
+        auto const norm = [&] (auto const & ll, auto const & rr) -> value_type
+        {
+            value_type dx = rr.x - ll.x;
+            value_type dy = rr.y - ll.y;
+            return sqrt(dx * dx + dy * dy);
+        };
+        value_type e = norm(u, v);
+        value_type f = norm(v, w);
+        value_type g = norm(w, u);
+        value_type R = (e + f - g) * (e + g - f) * (f + g - e);
+        assert(eps * eps * eps < R); // are points too close to each other?
+        R *= (e + f + g);
+        R = (e * f * g) / sqrt(std::move(R));
+        // R - radius
+        auto const pv = vertices_.insert_or_assign(std::move(point_), R);
+        if (pv.second) {
+            if (!events_.insert({pv.first, {l, r}}).second) {
+                assert(false);
+            }
+        }
+    }
 
+    void
+    finish_cell(pvertex const & _circumcenter, endpoint_range const & _range)
+    {
+        assert(1 < endpoints_.size()); // endpoints are removed at least by two
+        for (endpoint const & endpoint_ : _range) {
+            // finish right edge of *endpoint_.l at _circumcenter vertex
+            (void)_circumcenter;
+            (void)endpoint_;
+            assert(false); // TODO: implement
+        }
+        endpoint endpoint_{_range.b->l, _range.e->r};
+        pendpoint const pe = _range.end();
+        endpoints_.erase(_range.begin(), pe);
+        // make new edge
+        // add new edge to endpoint_.r->second.push_front() and to endpoint_.l->second.push_back()
+        assert(endpoints_.find(endpoint_) == noe);
+        pendpoint const m = endpoints_.insert(pe, std::move(endpoint_));
+        // disable events for endpoint_
+        if (m != std::begin(endpoints_)) {
+            check_event(std::prev(m), m);
+        }
+        if (pe != noe) {
+            check_event(m, pe);
+        }
     }
 
 public :
