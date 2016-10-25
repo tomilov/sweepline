@@ -282,10 +282,10 @@ private :
 
     }
 
-    std::experimental::optional< typename vertices::value_type >
+    std::pair< pvertex, bool >
     make_vertex(point_type const & u,
                 point_type const & v,
-                point_type const & w) const
+                point_type const & w)
     {
         value_type A = v.x - u.x;
         value_type B = v.y - u.y;
@@ -295,7 +295,7 @@ private :
         if (!(eps * eps < G)) {
             // 1.) non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
-            return {};
+            return {nov, false};
         }
         G += G;
         value_type E = A * (u.x + v.x) + B * (u.y + v.y);
@@ -312,9 +312,10 @@ private :
         value_type f = norm(v, w);
         value_type g = norm(w, u);
         value_type V = (e + f - g) * (e + g - f) * (f + g - e);
-        assert(eps * eps * eps < V);
-        // R - radius
-        return {{{(B * F - D * E) / G, (C * E - A * F) / G}, (e * f * g) / sqrt(std::move(V) * (e + f + g))}};
+        assert(eps < V); // triangle inequality
+        return vertices_.insert({(B * F - D * E) / G,
+                                 (C * E - A * F) / G,
+                                 (e * f * g) / sqrt(std::move(V) * (e + f + g))});
     }
 
     void
@@ -322,18 +323,16 @@ private :
     {
         assert(std::next(l) == r);
         assert(l->first.r == r->first.l);
-        if (auto vertex_ = make_vertex(*l->first.l->p, *l->first.r->p, *r->first.r->p)) {
-            auto const v = vertices_.insert(std::move(*vertex_));
-            //replace_event(l->second, v.first);
-            //replace_event(r->second, v.first);
-            if (v.second) {
-                if (!events_.insert({v.first, {l, std::next(r)}}).second) {
-                    assert(false);
-                }
-            } else {
-                // implement
+        auto const v = make_vertex(*l->first.l->p, *l->first.r->p, *r->first.r->p);
+        //replace_event(l->second, v.first);
+        //replace_event(r->second, v.first);
+        if (v.second) {
+            if (!events_.insert({v.first, {l, std::next(r)}}).second) {
                 assert(false);
             }
+        } else if (v.first != nov) {
+            // implement
+            assert(false);
         }
     }
 
