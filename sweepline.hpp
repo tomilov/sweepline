@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <deque>
 #include <functional>
+#include <numeric>
 #include <iterator>
 #include <limits>
 #include <list>
-#include <numeric>
 #include <set>
 #include <map>
 #include <tuple>
@@ -14,12 +14,10 @@
 #include <utility>
 #include <vector>
 #include <experimental/optional>
+#include <stdexcept>
 
 #include <cassert>
 #include <cmath>
-
-static std::size_t numerator = 0;
-static std::size_t denominator = 0;
 
 template< typename point_iterator,
           typename point_type, // lexicagraphically comparable (x then y)
@@ -76,12 +74,19 @@ struct sweepline
 
     };
 
+    struct vertex
+    {
+
+        value_type x, y, R;
+
+    };
+
     struct vertex_less
     {
 
         value_type const & eps_;
 
-        bool operator () (point_type const & _lhs, point_type const & _rhs) const // lexicographically compare w/ tolerance
+        bool operator () (vertex const & _lhs, vertex const & _rhs) const // lexicographically compare w/ tolerance
         {
             value_type const & x = _lhs.x + eps_;
             value_type const & y = _lhs.y + eps_;
@@ -90,7 +95,7 @@ struct sweepline
 
     };
 
-    using vertices = std::map< point_type, value_type, vertex_less >; // mapping of vertices (circumcenter) to radii of circumscribed circles
+    using vertices = std::set< vertex, vertex_less >; // mapping of vertices (circumcenter) to radii of circumscribed circles
     using pvertex = typename vertices::iterator;
 
     struct edge
@@ -108,14 +113,14 @@ struct sweepline
 
     };
 
-    using edges = std::set< edge >; // or vector?
+    using edges = std::set< edge >;
     using pedge = typename edges::iterator;
 
     using cell = std::deque< pedge >; // front() - left, back() - right
     using cells = std::map< site, cell >;
     using pcell = typename cells::iterator;
 
-    vertex_less vertex_less_{eps};
+    vertex_less const vertex_less_{eps};
     vertices vertices_{vertex_less_};
     pvertex const nov = std::end(vertices_);
     edges edges_;
@@ -127,8 +132,126 @@ private :
     {
 
         pcell l, r;
+        pedge e;
 
     };
+
+    value_type directrix = std::numeric_limits< value_type >::quiet_NaN();
+
+    struct local_endpoints
+    {
+
+        endpoint const * l = nullptr;
+        endpoint const * m = nullptr;
+        endpoint const * r = nullptr;
+
+        void clear() { l = m = r = nullptr; }
+
+    };
+
+    struct endpoint_less
+    {
+
+        value_type const & eps_;
+
+        value_type const & directrix_;
+
+        value_type // ordinate
+        intersect(point_type const & u,
+                  point_type const & v,
+                  value_type _directrix) const
+        {
+            {
+                bool const degenerated_ = !(v.x + eps_ < _directrix);
+                if (!(u.x + eps_ < _directrix)) {
+                    if (degenerated_) {
+                        assert(u.y + eps_ < v.y); // u != v
+                        return (u.y + v.y) / value_type(2);
+                    } else {
+                        return u.y;
+                    }
+                } else if (degenerated_) {
+                    return v.y;
+                }
+            }
+            value_type ud = u.x - _directrix;
+            value_type vd = v.x - _directrix;
+            value_type ub = u.y / ud; // -b
+            value_type vb = v.y / vd; // -b
+            ud += ud;
+            vd += vd;
+            _directrix *= _directrix;
+            auto const calc_c = [&] (auto const & w, value_type const & wd)
+            {
+                return (w.x * w.x + w.y * w.y - _directrix) / wd;
+            };
+            value_type uc = calc_c(u, ud);
+            value_type vc = calc_c(v, vd);
+            value_type b = vb - ub; // -b
+            value_type c = vc - uc;
+            if ((u.x + eps_ < v.x) || (v.x + eps_ < u.x)) {
+                value_type a = (ud - vd) / (ud * vd);
+                a += a;
+                value_type D = b * b - (a + a) * c;
+                assert(!(D < value_type(0)));
+                using std::sqrt;
+                return (b + sqrt(std::move(D))) / a;
+            } else { // a ~= 0
+                return c / b; // -c / b
+            }
+        }
+
+        local_endpoints const & lep_;
+
+        bool operator () (endpoint const & _lhs, endpoint const & _rhs) const
+        {
+            if (&_lhs == &_rhs) {
+                return false;
+            }
+            if (lep_.m) {
+                if (lep_.m == &_lhs) {
+                    if (lep_.l == &_rhs) {
+                        return false;
+                    }
+                    if (!lep_.r) {
+                        return false;
+                    }
+                    if (lep_.r == &_rhs) {
+                        return true;
+                    }
+                } else if (lep_.m == &_rhs) {
+                    if (lep_.r == &_lhs) {
+                        return false;
+                    }
+                    if (!lep_.l) {
+                        return false;
+                    }
+                    if (lep_.l == &_rhs) {
+                        return true;
+                    }
+                }
+            }
+            if (_lhs.r == _rhs.l) {
+                return true;
+            }
+            if (_lhs.l == _rhs.r) {
+                return false;
+            }
+            return intersect(*_lhs.l, *_lhs.r, directrix_) + eps_ < intersect(*_rhs.l, *_rhs.r, directrix_);
+        }
+
+        using is_transparent = void;
+
+        //
+
+    };
+
+    using endpoints = std::map< endpoint, pvertex, endpoint_less >;
+    using pendpoint = typename endpoints::iterator;
+
+    local_endpoints lep;
+    endpoint_less const endpoint_less_{eps, directrix, lep};
+    endpoints endpoints_{endpoint_less_};
 
     struct event_less
     {
@@ -137,68 +260,24 @@ private :
 
         bool operator () (pvertex const & _lhs, pvertex const & _rhs) const
         {
-            auto const & lhs_ = *_lhs;
-            auto const & rhs_ = *_rhs;
-            return std::make_pair((lhs_.first.x + lhs_.second) + eps_, lhs_.first.y + eps_) < std::make_pair(rhs_.first.x + rhs_.second, rhs_.first.y);
-        }
-
-        using is_transparent = void;
-
-        bool operator () (pvertex const & _lhs, site const & _rhs) const
-        {
-            auto const & lhs_ = *_lhs;
-            value_type const & x = (lhs_.first.x + lhs_.second) + eps_;
-            value_type const & y = lhs_.first.y + eps_;
-            auto const & rhs_ = *_rhs;
-            return std::tie(x, y) < std::tie(rhs_.x, rhs_.y);
-        }
-
-        bool operator () (site const & _lhs, pvertex const & _rhs) const
-        {
-            auto const & lhs_ = *_lhs;
-            auto const & rhs_ = *_rhs;
-            return std::make_pair(lhs_.x + eps_, lhs_.y + eps_) < std::make_pair(rhs_.first.x + rhs_.second, rhs_.first.y);
-        }
-
-        value_type const & directrix_;
-        std::size_t const & n;
-
-        bool operator () (endpoint const & _lhs, endpoint const & _rhs) const
-        {
-            if (_lhs.r == _rhs.l) {
-                return true;
-            }
-            if (_lhs.l == _rhs.r) {
-                return false;
-            }
-            assert(false); // TODO: implement
+            vertex const & lhs_ = *_lhs;
+            value_type const & x = (lhs_.x + lhs_.R) + eps_;
+            value_type const & y = lhs_.y + eps_;
+            vertex const & rhs_ = *_rhs;
+            value_type const & xx = rhs_.x + rhs_.R;
+            return std::tie(x, y) < std::tie(xx, rhs_.y);
         }
 
     };
 
-    using endpoints = std::map< endpoint, pvertex, event_less >;
-    using pendpoint = typename endpoints::iterator;
+    using events = std::multimap< pvertex, pendpoint const, event_less >;
+    using pevent = typename events::const_iterator;
 
-    struct endpoint_range
-    {
-
-        pendpoint b, e;
-
-        pendpoint begin() const { return b; }
-        pendpoint end()   const { return e; }
-
-    };
-
-    using events = std::map< pvertex, endpoint_range, event_less >;
-
-    value_type directrix;
-    std::size_t n;
-    event_less event_less_{eps, directrix, n};
-    endpoints endpoints_{event_less_};
+    event_less const event_less_{eps};
     events events_{event_less_};
 
     void
-    begin_cell(site const &, cell const &)
+    begin_cell(site const &, cell &)
     {
 
     }
@@ -221,7 +300,6 @@ private :
         G += G;
         value_type E = A * (u.x + v.x) + B * (u.y + v.y);
         value_type F = C * (u.x + w.x) + D * (u.y + w.y);
-        point_type point_{(B * F - D * E) / G, (C * E - A * F) / G};
         // x, y - circumcenter
         using std::sqrt;
         auto const norm = [&] (auto const & ll, auto const & rr) -> value_type
@@ -233,22 +311,10 @@ private :
         value_type e = norm(u, v);
         value_type f = norm(v, w);
         value_type g = norm(w, u);
-        value_type R = (e + f - g) * (e + g - f) * (f + g - e);
-        assert(eps * eps * eps < R);
-        R = (e * f * g) / sqrt(std::move(R) * (e + f + g));
+        value_type V = (e + f - g) * (e + g - f) * (f + g - e);
+        assert(eps * eps * eps < V);
         // R - radius
-        return {{std::move(point_), std::move(R)}};
-    }
-
-    void
-    replace_event(pvertex & v, pvertex V) const
-    {
-        if (v == nov) ; else if (event_less_(V, v)) {
-            // disable event (whatever it mean, I tired)
-        } else {
-            return;
-        }
-        v = std::move(V);
+        return {{{(B * F - D * E) / G, (C * E - A * F) / G}, (e * f * g) / sqrt(std::move(V) * (e + f + g))}};
     }
 
     void
@@ -256,10 +322,10 @@ private :
     {
         assert(std::next(l) == r);
         assert(l->first.r == r->first.l);
-        if (auto vertex_ = make_vertex(*l->first.l->first, *l->first.r->first, *r->first.r->first)) {
+        if (auto vertex_ = make_vertex(*l->first.l->p, *l->first.r->p, *r->first.r->p)) {
             auto const v = vertices_.insert(std::move(*vertex_));
-            replace_event(l->second, v.first);
-            replace_event(r->second, v.first);
+            //replace_event(l->second, v.first);
+            //replace_event(r->second, v.first);
             if (v.second) {
                 if (!events_.insert({v.first, {l, std::next(r)}}).second) {
                     assert(false);
@@ -272,29 +338,22 @@ private :
     }
 
     void
-    finish_cell(pvertex const & _circumcenter, endpoint_range _range)
+    finish_edges(pevent const l, pevent const r)
     {
-        assert(1 < endpoints_.size()); // endpoints are removed at least by two
-        assert(1 < std::distance(_range.b, _range.e));
-        for (auto const & endpoint_ : _range) {
-            // finish right edge of *endpoint_.first.l at _circumcenter vertex
-            (void)_circumcenter;
-            (void)endpoint_;
-            assert(false); // TODO: implement
+        for (pevent e = std::next(l); e != r; ++e) {
+            auto const & event_ = *e;
+            // finish edge at event_.first
+            endpoints_.erase(event_.second);
         }
-        endpoint endpoint_{_range.b->first.l, std::prev(_range.e)->first.r};
-        endpoints_.erase(_range.b, _range.e);
-        // make new edge
-        // add new edge to endpoint_.r->second.push_front() and to endpoint_.l->second.push_back()
-        assert(endpoints_.find(endpoint_) == std::end(endpoints_));
-        _range.b = endpoints_.insert(_range.e, {std::move(endpoint_), nov});
-        // disable events for endpoint_
-        if (_range.b != std::begin(endpoints_)) {
-            check_event(std::prev(_range.b), _range.b);
-        }
-        if (_range.e != std::end(endpoints_)) {
-            check_event(_range.b, _range.e);
-        }
+        events_.erase(l, r);
+    }
+
+    bool
+    event_less_then_site(vertex const & _lhs, point_type const & _rhs) const
+    {
+        value_type const & x = (_lhs.x + _lhs.R) + eps;
+        value_type const & y = _lhs.y + eps;
+        return std::tie(x, y) < std::tie(_rhs.x, _rhs.y);
     }
 
 public :
@@ -312,21 +371,19 @@ public :
         } while (++beg != end);
         for (auto & cell_ : cells_) {
             while (!events_.empty()) {
-                auto const e = std::cbegin(events_);
+                pevent const e = std::cbegin(events_);
                 auto const & event_ = *e;
-                if (!event_less_(event_.first, cell_.first)) {
+                if (!event_less_then_site(*event_.first, *cell_.first)) {
                     break;
                 }
-                finish_cell(event_.first, event_.second);
-                events_.erase(e);
+                finish_edges(e, events_.upper_bound(event_.first));
             }
             begin_cell(cell_.first, cell_.second);
         }
         while (!events_.empty()) {
-            auto const e = std::cbegin(events_);
+            pevent const e = std::cbegin(events_);
             auto const & event_ = *e;
-            finish_cell(event_.first, event_.second);
-            events_.erase(e);
+            finish_edges(e, events_.upper_bound(event_.first));
         }
         return true;
     }

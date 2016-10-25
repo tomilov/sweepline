@@ -163,7 +163,6 @@ main()
              << duration_cast< microseconds >(steady_clock::now() - start).count()
              << "us" << std::endl;
     }
-    log_ << numerator << ' ' << denominator << std::endl;
     {
         value_type const vbox = value_type(2) * bbox;
         {
@@ -247,7 +246,7 @@ main()
                     bool const beg = (edge_.b != sweepline_.nov);
                     bool const end = (edge_.e != sweepline_.nov);
                     if (beg && !end) {
-                        auto const & p = edge_.b->first;
+                        auto const & p = *edge_.b;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
                             pout(p.x, p.y);
                             auto const & e = pend(p);
@@ -255,9 +254,9 @@ main()
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
-                        auto const & b = edge_.b->first;
+                        auto const & b = *edge_.b;
                         pout(b.x, b.y);
-                        auto const & e = edge_.e->first;
+                        auto const & e = *edge_.e;
                         pout(e.x, e.y);
                         gnuplot_ << "\n";
                     } else {
