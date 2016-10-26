@@ -202,32 +202,34 @@ main()
                     auto const & r = *edge_.r;
                     value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
                     value_type const dy = l.x - r.x;
-                    auto const pend = [&] (auto const & p) -> point_type
+                    auto const pend = [&] (point_type const & p) -> point_type
                     {
+                        auto const xx = [&] (value_type const & x) { return p.x + (x - p.y) * dx / dy; };
+                        auto const yy = [&] (value_type const & y) { return p.y + (y - p.x) * dy / dx; };
                         if (eps < dx) {
-                            value_type const yy = p.y + (vbox - p.x) * dy / dx;
+                            value_type const y = yy(vbox);
                             if (eps < dy) {
-                                if (vbox < yy) {
-                                    return {p.x + (vbox - p.y) * dx / dy, vbox};
+                                if (vbox < y) {
+                                    return {xx(vbox), vbox};
                                 }
                             } else if (dy < -eps) {
-                                if (yy < -vbox) {
-                                    return {p.x - (vbox + p.y) * dx / dy, -vbox};
+                                if (y < -vbox) {
+                                    return {xx(-vbox), -vbox};
                                 }
                             }
-                            return {vbox, yy};
+                            return {vbox, y};
                         } else if (dx < eps) {
-                            value_type const yy = p.y - (vbox + p.x) * dy / dx;
+                            value_type const y = yy(-vbox);
                             if (eps < dy) {
-                                if (vbox < yy) {
-                                    return {p.x + (vbox - p.y) * dx / dy, vbox};
+                                if (vbox < y) {
+                                    return {xx(vbox), vbox};
                                 }
                             } else if (dy < -eps) {
-                                if (yy < -vbox) {
-                                    return {p.x - (vbox + p.y) * dx / dy, -vbox};
+                                if (y < -vbox) {
+                                    return {xx(-vbox), -vbox};
                                 }
                             }
-                            return {-vbox, yy};
+                            return {-vbox, y};
                         } else {
                             if (eps < dy) {
                                 return {p.x, +vbox};

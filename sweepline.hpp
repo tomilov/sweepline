@@ -25,7 +25,7 @@ template< typename point_iterator,
 struct sweepline
 {
 
-    static_assert(std::is_same_v< decltype(std::declval< point_type >().x), decltype(std::declval< point_type >().y) >, "point_type should have x and y data members of the same type");
+    static_assert(std::is_same< decltype(std::declval< point_type >().x), decltype(std::declval< point_type >().y) >::value, "point_type should have x and y data members of the same type");
 
     using size_type = std::size_t;
 
@@ -177,7 +177,7 @@ private :
             ud += ud;
             vd += vd;
             _directrix *= _directrix;
-            auto const calc_c = [&] (auto const & w, value_type const & wd)
+            auto const calc_c = [&] (point_type const & w, value_type const & wd)
             {
                 return (w.x * w.x + w.y * w.y - _directrix) / wd;
             };
@@ -251,13 +251,14 @@ private :
         value_type const & eps_;
 
         bool operator () (pvertex const & _lhs, pvertex const & _rhs) const
-        {
+        { // uncomment if not all the events in equal range are for equally the same vertex
             vertex const & lhs_ = *_lhs;
             value_type const & x = lhs_.x() + eps_;
             value_type const & y = lhs_.y() + eps_;
+            //value_type const & px = lhs_.p.x + eps_;
             vertex const & rhs_ = *_rhs;
-            value_type const & xx = rhs_.x();
-            return std::tie(x, y) < std::tie(xx, rhs_.y());
+            value_type const & vx = rhs_.x();
+            return std::tie(x, y/*, px*/) < std::tie(vx, rhs_.y()/*, rhs_.p.x*/);
         }
 
     };
@@ -269,7 +270,7 @@ private :
     events events_{event_less_};
 
     void
-    begin_cell(site const &, cell &)
+    begin_cell(point_iterator const)
     {
 
     }
@@ -294,10 +295,10 @@ private :
         value_type F = C * (u.x + w.x) + D * (u.y + w.y);
         // x, y - circumcenter
         using std::sqrt;
-        auto const norm = [&] (auto const & ll, auto const & rr) -> value_type
+        auto const norm = [&] (point_type const & l, point_type const & r) -> value_type
         {
-            value_type dx = rr.x - ll.x;
-            value_type dy = rr.y - ll.y;
+            value_type dx = r.x - l.x;
+            value_type dy = r.y - l.y;
             return sqrt(dx * dx + dy * dy);
         };
         value_type e = norm(u, v);
@@ -321,7 +322,7 @@ private :
                                       *b.first.r->first).first;
         if (v != nov) {
             a.second = v; // disable corresponding event if a.second != nov
-            b.second = v; // disable corresponding event
+            b.second = v; // disable corresponding event if b.second != nov
             events_.insert({v, l});
             events_.insert({v, r});
         }
@@ -334,8 +335,8 @@ private :
         assert(_edge.e != v);
         if (_edge.b == nov) {
             _edge.b = v;
-            auto const & l = *_edge.l;
-            auto const & r = *_edge.r;
+            point_type const & l = *_edge.l;
+            point_type const & r = *_edge.r;
             point_type const & p = v->p;
             if (r.x < l.x) {
                 if (p.y < l.y) {
@@ -359,29 +360,9 @@ private :
     }
 
     void
-    collapse(pendpoint l, pendpoint r, pvertex const v)
-    {
-        pcell const lcell = l->first.l;
-        pcell const rcell = r->first.r;
-        ++r;
-        for (pendpoint ep = l; ep != r; ++ep) {
-            finish_edge(*ep->first.e, v);
-        }
-        endpoints_.erase(l, r);
-        l = endpoints_.insert(r, {{lcell, rcell, edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov})}, nov});
-        if (l != std::begin(endpoints_)) {
-            check_event(std::prev(l), l);
-        }
-        if (r != std::end(endpoints_)) {
-            check_event(l, r);
-        }
-    }
-
-    void
     finish_edges(pevent const l, pevent const r, pvertex const v)
     {
-        assert(l != r);
-        assert(std::next(l) != r);
+        assert(1 < std::distance(l, r));
         auto const pendpoint_less_ = [&] (auto const & _lhs, auto const & _rhs)
         {
             assert(_lhs.first == v);
@@ -392,8 +373,26 @@ private :
         };
         auto const lr = std::minmax_element(l, r, pendpoint_less_);
         assert(lr.first != lr.second);
+        pendpoint ll = lr.first->second;
+        pendpoint rr = lr.second->second;
         events_.erase(l, r);
-        collapse(lr.first->second, lr.second->second, v);
+        pcell const lcell = ll->first.l;
+        pcell const rcell = rr->first.r;
+        ++rr;
+        for (pendpoint ep = ll; ep != rr; ++ep) {
+            finish_edge(*ep->first.e, v);
+        }
+        endpoints_.erase(ll, rr);
+        pedge const e = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov});
+        ll = endpoints_.insert(rr, {{lcell, rcell, e}, nov});
+        lcell->second.push_back(e);
+        rcell->second.push_front(e);
+        if (ll != std::begin(endpoints_)) {
+            check_event(std::prev(ll), ll);
+        }
+        if (rr != std::end(endpoints_)) {
+            check_event(ll, rr);
+        }
     }
 
     bool
@@ -406,34 +405,25 @@ private :
 
 public :
 
-    bool
-    operator () (point_iterator beg, point_iterator const end)
+    void
+    operator () (point_iterator const beg, point_iterator const end)
     {
-        if (beg == end) {
-            return true;
-        }
-        do {
-            if (!cells_.insert({beg, {}}).second) {
-                return false;
-            }
-        } while (++beg != end);
-        for (auto & cell_ : cells_) {
+        for (auto p = beg; p != end; ++p) {
             while (!events_.empty()) {
                 pevent const e = std::cbegin(events_);
                 pvertex const v = e->first;
-                if (!prior(*v, *cell_.first)) {
+                if (!prior(*v, *p)) {
                     break;
                 }
                 finish_edges(e, events_.upper_bound(v), v);
             }
-            begin_cell(cell_.first, cell_.second);
+            begin_cell(p);
         }
         while (!events_.empty()) {
             pevent const e = std::cbegin(events_);
             pvertex const v = e->first;
             finish_edges(e, events_.upper_bound(v), v);
         }
-        return true;
     }
 
 };
