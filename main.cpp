@@ -179,13 +179,13 @@ main()
                 gnuplot_ << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
             }
             gnuplot_ << ";\n";
-            auto const pout = [&] (value_type const & x, value_type const & y)
+            auto const pout = [&] (auto const & p)
             {
-                gnuplot_ << x << ' ' << y << '\n';
+                gnuplot_ << p.x << ' ' << p.y << '\n';
             };
             {
                 for (auto const & point_ : points_) {
-                    pout(point_.x, point_.y);
+                    pout(point_);
                 }
                 gnuplot_ << "e\n";
             }
@@ -202,44 +202,40 @@ main()
                     auto const & r = *edge_.r;
                     value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
                     value_type const dy = l.x - r.x;
-                    auto const pend = [&] (value_type const & x, value_type const & y) -> point_type
+                    auto const pend = [&] (auto const & p) -> point_type
                     {
                         if (eps < dx) {
-                            value_type const yy = y + (vbox - x) * dy / dx;
+                            value_type const yy = p.y + (vbox - p.x) * dy / dx;
                             if (eps < dy) {
                                 if (vbox < yy) {
-                                    value_type const xx = x + (vbox - y) * dx / dy;
-                                    return {xx, vbox};
+                                    return {p.x + (vbox - p.y) * dx / dy, vbox};
                                 }
                             } else if (dy < -eps) {
                                 if (yy < -vbox) {
-                                    value_type const xx = x - (vbox + y) * dx / dy;
-                                    return {xx, -vbox};
+                                    return {p.x - (vbox + p.y) * dx / dy, -vbox};
                                 }
                             }
                             return {vbox, yy};
                         } else if (dx < eps) {
-                            value_type const yy = y - (vbox + x) * dy / dx;
+                            value_type const yy = p.y - (vbox + p.x) * dy / dx;
                             if (eps < dy) {
                                 if (vbox < yy) {
-                                    value_type const xx = x + (vbox - y) * dx / dy;
-                                    return {xx, vbox};
+                                    return {p.x + (vbox - p.y) * dx / dy, vbox};
                                 }
                             } else if (dy < -eps) {
                                 if (yy < -vbox) {
-                                    value_type const xx = x - (vbox + y) * dx / dy;
-                                    return {xx, -vbox};
+                                    return {p.x - (vbox + p.y) * dx / dy, -vbox};
                                 }
                             }
                             return {-vbox, yy};
                         } else {
                             if (eps < dy) {
-                                return {x, +vbox};
+                                return {p.x, +vbox};
                             } else if (dy < -eps) {
-                                return {x, -vbox};
+                                return {p.x, -vbox};
                             } else {
                                 assert(false);
-                                return {x, y};
+                                return {p.x, p.y};
                             }
                         }
                     };
@@ -248,16 +244,13 @@ main()
                     if (beg && !end) {
                         auto const & p = edge_.b->p;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
-                            pout(p.x, p.y);
-                            auto const & e = pend(p.x, p.y);
-                            pout(e.x, e.y);
+                            pout(p);
+                            pout(pend(p));
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
-                        auto const & b = edge_.b->p;
-                        pout(b.x, b.y);
-                        auto const & e = edge_.e->p;
-                        pout(e.x, e.y);
+                        pout(edge_.b->p);
+                        pout(edge_.e->p);
                         gnuplot_ << "\n";
                     } else {
                         assert(!beg && !end);
