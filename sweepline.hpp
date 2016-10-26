@@ -38,9 +38,14 @@ struct sweepline
         : eps(_eps)
     { ; }
 
-    struct site
+    class site
     {
 
+        point_iterator p;
+
+    public :
+
+        explicit
         site(point_iterator _p)
             : p(std::move(_p))
         { ; }
@@ -66,10 +71,6 @@ struct sweepline
         {
             return *p < *_rhs;
         }
-
-    private :
-
-        point_iterator p;
 
     };
 
@@ -271,11 +272,12 @@ private :
 
     void
     begin_cell(point_iterator const)
+
     {
 
     }
 
-    std::pair< pvertex, bool >
+    pvertex
     make_vertex(point_type const & u,
                 point_type const & v,
                 point_type const & w)
@@ -288,7 +290,7 @@ private :
         if (!(eps * eps < G)) {
             // 1.) non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
-            return {nov, false};
+            return nov;
         }
         G += G;
         value_type E = A * (u.x + v.x) + B * (u.y + v.y);
@@ -307,24 +309,64 @@ private :
         value_type V = (e + f - g) * (e + g - f) * (f + g - e);
         assert(eps < V); // triangle inequality
         return vertices_.insert({{(B * F - D * E) / G, (C * E - A * F) / G},
-                                 (e * f * g) / sqrt(std::move(V) * (e + f + g))});
+                                 (e * f * g) / sqrt(std::move(V) * (e + f + g))}).first;
+    }
+
+    void
+    disable_event(pvertex const v)
+    {
+        auto const ee = events_.equal_range(v);
+        for (auto e = ee.first; e != ee.second; ++e) {
+            assert(e->second->second == v);
+            e->second->second = nov;
+        }
+        events_.erase(ee.first, ee.second);
+        vertices_.erase(v);
+    }
+
+    bool
+    replace_event(pvertex & l, pvertex & r, pvertex const v)
+    {
+        if (l == r) {
+            if (l != nov) {
+                if (!event_less_(v, l)) {
+                    return false;
+                }
+                disable_event(l);
+            }
+        } else {
+            assert((l == nov) != (r == nov));
+            if (l == nov) {
+                if (!event_less_(v, r)) {
+                    return false;
+                }
+                disable_event(r);
+            } else {
+                if (!event_less_(v, l)) {
+                    return false;
+                }
+                disable_event(l);
+            }
+        }
+        l = r = v;
+        return true;
     }
 
     void
     check_event(pendpoint const l, pendpoint const r)
     {
         assert(std::next(l) == r);
-        auto & a = *l;
-        auto & b = *r;
-        assert(a.first.r == b.first.l);
-        pvertex const v = make_vertex(*a.first.l->first,
-                                      *a.first.r->first,
-                                      *b.first.r->first).first;
+        auto & ll = *l;
+        auto & rr = *r;
+        assert(ll.first.r == rr.first.l);
+        pvertex const v = make_vertex(*ll.first.l->first, *ll.first.r->first, *rr.first.r->first);
         if (v != nov) {
-            a.second = v; // disable corresponding event if a.second != nov
-            b.second = v; // disable corresponding event if b.second != nov
-            events_.insert({v, l});
-            events_.insert({v, r});
+            if (replace_event(ll.second, rr.second, v)) {
+                events_.insert({v, l});
+                events_.insert({v, r});
+            } else {
+                vertices_.erase(v);
+            }
         }
     }
 
@@ -347,9 +389,7 @@ private :
                     return;
                 }
             } else {
-                if (r.y < l.y) {
-                    return; // unrecheable
-                }
+                assert(!(r.y < l.y));
             }
             std::swap(_edge.l, _edge.r);
         } else {
