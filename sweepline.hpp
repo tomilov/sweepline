@@ -45,7 +45,6 @@ struct sweepline
 
     public :
 
-        explicit
         site(point_iterator _p)
             : p(std::move(_p))
         { ; }
@@ -113,8 +112,7 @@ struct sweepline
     using edges = std::list< edge >;
     using pedge = typename edges::iterator;
 
-    using cell = std::deque< pedge >; // front() - left, back() - right
-    using cells = std::map< site, cell >;
+    using cells = std::map< site, std::deque< pedge > >;
     using pcell = typename cells::iterator;
 
     vertex_less const vertex_less_{eps};
@@ -271,10 +269,11 @@ private :
     events events_{event_less_};
 
     void
-    begin_cell(point_iterator const)
-
+    begin_cell(point_iterator const p)
     {
-
+        assert(cells_.find(p) == cells_.end());
+        pcell const c = cells_.insert({p, {}}).first;
+        (void)c; // TODO: implement
     }
 
     pvertex
@@ -361,7 +360,7 @@ private :
     finish_edge(edge & _edge, pvertex const v) const
     {
         assert(v != nov);
-        assert(_edge.e != v);
+        assert(_edge.e == nov);
         if (_edge.b == nov) {
             _edge.b = v;
             // adjust orinetation if needed:
@@ -382,7 +381,6 @@ private :
             std::swap(_edge.l, _edge.r);
         } else {
             assert(_edge.b != v);
-            assert(_edge.e == nov);
             _edge.e = v;
         }
     }
