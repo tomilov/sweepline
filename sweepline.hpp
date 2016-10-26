@@ -264,7 +264,7 @@ private :
 
     };
 
-    using events = std::multimap< pvertex, pendpoint const, event_less >;
+    using events = std::map< pvertex, std::deque< pendpoint const >, event_less >;
     using pevent = typename events::const_iterator;
 
     event_less const event_less_{eps};
@@ -313,43 +313,15 @@ private :
     }
 
     void
-    disable_event(pvertex const v)
+    delete_event(pvertex const v)
     {
-        auto const ee = events_.equal_range(v);
-        for (auto e = ee.first; e != ee.second; ++e) {
-            assert(e->second->second == v);
-            e->second->second = nov;
+        auto const e = events_.find(v);
+        for (pendpoint const & ep : e->second) {
+            assert(ep->second == v);
+            ep->second = nov;
         }
-        events_.erase(ee.first, ee.second);
         vertices_.erase(v);
-    }
-
-    bool
-    replace_event(pvertex & l, pvertex & r, pvertex const v)
-    {
-        if (l == r) {
-            if (l != nov) {
-                if (!event_less_(v, l)) {
-                    return false;
-                }
-                disable_event(l);
-            }
-        } else {
-            assert((l == nov) != (r == nov));
-            if (l == nov) {
-                if (!event_less_(v, r)) {
-                    return false;
-                }
-                disable_event(r);
-            } else {
-                if (!event_less_(v, l)) {
-                    return false;
-                }
-                disable_event(l);
-            }
-        }
-        l = r = v;
-        return true;
+        events_.erase(e);
     }
 
     void
@@ -358,15 +330,30 @@ private :
         assert(std::next(l) == r);
         auto & ll = *l;
         auto & rr = *r;
-        assert(ll.first.r == rr.first.l);
+        assert(ll.first.r == rr.first.l); // small redundancy (x2 memory to point cells from beach line) - necessary evil
         pvertex const v = make_vertex(*ll.first.l->first, *ll.first.r->first, *rr.first.r->first);
         if (v != nov) {
-            if (replace_event(ll.second, rr.second, v)) {
-                events_.insert({v, l});
-                events_.insert({v, r});
-            } else {
-                vertices_.erase(v);
+            if (ll.second != nov) {
+                assert(rr.second == nov);
+                if (event_less_(v, ll.second)) {
+                    delete_event(ll.second);
+                } else {
+                    vertices_.erase(v);
+                    return;
+                }
+            } else if (rr.second != nov) {
+                assert(ll.second == nov);
+                if (event_less_(v, rr.second)) {
+                    delete_event(rr.second);
+                } else {
+                    vertices_.erase(v);
+                    return;
+                }
             }
+            ll.second = rr.second = v;
+            auto & e = events_[v]; // create new or append to existent event
+            e.push_back(l);
+            e.push_back(r);
         }
     }
 
@@ -377,6 +364,7 @@ private :
         assert(_edge.e != v);
         if (_edge.b == nov) {
             _edge.b = v;
+            // adjust orinetation if needed:
             point_type const & l = *_edge.l;
             point_type const & r = *_edge.r;
             point_type const & p = v->p;
@@ -400,22 +388,21 @@ private :
     }
 
     void
-    finish_edges(pevent const l, pevent const r, pvertex const v)
+    finish_edges(pevent const e, pvertex const v)
     {
-        assert(1 < std::distance(l, r));
-        auto const pendpoint_less_ = [&] (auto const & _lhs, auto const & _rhs)
+        auto const & ee = e->second;
+        assert(1 < ee.size());
+        auto const pendpoint_less_ = [&] (pendpoint const & l, pendpoint const & r)
         {
-            assert(_lhs.first == v);
-            assert(_rhs.first == v);
-            assert(_lhs.second->second == v);
-            assert(_rhs.second->second == v);
-            return endpoint_less_(_lhs.second->first, _rhs.second->first);
+            assert(l->second == v);
+            assert(r->second == v);
+            return endpoint_less_(l->first, r->first);
         };
-        auto const lr = std::minmax_element(l, r, pendpoint_less_);
+        auto const lr = std::minmax_element(std::cbegin(ee), std::cend(ee), pendpoint_less_);
         assert(lr.first != lr.second);
-        pendpoint ll = lr.first->second;
-        pendpoint rr = lr.second->second;
-        events_.erase(l, r);
+        pendpoint ll = *lr.first;
+        pendpoint rr = *lr.second;
+        events_.erase(e);
         pcell const lcell = ll->first.l;
         pcell const rcell = rr->first.r;
         ++rr;
@@ -423,10 +410,10 @@ private :
             finish_edge(*ep->first.e, v);
         }
         endpoints_.erase(ll, rr);
-        pedge const e = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov});
-        ll = endpoints_.insert(rr, {{lcell, rcell, e}, nov});
-        lcell->second.push_back(e);
-        rcell->second.push_front(e);
+        pedge const edge_ = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov});
+        ll = endpoints_.insert(rr, {{lcell, rcell, edge_}, nov});
+        lcell->second.push_back(edge_);
+        rcell->second.push_front(edge_);
         if (ll != std::begin(endpoints_)) {
             check_event(std::prev(ll), ll);
         }
@@ -455,14 +442,13 @@ public :
                 if (!prior(*v, *p)) {
                     break;
                 }
-                finish_edges(e, events_.upper_bound(v), v);
+                finish_edges(e, v);
             }
             begin_cell(p);
         }
         while (!events_.empty()) {
             pevent const e = std::cbegin(events_);
-            pvertex const v = e->first;
-            finish_edges(e, events_.upper_bound(v), v);
+            finish_edges(e, e->first);
         }
     }
 
