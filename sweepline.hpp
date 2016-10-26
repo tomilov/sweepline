@@ -45,8 +45,7 @@ struct sweepline
             : p(std::move(_p))
         { ; }
 
-        point_iterator
-        value() const
+        operator point_iterator () const
         {
             return p;
         }
@@ -74,15 +73,14 @@ struct sweepline
 
     };
 
-    struct vertex
+    struct vertex // denote circumscribed circle
     {
 
-        value_type x, y, R;
+        point_type p; // circumcenter
+        value_type R; // radius
 
-        bool operator < (vertex const & _rhs) const
-        {
-            return std::tie(x, y) < std::tie(_rhs.x, _rhs.y);
-        }
+        value_type x() const { return p.x + R; }
+        value_type const & y() const { return p.y; }
 
     };
 
@@ -93,28 +91,21 @@ struct sweepline
 
         bool operator () (vertex const & _lhs, vertex const & _rhs) const // lexicographically compare w/ tolerance
         {
-            value_type const & x = _lhs.x + eps_;
-            value_type const & y = _lhs.y + eps_;
-            return std::tie(x, y) < std::tie(_rhs.x, _rhs.y);
+            value_type const & x = _lhs.p.x + eps_;
+            value_type const & y = _lhs.p.y + eps_;
+            return std::tie(x, y) < std::tie(_rhs.p.x, _rhs.p.y);
         }
 
     };
 
-    using vertices = std::set< vertex, vertex_less >; // mapping of vertices (circumcenter) to radii of circumscribed circles
+    using vertices = std::set< vertex, vertex_less >;
     using pvertex = typename vertices::iterator;
 
-    struct edge
+    struct edge // ((b, e), (l, r)) is ccw
     {
 
         site l, r;
         pvertex b, e;
-
-        bool operator < (edge const & _rhs) const
-        {
-            assert(l < r);
-            assert(_rhs.l < _rhs.r);
-            return std::tie(l, r) < std::tie(_rhs.l, _rhs.r);
-        }
 
     };
 
@@ -245,8 +236,6 @@ private :
             return intersect(*_lhs.l->first, *_lhs.r->first, directrix_) + eps_ < intersect(*_rhs.l->first, *_rhs.r->first, directrix_);
         }
 
-        using is_transparent = void;
-
     };
 
     using endpoints = std::map< endpoint, pvertex, endpoint_less >;
@@ -264,11 +253,11 @@ private :
         bool operator () (pvertex const & _lhs, pvertex const & _rhs) const
         {
             vertex const & lhs_ = *_lhs;
-            value_type const & x = (lhs_.x + lhs_.R) + eps_;
-            value_type const & y = lhs_.y + eps_;
+            value_type const & x = lhs_.x() + eps_;
+            value_type const & y = lhs_.y() + eps_;
             vertex const & rhs_ = *_rhs;
-            value_type const & xx = rhs_.x + rhs_.R;
-            return std::tie(x, y) < std::tie(xx, rhs_.y);
+            value_type const & xx = rhs_.x();
+            return std::tie(x, y) < std::tie(xx, rhs_.y());
         }
 
     };
@@ -316,8 +305,7 @@ private :
         value_type g = norm(w, u);
         value_type V = (e + f - g) * (e + g - f) * (f + g - e);
         assert(eps < V); // triangle inequality
-        return vertices_.insert({(B * F - D * E) / G,
-                                 (C * E - A * F) / G,
+        return vertices_.insert({{(B * F - D * E) / G, (C * E - A * F) / G},
                                  (e * f * g) / sqrt(std::move(V) * (e + f + g))});
     }
 
@@ -332,14 +320,10 @@ private :
                                       *a.first.r->first,
                                       *b.first.r->first).first;
         if (v != nov) {
-            a.second = v; // disable corresponding event
+            a.second = v; // disable corresponding event if a.second != nov
             b.second = v; // disable corresponding event
-            if (!events_.insert({v, l}).second) {
-                assert(false);
-            }
-            if (!events_.insert({v, r}).second) {
-                assert(false);
-            }
+            events_.insert({v, l});
+            events_.insert({v, r});
         }
     }
 
@@ -352,13 +336,13 @@ private :
             _edge.b = v;
             auto const & l = *_edge.l;
             auto const & r = *_edge.r;
-            vertex const & vertex_ = *v;
+            point_type const & p = v->p;
             if (r.x < l.x) {
-                if (vertex_.y < l.y) {
+                if (p.y < l.y) {
                     return;
                 }
             } else if (l.x < r.x) {
-                if (r.y < vertex_.y) {
+                if (r.y < p.y) {
                     return;
                 }
             } else {
@@ -371,10 +355,25 @@ private :
             assert(_edge.b != v);
             assert(_edge.e == nov);
             _edge.e = v;
-            if (*_edge.e < *_edge.b) {
-                std::swap(_edge.b, _edge.e);
-                std::swap(_edge.l, _edge.r);
-            }
+        }
+    }
+
+    void
+    collapse(pendpoint l, pendpoint r, pvertex const v)
+    {
+        pcell const lcell = l->first.l;
+        pcell const rcell = r->first.r;
+        ++r;
+        for (pendpoint ep = l; ep != r; ++ep) {
+            finish_edge(*ep->first.e, v);
+        }
+        endpoints_.erase(l, r);
+        l = endpoints_.insert(r, {{lcell, rcell, edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov})}, nov});
+        if (l != std::begin(endpoints_)) {
+            check_event(std::prev(l), l);
+        }
+        if (r != std::end(endpoints_)) {
+            check_event(l, r);
         }
     }
 
@@ -383,37 +382,25 @@ private :
     {
         assert(l != r);
         assert(std::next(l) != r);
-        std::deque< pendpoint const > finished_;
-        for (pevent e = l; e != r; ++e) {
-            assert(e->first == v);
-            assert(e->second->second == v);
-            finished_.push_back(e->second);
-        }
-        assert(!finished_.empty());
-        events_.erase(l, r);
-        // create edge, check events
-        for (pendpoint const & pe : finished_) {
-            endpoint const & endpoint_ = pe->first;
-            finish_edge(*endpoint_.e, v);
-        }
-        auto const pendpoint_less_ = [&] (pendpoint const _lhs, pendpoint const _rhs)
+        auto const pendpoint_less_ = [&] (auto const & _lhs, auto const & _rhs)
         {
-            assert(_lhs->second == v);
-            assert(_rhs->second == v);
-            return endpoint_less_(_lhs->first, _rhs->first);
+            assert(_lhs.first == v);
+            assert(_rhs.first == v);
+            assert(_lhs.second->second == v);
+            assert(_rhs.second->second == v);
+            return endpoint_less_(_lhs.second->first, _rhs.second->first);
         };
-        auto const lr = std::minmax_element(std::cbegin(finished_), std::cend(finished_), pendpoint_less_);
+        auto const lr = std::minmax_element(l, r, pendpoint_less_);
         assert(lr.first != lr.second);
-        pendpoint const next = std::next(*lr.second);
-        endpoints_.erase(*lr.first, next);
-        // create endpoint
+        events_.erase(l, r);
+        collapse(lr.first->second, lr.second->second, v);
     }
 
     bool
     prior(vertex const & _lhs, point_type const & _rhs) const
     {
-        value_type const & x = (_lhs.x + _lhs.R) + eps;
-        value_type const & y = _lhs.y + eps;
+        value_type const & x = _lhs.x() + eps;
+        value_type const & y = _lhs.y() + eps;
         return std::tie(x, y) < std::tie(_rhs.x, _rhs.y);
     }
 
@@ -446,7 +433,6 @@ public :
             pvertex const v = e->first;
             finish_edges(e, events_.upper_bound(v), v);
         }
-        edges_.sort();
         return true;
     }
 

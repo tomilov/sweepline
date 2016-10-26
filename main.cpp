@@ -202,61 +202,61 @@ main()
                     auto const & r = *edge_.r;
                     value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
                     value_type const dy = l.x - r.x;
-                    auto const pend = [&] (auto const & p) -> point_type
+                    auto const pend = [&] (value_type const & x, value_type const & y) -> point_type
                     {
                         if (eps < dx) {
-                            value_type const yy = p.y + (vbox - p.x) * dy / dx;
+                            value_type const yy = y + (vbox - x) * dy / dx;
                             if (eps < dy) {
                                 if (vbox < yy) {
-                                    value_type const xx = p.x + (vbox - p.y) * dx / dy;
+                                    value_type const xx = x + (vbox - y) * dx / dy;
                                     return {xx, vbox};
                                 }
                             } else if (dy < -eps) {
                                 if (yy < -vbox) {
-                                    value_type const xx = p.x - (vbox + p.y) * dx / dy;
+                                    value_type const xx = x - (vbox + y) * dx / dy;
                                     return {xx, -vbox};
                                 }
                             }
                             return {vbox, yy};
                         } else if (dx < eps) {
-                            value_type const yy = p.y - (vbox + p.x) * dy / dx;
+                            value_type const yy = y - (vbox + x) * dy / dx;
                             if (eps < dy) {
                                 if (vbox < yy) {
-                                    value_type const xx = p.x + (vbox - p.y) * dx / dy;
+                                    value_type const xx = x + (vbox - y) * dx / dy;
                                     return {xx, vbox};
                                 }
                             } else if (dy < -eps) {
                                 if (yy < -vbox) {
-                                    value_type const xx = p.x - (vbox + p.y) * dx / dy;
+                                    value_type const xx = x - (vbox + y) * dx / dy;
                                     return {xx, -vbox};
                                 }
                             }
                             return {-vbox, yy};
                         } else {
                             if (eps < dy) {
-                                return {p.x, +vbox};
+                                return {x, +vbox};
                             } else if (dy < -eps) {
-                                return {p.x, -vbox};
+                                return {x, -vbox};
                             } else {
                                 assert(false);
-                                return {p.x, p.y};
+                                return {x, y};
                             }
                         }
                     };
                     bool const beg = (edge_.b != sweepline_.nov);
                     bool const end = (edge_.e != sweepline_.nov);
                     if (beg && !end) {
-                        auto const & p = *edge_.b;
+                        auto const & p = edge_.b->p;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
                             pout(p.x, p.y);
-                            auto const & e = pend(p);
+                            auto const & e = pend(p.x, p.y);
                             pout(e.x, e.y);
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
-                        auto const & b = *edge_.b;
+                        auto const & b = edge_.b->p;
                         pout(b.x, b.y);
-                        auto const & e = *edge_.e;
+                        auto const & e = edge_.e->p;
                         pout(e.x, e.y);
                         gnuplot_ << "\n";
                     } else {
