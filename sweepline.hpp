@@ -73,6 +73,11 @@ struct sweepline
 
     };
 
+    using cells = std::map< site, std::deque< pedge > >;
+    using pcell = typename cells::iterator;
+
+    cells cells_;
+
     struct vertex // denote circumscribed circle
     {
 
@@ -101,6 +106,10 @@ struct sweepline
     using vertices = std::set< vertex, vertex_less >;
     using pvertex = typename vertices::iterator;
 
+    vertex_less const vertex_less_{eps};
+    vertices vertices_{vertex_less_};
+    pvertex const nov = std::end(vertices_);
+
     struct edge // ((b, e), (l, r)) is ccw
     {
 
@@ -112,14 +121,7 @@ struct sweepline
     using edges = std::list< edge >;
     using pedge = typename edges::iterator;
 
-    using cells = std::map< site, std::deque< pedge > >;
-    using pcell = typename cells::iterator;
-
-    vertex_less const vertex_less_{eps};
-    vertices vertices_{vertex_less_};
-    pvertex const nov = std::end(vertices_);
     edges edges_;
-    cells cells_;
 
 private :
 
@@ -234,6 +236,10 @@ private :
             }
             return intersect(*_lhs.l->first, *_lhs.r->first, directrix_) + eps_ < intersect(*_rhs.l->first, *_rhs.r->first, directrix_);
         }
+
+        using is_transparent = void;
+
+        //
 
     };
 
