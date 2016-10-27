@@ -25,7 +25,8 @@ template< typename point_iterator,
 struct sweepline
 {
 
-    static_assert(std::is_same< decltype(std::declval< point_type >().x), decltype(std::declval< point_type >().y) >::value, "point_type should have x and y data members of the same type");
+    static_assert(std::is_same< decltype(std::declval< point_type >().x), decltype(std::declval< point_type >().y) >::value,
+                  "point_type format error");
 
     using size_type = std::size_t;
 
@@ -125,41 +126,53 @@ private :
 
         value_type const & directrix_;
 
-        value_type // ordinate
-        intersect(point_type const & u,
-                  point_type const & v,
+        value_type
+        cross(point_type const & l,
+              point_type const & r,
+              value_type const x) const
+        {
+            value_type xx = (l.x + r.x) / value_type(2);
+            value_type yy = (l.y + r.y) / value_type(2);
+            value_type dx = (r.x - l.x);
+            value_type dy = (r.y - l.y);
+            return yy + (xx - x) * dx / dy; // TODO: dy ^ eps_
+        }
+
+        value_type
+        intersect(point_type const & l,
+                  point_type const & r,
                   value_type _directrix) const
         {
             {
-                bool const degenerated_ = !(v.x + eps_ < _directrix);
-                if (!(u.x + eps_ < _directrix)) {
+                bool const degenerated_ = !(r.x + eps_ < _directrix);
+                if (!(l.x + eps_ < _directrix)) {
                     if (degenerated_) {
-                        assert(u.y + eps_ < v.y); // u != v
-                        return (u.y + v.y) / value_type(2);
+                        assert(l.y + eps_ < r.y); // l != r
+                        return (l.y + r.y) / value_type(2);
                     } else {
-                        return u.y;
+                        return l.y;
                     }
                 } else if (degenerated_) {
-                    return v.y;
+                    return r.y;
                 }
             }
-            value_type ud = u.x - _directrix;
-            value_type vd = v.x - _directrix;
-            value_type ub = u.y / ud; // -b
-            value_type vb = v.y / vd; // -b
-            ud += ud;
-            vd += vd;
+            value_type ld = l.x - _directrix;
+            value_type rd = r.x - _directrix;
+            value_type lb = l.y / ld; // -b
+            value_type rb = r.y / rd; // -b
+            ld += ld;
+            rd += rd;
             _directrix *= _directrix;
-            auto const calc_c = [&] (point_type const & w, value_type const & wd)
+            auto const calc_c = [&] (point_type const & p, value_type const & d)
             {
-                return (w.x * w.x + w.y * w.y - _directrix) / wd;
+                return (p.x * p.x + p.y * p.y - _directrix) / d;
             };
-            value_type uc = calc_c(u, ud);
-            value_type vc = calc_c(v, vd);
-            value_type b = vb - ub; // -b
-            value_type c = vc - uc;
-            if ((u.x + eps_ < v.x) || (v.x + eps_ < u.x)) {
-                value_type a = (ud - vd) / (ud * vd);
+            value_type lc = calc_c(l, ld);
+            value_type rc = calc_c(r, rd);
+            value_type b = rb - lb; // -b
+            value_type c = rc - lc;
+            if ((l.x + eps_ < r.x) || (r.x + eps_ < l.x)) {
+                value_type a = (ld - rd) / (ld * rd);
                 a += a;
                 value_type D = b * b - (a + a) * c;
                 assert(!(D < value_type(0)));
@@ -212,13 +225,13 @@ private :
         using is_transparent = void;
 
         bool operator () (vertex const & l, endpoint const & r) const
-        { // need to replace with linear if possible
-            return l.y() + eps_ < intersect(*r.l->first, *r.r->first, l.x());
+        { // need to replace with linear approach
+            return l.y() + eps_ < cross(*r.l->first, *r.r->first, l.x());
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
-        { // need to replace with linear if possible
-            return intersect(*l.l->first, *l.r->first, r.x()) + eps_ < r.y();
+        { // need to replace with linear approach
+            return cross(*l.l->first, *l.r->first, r.x()) + eps_ < r.y();
         }
 
     };
@@ -264,18 +277,14 @@ private :
     }
 
     value_type
-    circumradius(point_type const & u,
-                 point_type const & v,
-                 point_type const & w) const
+    circumradius(value_type a,
+                 value_type b,
+                 value_type c) const
     {
-        using std::hypot;
-        value_type e = hypot(v.x - u.x, v.y - u.y);
-        value_type f = hypot(v.x - w.x, v.y - w.y);
-        value_type g = hypot(w.x - u.x, w.y - u.y);
-        value_type V = (e + f - g) * (e + g - f) * (f + g - e);
+        value_type V = (a + b - c) * (a + c - b) * (b + c - a);
         assert(eps < V); // triangle inequality
         using std::sqrt;
-        return (e * f * g) / sqrt(V * (e + f + g));
+        return (a * b * c) / sqrt(V * (a + b + c));
     }
 
     pvertex
@@ -285,21 +294,25 @@ private :
     {
         value_type A = v.x - u.x;
         value_type B = v.y - u.y;
-        value_type C = w.x - u.x;
-        value_type D = w.y - u.y;
-        value_type G = B * (w.x - v.x) - A * (w.y - v.y);
+        value_type C = w.x - v.x;
+        value_type D = w.y - v.y;
+        value_type G = B * C - A * D;
         if (!(eps * eps < G)) {
             // 1.) non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
             return nov;
         }
-        value_type E = A * (u.x + v.x) + B * (u.y + v.y);
-        value_type F = C * (u.x + w.x) + D * (u.y + w.y);
+        value_type E = w.x - u.x;
+        value_type F = w.y - u.y;
+        value_type M = A * (u.x + v.x) + B * (u.y + v.y);
+        value_type N = E * (u.x + w.x) + F * (u.y + w.y);
         G += G;
         // circumcenter:
-        value_type x = (B * F - D * E) / G;
-        value_type y = (C * E - A * F) / G;
-        return vertices_.insert({{x, y}, circumradius(u, v, w)}).first;
+        value_type x = (B * N - F * M) / G;
+        value_type y = (E * M - A * N) / G;
+        using std::hypot;
+        value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(E, F));
+        return vertices_.insert({{x, y}, R}).first;
     }
 
     std::pair< pendpoint, pendpoint >
