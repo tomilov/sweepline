@@ -127,21 +127,9 @@ private :
         value_type const & directrix_;
 
         value_type
-        cross(point_type const & l,
-              point_type const & r,
-              value_type const x) const
-        {
-            value_type xx = (l.x + r.x) / value_type(2);
-            value_type yy = (l.y + r.y) / value_type(2);
-            value_type dx = (r.x - l.x);
-            value_type dy = (r.y - l.y);
-            return yy + (xx - x) * dx / dy; // TODO: dy ^ eps_
-        }
-
-        value_type
         intersect(point_type const & l,
                   point_type const & r,
-                  value_type _directrix) const
+                  value_type && _directrix) const
         {
             {
                 bool const degenerated_ = !(r.x + eps_ < _directrix);
@@ -183,6 +171,13 @@ private :
             }
         }
 
+        value_type
+        intersect(endpoint const & lr, value_type _directrix) const
+        {
+            return intersect(*lr.l->first, *lr.r->first, std::move(_directrix));
+
+        }
+
         local_insert_hint const & hint_;
 
         bool operator () (endpoint const & l, endpoint const & r) const
@@ -192,20 +187,20 @@ private :
             }
             if (hint_.m) {
                 if (hint_.m == &l) {
-                    if (hint_.l == &r) {
+                    if (!hint_.r) {
                         return false;
                     }
-                    if (!hint_.r) {
+                    if (hint_.l == &r) {
                         return false;
                     }
                     if (hint_.r == &r) {
                         return true;
                     }
                 } else if (hint_.m == &r) {
-                    if (hint_.r == &l) {
+                    if (!hint_.l) {
                         return false;
                     }
-                    if (!hint_.l) {
+                    if (hint_.r == &l) {
                         return false;
                     }
                     if (hint_.l == &r) {
@@ -219,19 +214,29 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            return intersect(*l.l->first, *l.r->first, directrix_) + eps_ < intersect(*r.l->first, *r.r->first, directrix_);
+            return intersect(l, directrix_) + eps_ < intersect(r, directrix_);
         }
 
         using is_transparent = void;
 
         bool operator () (vertex const & l, endpoint const & r) const
-        { // need to replace with linear approach
-            return l.y() + eps_ < cross(*r.l->first, *r.r->first, l.x());
+        {
+            return l.y() + eps_ < intersect(r, l.x());
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
-        { // need to replace with linear approach
-            return cross(*l.l->first, *l.r->first, r.x()) + eps_ < r.y();
+        {
+            return intersect(l, r.x()) + eps_ < r.y();
+        }
+
+        bool operator () (point_type const & l, endpoint const & r) const
+        {
+            return l.y + eps_ < intersect(r, l.x);
+        }
+
+        bool operator () (endpoint const & l, point_type const & r) const
+        {
+            return intersect(l, r.x) + eps_ < r.y;
         }
 
     };
@@ -410,16 +415,17 @@ private :
     void
     finish_edges(pevent const e)
     {
-        auto const & event_ = *e;
-        auto lr = endpoint_range(event_.second, event_.first);
+        pvertex const v = e->first;
+        auto lr = endpoint_range(e->second, v);
         events_.erase(e);
         pcell const lcell = lr.first->first.l;
         pcell const rcell = std::prev(lr.second)->first.r;
         for (pendpoint ep = lr.first; ep != lr.second; ++ep) {
-            finish_edge(*ep->first.e, event_.first);
+            finish_edge(*ep->first.e, v);
         }
         endpoints_.erase(lr.first, lr.second);
-        pedge const edge_ = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, event_.first, nov});
+        pedge const edge_ = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov});
+        directrix = v->x();
         lr.first = endpoints_.insert(lr.second, {{lcell, rcell, edge_}, nov});
         lcell->second.push_front(edge_); // ccw
         rcell->second.push_back(edge_);
