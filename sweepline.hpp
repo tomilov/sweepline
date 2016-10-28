@@ -259,11 +259,11 @@ private :
         bool operator () (pvertex const & l, pvertex const & r) const
         {
             vertex const & ll = *l;
-            value_type const & x = ll.x() + eps_;
-            value_type const & y = ll.y() + eps_;
+            value_type const & lx = ll.x() + eps_;
+            value_type const & ly = ll.y() + eps_;
             vertex const & rr = *r;
-            value_type const & vx = rr.x();
-            return std::tie(x, y) < std::tie(vx, rr.y());
+            value_type const & rx = rr.x();
+            return std::tie(lx, ly) < std::tie(rx, rr.y());
         }
 
     };
@@ -276,9 +276,45 @@ private :
     void
     begin_cell(point_iterator const p)
     {
-        assert(cells_.find(p) == cells_.end());
-        pcell const c = cells_.insert({p, {}}).first;
-        (void)c; // TODO: implement
+        auto const c = cells_.insert({p, {}});
+        assert(c.second);
+        auto const lr = endpoints_.equal_range(*p);
+        if (lr.first == noep) { // begginning
+            if (endpoints_.empty()) {
+                pcell const lc = std::begin(cells_);
+                if (c.first == lc) { // first site
+                    assert(cells_.size() == 1);
+                    return;
+                } else { // second site
+                    assert(cells_.size() == 2);
+                    assert(std::next(lc) == c.first);
+                    auto & lcell = *lc;
+                    pedge const edge_ = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
+                    endpoints_.insert({{lc, c.first, edge_}, nov});
+                    lcell.second.push_front(edge_);
+                    c.first->second.push_back(edge_);
+                }
+            } else { // appending to the rightmost endpoint
+                assert(2 < cells_.size()); // another site
+                pendpoint const l = std::prev(noep);
+                pcell const lc = l->first.r;
+                auto & lcell = *lc;
+                pedge const edge_ = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
+                pendpoint const r = endpoints_.insert(noep, {{lc, c.first, edge_}, nov});
+                lcell.second.push_front(edge_);
+                c.first->second.push_back(edge_);
+                if (l != std::begin(endpoints_)) {
+                    check_event(std::prev(l), l);
+                }
+                check_event(l, r);
+            }
+        } else {
+            if (lr.first == lr.second) {
+
+            } else {
+
+            }
+        }
     }
 
     value_type
@@ -303,7 +339,7 @@ private :
         value_type D = c.y - b.y;
         value_type G = B * C - A * D;
         if (!(eps * eps < G)) {
-            // 1.) non-concave triple of points => circumcircle don't cross the sweep line
+            // 1.) G is negative: non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
             return nov;
         }
@@ -326,13 +362,12 @@ private :
     {
         if (ep == noep) {
             return endpoints_.equal_range(*v);
-        } else {
-            assert(ep != std::begin(endpoints_));
-            assert(ep != noep);
-            assert(std::prev(ep)->second == v);
-            assert(ep->second == v);
-            return {std::prev(ep), std::next(ep)};
         }
+        assert(ep != std::begin(endpoints_));
+        assert(ep != noep);
+        assert(std::prev(ep)->second == v);
+        assert(ep->second == v);
+        return {std::prev(ep), std::next(ep)};
     }
 
     void
@@ -348,7 +383,7 @@ private :
         vertices_.erase(v);
     }
 
-    void
+    pvertex
     check_event(pendpoint const l, pendpoint const r)
     {
         assert(std::next(l) == r);
@@ -363,7 +398,7 @@ private :
                     delete_event(ll.second);
                 } else {
                     vertices_.erase(v);
-                    return;
+                    return nov;
                 }
             } else if (rr.second != nov) {
                 assert(ll.second == nov);
@@ -371,7 +406,7 @@ private :
                     delete_event(rr.second);
                 } else {
                     vertices_.erase(v);
-                    return;
+                    return nov;
                 }
             }
             assert(ll.second == nov);
@@ -382,10 +417,11 @@ private :
                 e.first->second = noep;
             }
         }
+        return v;
     }
 
     void
-    finish_edge(edge & _edge, pvertex const v) const
+    trunc_edge(edge & _edge, pvertex const v) const
     {
         assert(v != nov);
         if (_edge.b == nov) {
@@ -408,10 +444,12 @@ private :
                 }
                 _edge.e = v;
             } else {
+                assert(_edge.e != v);
                 _edge.b = v;
             }
         } else {
             assert(_edge.b != v);
+            assert(_edge.e == nov);
             _edge.e = v;
         }
     }
@@ -422,16 +460,16 @@ private :
         pvertex const v = e->first;
         auto lr = endpoint_range(e->second, v);
         events_.erase(e);
-        pcell const lcell = lr.first->first.l;
-        pcell const rcell = std::prev(lr.second)->first.r;
+        pcell const lc = lr.first->first.l;
+        pcell const rc = std::prev(lr.second)->first.r;
         for (pendpoint ep = lr.first; ep != lr.second; ++ep) {
-            finish_edge(*ep->first.e, v);
+            trunc_edge(*ep->first.e, v);
         }
         endpoints_.erase(lr.first, lr.second);
-        pedge const edge_ = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov});
-        lr.first = endpoints_.insert(lr.second, {{lcell, rcell, edge_}, nov});
-        lcell->second.push_front(edge_); // ccw
-        rcell->second.push_back(edge_);
+        pedge const edge_ = edges_.insert(std::cend(edges_), {lc->first, rc->first, v, nov});
+        lr.first = endpoints_.insert(lr.second, {{lc, rc, edge_}, nov});
+        lc->second.push_front(edge_); // ccw
+        rc->second.push_back(edge_);
         if (lr.first != std::begin(endpoints_)) {
             check_event(std::prev(lr.first), lr.first);
         }
@@ -451,9 +489,10 @@ private :
 public :
 
     void
-    operator () (point_iterator const beg, point_iterator const end)
+    operator () (point_iterator const l, point_iterator const r)
     {
-        for (auto p = beg; p != end; ++p) {
+        assert(std::is_sorted(l, r, point_less{eps}));
+        for (auto p = l; p != r; ++p) {
             while (!events_.empty()) {
                 pevent const e = std::cbegin(events_);
                 if (!prior(*e->first, *p)) {
