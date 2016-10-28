@@ -28,8 +28,6 @@ struct sweepline
     static_assert(std::is_same< decltype(std::declval< point_type >().x), decltype(std::declval< point_type >().y) >::value,
                   "point_type format error");
 
-    using size_type = std::size_t;
-
     value_type const & eps;
 
     sweepline(value_type const && _eps) = delete; // lifetime of sweepline instance must be exceeded by a lifetime of eps
@@ -60,16 +58,21 @@ struct sweepline
 
     };
 
-    struct vertex_less
+    struct vertex_less // lexicographically compare w/ tolerance
     {
 
         value_type const & eps_;
 
-        bool operator () (vertex const & l, vertex const & r) const // lexicographically compare w/ tolerance
+        bool operator () (vertex const & l, vertex const & r) const
         {
-            value_type const & x = l.p.x + eps_;
-            value_type const & y = l.p.y + eps_;
-            return std::tie(x, y) < std::tie(r.p.x, r.p.y);
+            return operator () (l.p, r.p);
+        }
+
+        bool operator () (point_type const & l, point_type const & r) const
+        {
+            value_type const & x = l.x + eps_;
+            value_type const & y = l.y + eps_;
+            return std::tie(x, y) < std::tie(r.x, r.y);
         }
 
     };
@@ -106,8 +109,6 @@ private :
 
     };
 
-    value_type directrix = std::numeric_limits< value_type >::quiet_NaN();
-
     struct local_insert_hint
     {
 
@@ -123,8 +124,6 @@ private :
     {
 
         value_type const & eps_;
-
-        value_type const & directrix_;
 
         value_type
         intersect(point_type const & l,
@@ -175,7 +174,6 @@ private :
         intersect(endpoint const & lr, value_type _directrix) const
         {
             return intersect(*lr.l->first, *lr.r->first, std::move(_directrix));
-
         }
 
         local_insert_hint const & hint_;
@@ -214,7 +212,7 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            return intersect(l, directrix_) + eps_ < intersect(r, directrix_);
+            return std::max(*l.l->first, *l.r->first, vertex_less{eps_}).y < std::max(*r.l->first, *r.r->first, vertex_less{eps_}).y;
         }
 
         using is_transparent = void;
@@ -245,7 +243,7 @@ private :
     using pendpoint = typename endpoints::iterator;
 
     local_insert_hint hint;
-    endpoint_less const endpoint_less_{eps, directrix, hint};
+    endpoint_less const endpoint_less_{eps, hint};
     endpoints endpoints_{endpoint_less_};
     pendpoint const noep = std::end(endpoints_);
 
@@ -270,8 +268,7 @@ private :
     using events = std::map< pvertex, pendpoint, event_less >;
     using pevent = typename events::const_iterator;
 
-    event_less const event_less_{eps};
-    events events_{event_less_};
+    events events_{event_less{eps}};
 
     void
     begin_cell(point_iterator const p)
@@ -358,7 +355,7 @@ private :
         if (v != nov) {
             if (ll.second != nov) {
                 assert(rr.second == nov);
-                if (event_less_(v, ll.second)) {
+                if (event_less{eps}(v, ll.second)) {
                     delete_event(ll.second);
                 } else {
                     vertices_.erase(v);
@@ -366,7 +363,7 @@ private :
                 }
             } else if (rr.second != nov) {
                 assert(ll.second == nov);
-                if (event_less_(v, rr.second)) {
+                if (event_less{eps}(v, rr.second)) {
                     delete_event(rr.second);
                 } else {
                     vertices_.erase(v);
@@ -425,7 +422,6 @@ private :
         }
         endpoints_.erase(lr.first, lr.second);
         pedge const edge_ = edges_.insert(std::cend(edges_), {lcell->first, rcell->first, v, nov});
-        directrix = v->x();
         lr.first = endpoints_.insert(lr.second, {{lcell, rcell, edge_}, nov});
         lcell->second.push_front(edge_); // ccw
         rcell->second.push_back(edge_);
