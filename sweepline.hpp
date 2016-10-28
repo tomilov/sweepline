@@ -166,6 +166,8 @@ private :
 
         bool operator () (endpoint const & l, endpoint const & r) const
         {
+            // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
+            // endpoints removed strictly before violation of this invariant to prevent its occurrence
             if (l.r == r.l) {
                 return true;
             }
@@ -180,11 +182,13 @@ private :
             }
             if (r.r == l.r) {
                 return true;
-            }
-            // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
-            // endpoints removed strictly before violation of this invariant to prevent its occurrence
-            assert(false);
-            __builtin_unreachable();
+            }/*
+            if (std::max(*l.l, *l.r).y < std::max(*r.l, *r.r).y) {
+                return true;
+            } else {
+                return false;
+            }*/
+            throw std::logic_error{""};
         }
 
         using is_transparent = void;
@@ -422,14 +426,14 @@ private :
                 lr.first = std::prev(noep);
                 point_iterator const l = lr.first->first.r;
                 pedge const e = add_edge(l, p);
-                lr.second = endpoints_.insert(noep, {{l, p, e}, nov});
-                endpoints_.insert(noep, {{p, l, e}, nov});
+                lr.second = endpoints_.insert(noep, {{p, l, e}, nov});
+                endpoints_.insert(noep, {{l, p, e}, nov});
                 check_event(lr.first, lr.second);
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 point_iterator const r = lr.second->first.l;
                 pedge const e = add_edge(p, r);
-                endpoints_.insert(lr.second, {{p, r, e}, nov});
-                lr.first = endpoints_.insert(lr.second, {{r, p, e}, nov});
+                endpoints_.insert(lr.second, {{r, p, e}, nov});
+                lr.first = endpoints_.insert(lr.second, {{p, r, e}, nov});
                 check_event(lr.first, lr.second);
             } else { // insert in the middle of the beachline (hottest branch in general case)
                 --lr.first;
