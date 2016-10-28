@@ -128,6 +128,49 @@ private :
 
         value_type const & eps_;
 
+        local_insert_hint const & hint_;
+
+        bool operator () (endpoint const & l, endpoint const & r) const
+        {
+            if (l.r == r.l) {
+                return true;
+            }
+            if (l.l == r.r) {
+                return false;
+            }
+            if (l == r) {
+                return false;
+            }
+            if (hint_.m) {
+                if (hint_.m == &l) {
+                    if (!hint_.r) {
+                        return false;
+                    }
+                    if (hint_.l == &r) {
+                        return false;
+                    }
+                    if (hint_.r == &r) {
+                        return true;
+                    }
+                } else if (hint_.m == &r) {
+                    if (!hint_.l) {
+                        return false;
+                    }
+                    if (hint_.r == &l) {
+                        return false;
+                    }
+                    if (hint_.l == &r) {
+                        return true;
+                    }
+                }
+            }
+            // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
+            // endpoints removed strictly before violation of this invariant to prevent its occurrence
+            return std::max(*l.l->first, *l.r->first, point_less{eps_}).y < std::max(*r.l->first, *r.r->first, point_less{eps_}).y;
+        }
+
+        using is_transparent = void;
+
         value_type
         intersect(point_type const & l,
                   point_type const & r,
@@ -179,48 +222,6 @@ private :
             return intersect(*lr.l->first, *lr.r->first, std::move(_directrix));
         }
 
-        local_insert_hint const & hint_;
-
-        bool operator () (endpoint const & l, endpoint const & r) const
-        {
-            if (l.r == r.l) {
-                return true;
-            }
-            if (l.l == r.r) {
-                return false;
-            }
-            if (l == r) {
-                return false;
-            }
-            if (hint_.m) {
-                if (hint_.m == &l) {
-                    if (!hint_.r) {
-                        return false;
-                    }
-                    if (hint_.l == &r) {
-                        return false;
-                    }
-                    if (hint_.r == &r) {
-                        return true;
-                    }
-                } else if (hint_.m == &r) {
-                    if (!hint_.l) {
-                        return false;
-                    }
-                    if (hint_.r == &l) {
-                        return false;
-                    }
-                    if (hint_.l == &r) {
-                        return true;
-                    }
-                }
-            }
-            // arcs shrinks and growz, but relative y-position of endpoints remains the same during sweepline motion
-            return std::max(*l.l->first, *l.r->first, point_less{eps_}).y < std::max(*r.l->first, *r.r->first, point_less{eps_}).y;
-        }
-
-        using is_transparent = void;
-
         bool operator () (vertex const & l, endpoint const & r) const
         {
             return l.y() + eps_ < intersect(r, l.x());
@@ -256,14 +257,13 @@ private :
         value_type const & eps_;
 
         bool operator () (pvertex const & l, pvertex const & r) const
-        { // uncomment if not all the events in equal range are for equally the same vertex
+        {
             vertex const & ll = *l;
             value_type const & x = ll.x() + eps_;
             value_type const & y = ll.y() + eps_;
-            //value_type const & px = lhs_.p.x + eps_;
             vertex const & rr = *r;
             value_type const & vx = rr.x();
-            return std::tie(x, y/*, px*/) < std::tie(vx, rr.y()/*, rhs_.p.x*/);
+            return std::tie(x, y) < std::tie(vx, rr.y());
         }
 
     };
@@ -293,30 +293,31 @@ private :
     }
 
     pvertex
-    make_vertex(point_type const & u,
-                point_type const & v,
-                point_type const & w)
+    make_vertex(point_type const & a,
+                point_type const & b,
+                point_type const & c)
     {
-        value_type A = v.x - u.x;
-        value_type B = v.y - u.y;
-        value_type C = w.x - v.x;
-        value_type D = w.y - v.y;
+        value_type A = b.x - a.x;
+        value_type B = b.y - a.y;
+        value_type C = c.x - b.x;
+        value_type D = c.y - b.y;
         value_type G = B * C - A * D;
         if (!(eps * eps < G)) {
             // 1.) non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
             return nov;
         }
-        value_type E = w.x - u.x;
-        value_type F = w.y - u.y;
-        value_type M = A * (u.x + v.x) + B * (u.y + v.y);
-        value_type N = E * (u.x + w.x) + F * (u.y + w.y);
+        value_type E = c.x - a.x;
+        value_type F = c.y - a.y;
+        value_type M = A * (a.x + b.x) + B * (a.y + b.y);
+        value_type N = E * (a.x + c.x) + F * (a.y + c.y);
         G += G;
         // circumcenter:
         value_type x = (B * N - F * M) / G;
         value_type y = (E * M - A * N) / G;
         using std::hypot;
         value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(E, F));
+        //value_type R = hypot(x - a.x, y - a.y);
         return vertices_.insert({{x, y}, R}).first;
     }
 
@@ -387,25 +388,28 @@ private :
     finish_edge(edge & _edge, pvertex const v) const
     {
         assert(v != nov);
-        assert(_edge.e == nov);
         if (_edge.b == nov) {
-            _edge.b = v;
-            // adjust orinetation if needed:
-            point_type const & l = *_edge.l;
-            point_type const & r = *_edge.r;
-            point_type const & p = v->p;
-            if (r.x < l.x) {
-                if (p.y < l.y) {
-                    return;
+            if (_edge.e == nov) { // orientate if needed:
+                point_type const & l = *_edge.l;
+                point_type const & r = *_edge.r;
+                point_type const & p = v->p;
+                if (r.x < l.x) {
+                    if (p.y < l.y) {
+                        _edge.b = v;
+                        return;
+                    }
+                } else if (l.x < r.x) {
+                    if (r.y < p.y) {
+                        _edge.b = v;
+                        return;
+                    }
+                } else {
+                    assert(!(r.y < l.y));
                 }
-            } else if (l.x < r.x) {
-                if (r.y < p.y) {
-                    return;
-                }
+                _edge.e = v;
             } else {
-                assert(!(r.y < l.y));
+                _edge.b = v;
             }
-            std::swap(_edge.l, _edge.r);
         } else {
             assert(_edge.b != v);
             _edge.e = v;
