@@ -112,23 +112,10 @@ private :
 
     };
 
-    struct local_insert_hint
-    {
-
-        endpoint const * l = nullptr;
-        endpoint const * m = nullptr;
-        endpoint const * r = nullptr;
-
-        void clear() { l = m = r = nullptr; }
-
-    };
-
     struct endpoint_less
     {
 
         value_type const & eps_;
-
-        local_insert_hint const & hint_;
 
         bool operator () (endpoint const & l, endpoint const & r) const
         {
@@ -140,7 +127,7 @@ private :
             }
             if (l == r) {
                 return false;
-            }
+            }/*
             if (hint_.m) {
                 if (hint_.m == &l) {
                     if (!hint_.r) {
@@ -163,7 +150,7 @@ private :
                         return true;
                     }
                 }
-            }
+            }*/
             // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
             // endpoints removed strictly before violation of this invariant to prevent its occurrence
             return std::max(*l.l->first, *l.r->first, point_less{eps_}).y < std::max(*r.l->first, *r.r->first, point_less{eps_}).y;
@@ -247,8 +234,7 @@ private :
     using endpoints = std::map< endpoint, pvertex, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
-    local_insert_hint hint;
-    endpoints endpoints_{endpoint_less{eps, hint}};
+    endpoints endpoints_{endpoint_less{eps}};
     pendpoint const noep = std::end(endpoints_);
 
     struct event_less
@@ -272,50 +258,6 @@ private :
     using pevent = typename events::const_iterator;
 
     events events_{event_less{eps}};
-
-    void
-    begin_cell(point_iterator const p)
-    {
-        auto const c = cells_.insert({p, {}});
-        assert(c.second);
-        auto const lr = endpoints_.equal_range(*p);
-        if (lr.first == noep) { // begginning
-            if (endpoints_.empty()) {
-                pcell const lc = std::begin(cells_);
-                if (c.first == lc) { // first site
-                    assert(cells_.size() == 1);
-                    return;
-                } else { // second site
-                    assert(cells_.size() == 2);
-                    assert(std::next(lc) == c.first);
-                    auto & lcell = *lc;
-                    pedge const edge_ = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
-                    endpoints_.insert({{lc, c.first, edge_}, nov});
-                    lcell.second.push_front(edge_);
-                    c.first->second.push_back(edge_);
-                }
-            } else { // appending to the rightmost endpoint
-                assert(2 < cells_.size()); // another site
-                pendpoint const l = std::prev(noep);
-                pcell const lc = l->first.r;
-                auto & lcell = *lc;
-                pedge const edge_ = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
-                pendpoint const r = endpoints_.insert(noep, {{lc, c.first, edge_}, nov});
-                lcell.second.push_front(edge_);
-                c.first->second.push_back(edge_);
-                if (l != std::begin(endpoints_)) {
-                    check_event(std::prev(l), l);
-                }
-                check_event(l, r);
-            }
-        } else {
-            if (lr.first == lr.second) {
-
-            } else {
-
-            }
-        }
-    }
 
     value_type
     circumradius(value_type a,
@@ -455,27 +397,107 @@ private :
     }
 
     void
-    finish_edges(pevent const e)
+    finish_endpoints(pendpoint l, pendpoint const r, pvertex const v)
+    {
+        pcell const lc = l->first.l;
+        pcell const rc = std::prev(r)->first.r;
+        for (pendpoint ep = l; ep != r; ++ep) {
+            assert(ep->second == v);
+            trunc_edge(*ep->first.e, v);
+        }
+        endpoints_.erase(l, r);
+        pedge const edge_ = edges_.insert(std::cend(edges_), {lc->first, rc->first, v, nov});
+        l = endpoints_.insert(r, {{lc, rc, edge_}, nov});
+        lc->second.push_front(edge_); // ccw
+        rc->second.push_back(edge_);
+        if (l != std::begin(endpoints_)) {
+            check_event(std::prev(l), l);
+        }
+        if (r != noep) {
+            check_event(l, r);
+        }
+    }
+
+    pcell
+    begin_cell(point_iterator const p)
+    {
+        pcell const c = cells_.insert(std::cend(cells_), {p, {}});
+        auto lr = endpoints_.equal_range(*p);
+        if (lr.first == noep) { // begginning
+            if (endpoints_.empty()) {
+                pcell const lc = std::begin(cells_);
+                if (c == lc) { // first site
+                    assert(cells_.size() == 1);
+                } else { // second site
+                    assert(cells_.size() == 2);
+                    assert(std::next(lc) == c);
+                    auto & lcell = *lc;
+                    pedge const e = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
+                    endpoints_.insert({{lc, c, e}, nov});
+                    lcell.second.push_front(e);
+                    c->second.push_back(e);
+                }
+            } else { // appending to the rightmost endpoint
+                assert(2 < cells_.size()); // another site
+                lr.first = std::prev(noep);
+                pcell const lc = lr.first->first.r;
+                auto & lcell = *lc;
+                pedge const le = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
+                lr.second = endpoints_.insert(noep, {{lc, c, le}, nov});
+                lcell.second.push_front(le);
+                c->second.push_back(le);
+                if (lr.first != std::begin(endpoints_)) {
+                    check_event(std::prev(lr.first), lr.first);
+                }
+                check_event(lr.first, lr.second);
+            }
+        } else {
+            if (lr.first == lr.second) { // add a single endpoint
+                if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
+                    pcell const rc = lr.second->first.l;
+                    auto & rcell = *rc;
+                    pedge const re = edges_.insert(std::cend(edges_), {p, rcell.first, nov, nov});
+                    lr.first = endpoints_.insert(lr.second, {{c, rc, re}, nov});
+                    c->second.push_front(re);
+                    rcell.second.push_back(re);
+                    check_event(lr.first, lr.second);
+                    if (2 < endpoints_.size()) {
+                        check_event(lr.second, std::next(lr.second));
+                    }
+                } else { // insert in the middle of the beachline (hottest branch in general case)
+                    lr.first = std::prev(lr.second);
+                    pcell const lc = lr.first->first.r;
+                    pcell const rc = lr.second->first.l;
+                    auto & lcell = *lc;
+                    auto & mcell = *c;
+                    auto & rcell = *rc;
+                    pedge const le = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
+                    pedge const re = edges_.insert(std::cend(edges_), {p, rcell.first, nov, nov});
+                    pendpoint const l = endpoints_.insert(lr.second, {{lc, c, le}, nov});
+                    pendpoint const r = endpoints_.insert(lr.second, {{c, rc, re}, nov});
+                    lcell.second.push_front(le);
+                    mcell.second.push_back(le);
+                    mcell.second.push_front(re);
+                    rcell.second.push_back(re);
+                    check_event(lr.first, l);
+                    check_event(r, lr.second);
+                }
+            } else { // many arc collapsing right here, event (equivalent to the current site) coming on the next step
+                pvertex const v = lr.first->second;
+                events_.erase(v);
+                finish_endpoints(lr.first, lr.second, v);
+            }
+        }
+        return c;
+    }
+
+    void
+    finish_cells(pevent const e)
     {
         pvertex const v = e->first;
         auto lr = endpoint_range(e->second, v);
         events_.erase(e);
-        pcell const lc = lr.first->first.l;
-        pcell const rc = std::prev(lr.second)->first.r;
-        for (pendpoint ep = lr.first; ep != lr.second; ++ep) {
-            trunc_edge(*ep->first.e, v);
-        }
-        endpoints_.erase(lr.first, lr.second);
-        pedge const edge_ = edges_.insert(std::cend(edges_), {lc->first, rc->first, v, nov});
-        lr.first = endpoints_.insert(lr.second, {{lc, rc, edge_}, nov});
-        lc->second.push_front(edge_); // ccw
-        rc->second.push_back(edge_);
-        if (lr.first != std::begin(endpoints_)) {
-            check_event(std::prev(lr.first), lr.first);
-        }
-        if (lr.second != noep) {
-            check_event(lr.first, lr.second);
-        }
+        finish_endpoints(lr.first, lr.second, v);
     }
 
     bool
@@ -498,12 +520,12 @@ public :
                 if (!prior(*e->first, *p)) {
                     break;
                 }
-                finish_edges(e);
+                finish_cells(e);
             }
             begin_cell(p);
         }
         while (!events_.empty()) {
-            finish_edges(std::cbegin(events_));
+            finish_cells(std::cbegin(events_));
         }
     }
 
