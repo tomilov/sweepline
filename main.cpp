@@ -69,7 +69,7 @@ generate(std::ostream & _out, size_type const N = 100000)
 {
     using seed_type = typename std::mt19937::result_type;
 #if 0
-    seed_type const seed_ = 23902348445254;//19614518643971;//8864935383105;
+    seed_type const seed_ = 49983347871372;//19614518643971;//8864935383105;
 #elif 0
     std::random_device D;
     auto const seed_ = static_cast< seed_type >(D());
