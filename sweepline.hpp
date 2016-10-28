@@ -37,16 +37,6 @@ struct sweepline
         : eps(_eps)
     { ; }
 
-    struct site_less
-    {
-
-        bool operator () (point_iterator const l, point_iterator const r) const
-        {
-            return *l < *r;
-        }
-
-    };
-
     struct vertex // denote circumscribed circle
     {
 
@@ -58,15 +48,10 @@ struct sweepline
 
     };
 
-    struct vertex_less // lexicographically compare w/ tolerance
+    struct point_less // lexicographically compare w/ tolerance
     {
 
         value_type const & eps_;
-
-        bool operator () (vertex const & l, vertex const & r) const
-        {
-            return operator () (l.p, r.p);
-        }
 
         bool operator () (point_type const & l, point_type const & r) const
         {
@@ -75,9 +60,19 @@ struct sweepline
             return std::tie(x, y) < std::tie(r.x, r.y);
         }
 
+        bool operator () (point_iterator const l, point_iterator const r) const
+        {
+            return operator () (*l, *r);
+        }
+
+        bool operator () (vertex const & l, vertex const & r) const
+        {
+            return operator () (l.p, r.p);
+        }
+
     };
 
-    using vertices = std::set< vertex, vertex_less >;
+    using vertices = std::set< vertex, point_less >;
     using pvertex = typename vertices::iterator;
 
     struct edge // ((b, e), (l, r)) is ccw
@@ -91,13 +86,13 @@ struct sweepline
     using edges = std::list< edge >;
     using pedge = typename edges::iterator;
 
-    using cells = std::map< point_iterator, std::deque< pedge >, site_less >;
+    using cells = std::map< point_iterator, std::deque< pedge >, point_less >;
     using pcell = typename cells::iterator;
 
-    vertices vertices_{vertex_less{eps}};
+    vertices vertices_{point_less{eps}};
     pvertex const nov = std::end(vertices_);
     edges edges_;
-    cells cells_;
+    cells cells_{point_less{eps}};
 
 private :
 
@@ -106,6 +101,14 @@ private :
 
         pcell l, r;
         pedge e;
+
+        bool operator == (endpoint const & ep) const
+        {
+            if (this == &ep) {
+                return true;
+            }
+            return (l == ep.l) && (r == ep.r) && (assert(e == ep.e), true);
+        }
 
     };
 
@@ -180,7 +183,13 @@ private :
 
         bool operator () (endpoint const & l, endpoint const & r) const
         {
-            if (&l == &r) {
+            if (l.r == r.l) {
+                return true;
+            }
+            if (l.l == r.r) {
+                return false;
+            }
+            if (l == r) {
                 return false;
             }
             if (hint_.m) {
@@ -206,13 +215,8 @@ private :
                     }
                 }
             }
-            if (l.r == r.l) {
-                return true;
-            }
-            if (l.l == r.r) {
-                return false;
-            }
-            return std::max(*l.l->first, *l.r->first, vertex_less{eps_}).y < std::max(*r.l->first, *r.r->first, vertex_less{eps_}).y;
+            // arcs shrinks and growz, but relative y-position of endpoints remains the same during sweepline motion
+            return std::max(*l.l->first, *l.r->first, point_less{eps_}).y < std::max(*r.l->first, *r.r->first, point_less{eps_}).y;
         }
 
         using is_transparent = void;
@@ -243,8 +247,7 @@ private :
     using pendpoint = typename endpoints::iterator;
 
     local_insert_hint hint;
-    endpoint_less const endpoint_less_{eps, hint};
-    endpoints endpoints_{endpoint_less_};
+    endpoints endpoints_{endpoint_less{eps, hint}};
     pendpoint const noep = std::end(endpoints_);
 
     struct event_less
