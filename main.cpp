@@ -118,7 +118,7 @@ main()
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 2);
+    generate(in_, 3);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"

@@ -86,7 +86,7 @@ struct sweepline
     using edges = std::list< edge >;
     using pedge = typename edges::iterator;
 
-    using cells = std::map< point_iterator, std::deque< pedge >, point_less >;
+    using cells = std::set< point_iterator, point_less >;
     using pcell = typename cells::iterator;
 
     vertices vertices_{point_less{eps}};
@@ -153,7 +153,7 @@ private :
             }*/
             // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
             // endpoints removed strictly before violation of this invariant to prevent its occurrence
-            return std::max(*l.l->first, *l.r->first, point_less{eps_}).y < std::max(*r.l->first, *r.r->first, point_less{eps_}).y;
+            return std::max(**l.l, **l.r, point_less{eps_}).y < std::max(**r.l, **r.r, point_less{eps_}).y;
         }
 
         using is_transparent = void;
@@ -206,7 +206,7 @@ private :
         value_type
         intersect(endpoint const & lr, value_type _directrix) const
         {
-            return intersect(*lr.l->first, *lr.r->first, std::move(_directrix));
+            return intersect(**lr.l, **lr.r, std::move(_directrix));
         }
 
         bool operator () (vertex const & l, endpoint const & r) const
@@ -332,7 +332,7 @@ private :
         auto & ll = *l;
         auto & rr = *r;
         assert(ll.first.r == rr.first.l); // small redundancy (x2 memory to point cells from beach line) - necessary evil
-        pvertex const v = make_vertex(*ll.first.l->first, *ll.first.r->first, *rr.first.r->first);
+        pvertex const v = make_vertex(**ll.first.l, **ll.first.r, **rr.first.r);
         if (v != nov) {
             if (ll.second != nov) {
                 assert(rr.second == nov);
@@ -363,37 +363,43 @@ private :
     }
 
     void
-    trunc_edge(edge & _edge, pvertex const v) const
+    trunc_edge(edge & ee, pvertex const v) const
     {
         assert(v != nov);
-        if (_edge.b == nov) {
-            if (_edge.e == nov) { // orientate if needed:
-                point_type const & l = *_edge.l;
-                point_type const & r = *_edge.r;
+        if (ee.b == nov) {
+            if (ee.e == nov) { // orientate if needed:
+                point_type const & l = *ee.l;
+                point_type const & r = *ee.r;
                 point_type const & p = v->p;
                 if (r.x < l.x) {
                     if (p.y < l.y) {
-                        _edge.b = v;
+                        ee.b = v;
                         return;
                     }
                 } else if (l.x < r.x) {
                     if (r.y < p.y) {
-                        _edge.b = v;
+                        ee.b = v;
                         return;
                     }
                 } else {
                     assert(!(r.y < l.y));
                 }
-                _edge.e = v;
+                ee.e = v;
             } else {
-                assert(_edge.e != v);
-                _edge.b = v;
+                assert(ee.e != v);
+                ee.b = v;
             }
         } else {
-            assert(_edge.b != v);
-            assert(_edge.e == nov);
-            _edge.e = v;
+            assert(ee.b != v);
+            assert(ee.e == nov);
+            ee.e = v;
         }
+    }
+
+    pedge
+    add_edge(point_iterator const l, point_iterator const r)
+    {
+        return edges_.insert(std::cend(edges_), {l, r, nov, nov});
     }
 
     void
@@ -406,10 +412,9 @@ private :
             trunc_edge(*ep->first.e, v);
         }
         endpoints_.erase(l, r);
-        pedge const edge_ = edges_.insert(std::cend(edges_), {lc->first, rc->first, v, nov});
+        pedge const edge_ = add_edge(*lc, *rc);
+        trunc_edge(*edge_, v);
         l = endpoints_.insert(r, {{lc, rc, edge_}, nov});
-        lc->second.push_front(edge_); // ccw
-        rc->second.push_back(edge_);
         if (l != std::begin(endpoints_)) {
             check_event(std::prev(l), l);
         }
@@ -431,24 +436,21 @@ private :
                 } else { // second site
                     assert(cells_.size() == 2);
                     assert(std::next(lc) == c);
-                    auto & lcell = *lc;
-                    pedge const e = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
-                    endpoints_.insert({{lc, c, e}, nov});
-                    lcell.second.push_front(e);
-                    c->second.push_back(e);
+                    pedge const ee = add_edge(*lc, p);
+                    endpoints_.insert(noep, {{lc, c, ee}, nov});
+                    endpoints_.insert(noep, {{c, lc, ee}, nov});
+                    c->second.push_back(ee);
                 }
             } else { // appending to the rightmost endpoint
                 assert(2 < cells_.size()); // another site
                 lr.first = std::prev(noep);
                 pcell const lc = lr.first->first.r;
                 auto & lcell = *lc;
-                pedge const le = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
+                pedge const le = add_edge(lcell.first, p);
                 lr.second = endpoints_.insert(noep, {{lc, c, le}, nov});
+                endpoints_.insert(noep, {{c, lc, le}, nov});
                 lcell.second.push_front(le);
                 c->second.push_back(le);
-                if (lr.first != std::begin(endpoints_)) {
-                    check_event(std::prev(lr.first), lr.first);
-                }
                 check_event(lr.first, lr.second);
             }
         } else {
@@ -456,30 +458,26 @@ private :
                 if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                     pcell const rc = lr.second->first.l;
                     auto & rcell = *rc;
-                    pedge const re = edges_.insert(std::cend(edges_), {p, rcell.first, nov, nov});
-                    lr.first = endpoints_.insert(lr.second, {{c, rc, re}, nov});
+                    pedge const re = add_edge(p, rcell.first);
+                    endpoints_.insert(lr.second, {{c, rc, re}, nov});
+                    lr.first = endpoints_.insert(lr.second, {{rc, c, re}, nov});
                     c->second.push_front(re);
                     rcell.second.push_back(re);
                     check_event(lr.first, lr.second);
-                    if (2 < endpoints_.size()) {
-                        check_event(lr.second, std::next(lr.second));
-                    }
                 } else { // insert in the middle of the beachline (hottest branch in general case)
-                    lr.first = std::prev(lr.second);
-                    pcell const lc = lr.first->first.r;
-                    pcell const rc = lr.second->first.l;
-                    auto & lcell = *lc;
-                    auto & mcell = *c;
-                    auto & rcell = *rc;
-                    pedge const le = edges_.insert(std::cend(edges_), {lcell.first, p, nov, nov});
-                    pedge const re = edges_.insert(std::cend(edges_), {p, rcell.first, nov, nov});
-                    pendpoint const l = endpoints_.insert(lr.second, {{lc, c, le}, nov});
-                    pendpoint const r = endpoints_.insert(lr.second, {{c, rc, re}, nov});
-                    lcell.second.push_front(le);
-                    mcell.second.push_back(le);
-                    mcell.second.push_front(re);
-                    rcell.second.push_back(re);
-                    check_event(lr.first, l);
+                    if (lr.first != std::begin(endpoints_)) {
+                        --lr.first;
+                    }
+                    pcell const lrc = lr.second->first.l;
+                    auto & lrcell = *lrc;
+                    pedge const e = add_edge(lrcell.first, p);
+                    pendpoint const l = endpoints_.insert(lr.second, {{lrc, c, e}, nov});
+                    pendpoint const r = endpoints_.insert(lr.second, {{c, lrc, e}, nov});
+                    lrcell.second.push_back(e);
+                    c->second.push_back(e);
+                    if (lr.first != lr.second) {
+                        check_event(lr.first, l);
+                    }
                     check_event(r, lr.second);
                 }
             } else { // many arc collapsing right here, event (equivalent to the current site) coming on the next step
