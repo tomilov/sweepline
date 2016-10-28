@@ -527,6 +527,7 @@ public :
         while (!events_.empty()) {
             finish_cells(std::cbegin(events_));
         }
+        endpoints_.clear();
     }
 
 };

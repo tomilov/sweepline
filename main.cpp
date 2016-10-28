@@ -118,7 +118,7 @@ main()
     std::istream & in_ = std::cin;
 #elif 1
     std::stringstream in_;
-    generate(in_, 100000);
+    generate(in_, 2);
 #elif 0
     std::stringstream in_;
     in_ << "3\n"
@@ -135,7 +135,6 @@ main()
     if (!(in_ >> N)) {
         assert(false);
     }
-    assert(0 < N);
     using point_type = point;
     using points = std::vector< point_type >;
     points points_;
@@ -152,6 +151,7 @@ main()
     using point_iterator = typename points::const_iterator;
     using sweepline_type = sweepline< point_iterator, point_type const, value_type >;
     sweepline_type sweepline_{eps};
+    std::sort(std::begin(points_), std::end(points_), typename sweepline_type::point_less{eps});
     {
         using std::chrono::duration_cast;
         using std::chrono::microseconds;
@@ -198,23 +198,21 @@ main()
             }
             if (!sweepline_.edges_.empty()) {
                 for (auto const & edge_ : sweepline_.edges_) {
-                    auto const & l = *edge_.l;
-                    auto const & r = *edge_.r;
-                    value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
-                    value_type const dy = l.x - r.x;
-                    auto const pend = [&] (point_type const & p) -> point_type
+                    auto const trunc_edge = [&] (point_type const & l, point_type const & r, point_type const & p) -> point_type
                     {
-                        auto const xx = [&] (value_type const & x) { return p.x + (x - p.y) * dx / dy; };
-                        auto const yy = [&] (value_type const & y) { return p.y + (y - p.x) * dy / dx; };
+                        value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
+                        value_type const dy = l.x - r.x;
+                        auto const pp = [&] (value_type const & y) -> point_type { return {(p.x + (y - p.y) * dx / dy), y}; };
+                        auto const yy = [&] (value_type const & x) { return p.y + (x - p.x) * dy / dx; };
                         if (eps < dx) {
                             value_type const y = yy(vbox);
                             if (eps < dy) {
                                 if (vbox < y) {
-                                    return {xx(vbox), vbox};
+                                    return pp(vbox);
                                 }
                             } else if (dy < -eps) {
                                 if (y < -vbox) {
-                                    return {xx(-vbox), -vbox};
+                                    return pp(-vbox);
                                 }
                             }
                             return {vbox, y};
@@ -222,11 +220,11 @@ main()
                             value_type const y = yy(-vbox);
                             if (eps < dy) {
                                 if (vbox < y) {
-                                    return {xx(vbox), vbox};
+                                    return pp(vbox);
                                 }
                             } else if (dy < -eps) {
                                 if (y < -vbox) {
-                                    return {xx(-vbox), -vbox};
+                                    return pp(-vbox);
                                 }
                             }
                             return {-vbox, y};
@@ -243,11 +241,13 @@ main()
                     };
                     bool const beg = (edge_.b != sweepline_.nov);
                     bool const end = (edge_.e != sweepline_.nov);
-                    if (beg && !end) {
-                        auto const & p = edge_.b->p;
+                    point_type const & l = *edge_.l;
+                    point_type const & r = *edge_.r;
+                    if (beg != end) {
+                        auto const & p = (beg ? edge_.b : edge_.e)->p;
                         if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
                             pout(p);
-                            pout(pend(p));
+                            pout(trunc_edge(l, r, p));
                             gnuplot_ << "\n";
                         }
                     } else if (beg && end) {
@@ -255,10 +255,9 @@ main()
                         pout(edge_.e->p);
                         gnuplot_ << "\n";
                     } else {
-                        assert(!beg && !end);
-                        //value_type const x = (l.x + r.x) / value_type(2);
-                        //value_type const y = (l.y + r.y) / value_type(2);
-                        assert(false && "need to implement");
+                        point_type const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
+                        pout(trunc_edge(l, r, p));
+                        pout(trunc_edge(r, l, p));
                     }
                 }
                 gnuplot_ << "e\n";
