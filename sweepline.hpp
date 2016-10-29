@@ -41,7 +41,7 @@ struct sweepline
     {
 
         point_type p; // circumcenter
-        value_type R; // radius
+        value_type R; // circumradius
 
         value_type x() const { return p.x + R; }
         value_type const & y() const { return p.y; }
@@ -116,31 +116,30 @@ private :
         value_type
         intersect(point_type const & l,
                   point_type const & r,
-                  value_type && _directrix) const
+                  value_type const & directrix) const
         {
             {
-                bool const degenerated_ = !(r.x + eps_ < _directrix);
-                if (!(l.x + eps_ < _directrix)) {
-                    if (degenerated_) {
+                bool const rdegenerated = !(r.x + eps_ < directrix);
+                if (!(l.x + eps_ < directrix)) {
+                    if (rdegenerated) {
                         assert(l.y + eps_ < r.y); // l != r
                         return (l.y + r.y) / value_type(2);
                     } else {
                         return l.y;
                     }
-                } else if (degenerated_) {
+                } else if (rdegenerated) {
                     return r.y;
                 }
             }
-            value_type ld = l.x - _directrix;
-            value_type rd = r.x - _directrix;
+            value_type ld = l.x - directrix;
+            value_type rd = r.x - directrix;
             value_type lb = l.y / ld; // -b
             value_type rb = r.y / rd; // -b
             ld += ld;
             rd += rd;
-            _directrix *= _directrix;
             auto const calc_c = [&] (point_type const & p, value_type const & d)
             {
-                return (p.x * p.x + p.y * p.y - _directrix) / d;
+                return (p.x * p.x + p.y * p.y - directrix * directrix) / d;
             };
             value_type lc = calc_c(l, ld);
             value_type rc = calc_c(r, rd);
@@ -159,22 +158,23 @@ private :
         }
 
         value_type
-        intersect(endpoint const & ep, value_type _directrix) const
+        intersect(endpoint const & ep, value_type const & directrix) const
         {
-            return intersect(*ep.l, *ep.r, std::move(_directrix));
+            return intersect(*ep.l, *ep.r, directrix);
         }
 
         bool operator () (endpoint const & l, endpoint const & r) const
         {
             // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
             // endpoints removed strictly before violation of this invariant to prevent its occurrence
+            if (l == r) {
+                return false;
+            }
+#if 1
             if (l.r == r.l) {
                 return true;
             }
             if (l.l == r.r) {
-                return false;
-            }
-            if (l == r) {
                 return false;
             }
             if (l.l == r.l) {
@@ -182,13 +182,18 @@ private :
             }
             if (r.r == l.r) {
                 return true;
-            }/*
-            if (std::max(*l.l, *l.r).y < std::max(*r.l, *r.r).y) {
-                return true;
-            } else {
-                return false;
-            }*/
+            }
             throw std::logic_error{""};
+#else
+            point_type const & ll = *l.l;
+            point_type const & lr = *l.r;
+            point_type const & rl = *r.l;
+            point_type const & rr = *r.r;
+            point_type const & lmax = std::max(ll, lr, point_less{eps_});
+            point_type const & rmax = std::max(rl, rr, point_less{eps_});
+            value_type const & directrix = std::max(lmax, rmax, point_less{eps_}).x;
+            return intersect(ll, lr, directrix) < intersect(rl, rr, directrix);
+#endif
         }
 
         using is_transparent = void;
@@ -278,8 +283,11 @@ private :
         value_type x = (B * N - F * M) / G;
         value_type y = (E * M - A * N) / G;
         using std::hypot;
+#if 0
         //value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(E, F));
+#else
         value_type R = hypot(x - a.x, y - a.y);
+#endif
         return vertices_.insert({{x, y}, R}).first;
     }
 
@@ -347,36 +355,36 @@ private :
     }
 
     void
-    trunc_edge(edge & ee, pvertex const v) const
+    trunc_edge(edge & e, pvertex const v) const
     {
         assert(v != nov);
-        if (ee.b == nov) {
-            if (ee.e == nov) { // orientate if needed:
-                point_type const & l = *ee.l;
-                point_type const & r = *ee.r;
+        if (e.b == nov) {
+            if (e.e == nov) { // orientate if needed:
+                point_type const & l = *e.l;
+                point_type const & r = *e.r;
                 point_type const & p = v->p;
                 if (r.x < l.x) {
                     if (p.y < l.y) {
-                        ee.b = v;
+                        e.b = v;
                         return;
                     }
                 } else if (l.x < r.x) {
                     if (r.y < p.y) {
-                        ee.b = v;
+                        e.b = v;
                         return;
                     }
                 } else {
                     assert(!(r.y < l.y));
                 }
-                ee.e = v;
+                e.e = v;
             } else {
-                assert(ee.e != v);
-                ee.b = v;
+                assert(e.e != v);
+                e.b = v;
             }
         } else {
-            assert(ee.b != v);
-            assert(ee.e == nov);
-            ee.e = v;
+            assert(e.b != v);
+            assert(e.e == nov);
+            e.e = v;
         }
     }
 
@@ -411,9 +419,9 @@ private :
     make_first_edge(point_iterator const l, point_iterator const r)
     {
         assert(endpoints_.empty());
-        pedge const ee = add_edge(l, r);
-        pendpoint const le = endpoints_.insert(noep, {{l, r, ee}, nov});
-        pendpoint const re = endpoints_.insert(noep, {{r, l, ee}, nov});
+        pedge const e = add_edge(l, r);
+        pendpoint const le = endpoints_.insert(noep, {{l, r, e}, nov});
+        pendpoint const re = endpoints_.insert(noep, {{r, l, e}, nov});
         assert(std::next(le) == re);
     }
 
@@ -426,8 +434,8 @@ private :
                 lr.first = std::prev(noep);
                 point_iterator const l = lr.first->first.r;
                 pedge const e = add_edge(l, p);
-                lr.second = endpoints_.insert(noep, {{p, l, e}, nov});
-                endpoints_.insert(noep, {{l, p, e}, nov});
+                lr.second = endpoints_.insert(noep, {{l, p, e}, nov});
+                endpoints_.insert(noep, {{p, l, e}, nov});
                 check_event(lr.first, lr.second);
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 point_iterator const r = lr.second->first.l;

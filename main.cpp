@@ -52,7 +52,7 @@ namespace
 {
 
 // bounding box
-value_type const bbox = value_type(100);
+value_type const bbox = value_type(10);
 value_type const delta = value_type(1E-12);
 
 value_type const eps = std::numeric_limits< value_type >::epsilon();
@@ -68,8 +68,8 @@ void
 generate(std::ostream & _out, size_type const N = 100000)
 {
     using seed_type = typename std::mt19937::result_type;
-#if 1
-    seed_type const seed_ = 62199879258375;//19614518643971;//8864935383105;
+#if 0
+    seed_type const seed_ = 65586637158077;//19614518643971;//8864935383105;
 #elif 0
     std::random_device D;
     auto const seed_ = static_cast< seed_type >(D());
@@ -123,8 +123,8 @@ main()
     std::stringstream in_;
     in_ << "3\n"
            "0 0\n"
-           "1 -0.1\n"
-           "3 -1\n";
+           "1 -1\n"
+           "1 1\n";
 #elif 0
     std::stringstream in_;
     in_ << "2\n"
