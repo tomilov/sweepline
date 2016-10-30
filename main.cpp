@@ -19,7 +19,7 @@
 #include <x86intrin.h>
 
 template< typename point_type, typename point_less, typename value_type >
-struct run
+struct voronoi
 {
 
     using size_type = std::size_t;
@@ -40,8 +40,8 @@ struct run
     generate(std::ostream & _out, size_type const N = 100000)
     {
         using seed_type = typename std::mt19937::result_type;
-#if 0
-        seed_type const seed_ = 65586637158077;//19614518643971;//8864935383105;
+#if 1
+        seed_type const seed_ = 56872040875833;
 #elif 0
         std::random_device D;
         auto const seed_ = static_cast< seed_type >(D());
@@ -80,7 +80,7 @@ struct run
         }
     }
 
-    run(std::ostream & _log = std::clog)
+    voronoi(std::ostream & _log = std::clog)
         : log_(_log)
     {
         assert(!(delta < eps));
@@ -110,9 +110,9 @@ struct run
 
     friend
     std::istream &
-    operator >> (std::istream & _in, run & _run)
+    operator >> (std::istream & _in, voronoi & _voronoi)
     {
-        _run.input(_in);
+        _voronoi.input(_in);
         return _in;
     }
 
@@ -122,17 +122,15 @@ struct run
 
     void operator () ()
     {
-        {
-            using std::chrono::duration_cast;
-            using std::chrono::microseconds;
-            using std::chrono::steady_clock;
-            steady_clock::time_point const start = steady_clock::now();
-            log_ << "begin sweepline\n";
-            sweepline_(std::cbegin(sites_), std::cend(sites_));
-            log_ << "sweepline time = "
-                 << duration_cast< microseconds >(steady_clock::now() - start).count()
-                 << "us\n";
-        }
+        using std::chrono::duration_cast;
+        using std::chrono::microseconds;
+        using std::chrono::steady_clock;
+        steady_clock::time_point const start = steady_clock::now();
+        log_ << "begin sweepline\n";
+        sweepline_(std::cbegin(sites_), std::cend(sites_));
+        log_ << "sweepline time = "
+             << duration_cast< microseconds >(steady_clock::now() - start).count()
+             << "us\n";
     }
 
     value_type const vbox = value_type(2) * bbox;
@@ -182,70 +180,72 @@ struct run
 
     void output(std::ostream & _gnuplot) const
     {
+        if (sites_.empty()) {
+            _gnuplot << "print 'no point to process'\n;";
+            return;
+        }
         {
             _gnuplot << "set size square;\n"
                         "set key left;\n";
             _gnuplot << "set xrange [" << -vbox << ':' << vbox << "];\n";
             _gnuplot << "set yrange [" << -vbox << ':' << vbox << "];\n";
         }
-        if (!sites_.empty()) {
-            _gnuplot << "plot";
-            _gnuplot << " '-' with points notitle"
-                        ", '' with labels offset character 0, character 1 notitle";
-            if (!sweepline_.edges_.empty()) {
-                _gnuplot << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
+        _gnuplot << "plot";
+        _gnuplot << " '-' with points notitle"
+                    ", '' with labels offset character 0, character 1 notitle";
+        if (!sweepline_.edges_.empty()) {
+            _gnuplot << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
+        }
+        _gnuplot << ";\n";
+        auto const pout = [&] (auto const & p)
+        {
+            _gnuplot << p.x << ' ' << p.y << '\n';
+        };
+        {
+            for (point_type const & point_ : sites_) {
+                pout(point_);
             }
-            _gnuplot << ";\n";
-            auto const pout = [&] (auto const & p)
-            {
-                _gnuplot << p.x << ' ' << p.y << '\n';
-            };
-            {
-                for (auto const & point_ : sites_) {
-                    pout(point_);
-                }
-                _gnuplot << "e\n";
+            _gnuplot << "e\n";
+        }
+        {
+            size_type i = 0;
+            for (point_type const & point_ : sites_) {
+                _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
             }
-            {
-                size_type i = 0;
-                for (auto const & point_ : sites_) {
-                    _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
-                }
-                _gnuplot << "e\n";
-            }
-            if (!sweepline_.edges_.empty()) {
-                for (auto const & edge_ : sweepline_.edges_) {
-                    bool const beg = (edge_.b != sweepline_.nov);
-                    bool const end = (edge_.e != sweepline_.nov);
-                    point_type const & l = *edge_.l;
-                    point_type const & r = *edge_.r;
-                    if (beg != end) {
-                        auto const & p = (beg ? edge_.b : edge_.e)->c;
-                        if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
-                            pout(p);
-                            pout(trunc_edge(l, r, p));
-                            _gnuplot << "\n";
-                        }
-                    } else if (beg && end) {
-                        pout(edge_.b->c);
-                        pout(edge_.e->c);
+            _gnuplot << "e\n";
+        }
+        if (!sweepline_.edges_.empty()) {
+            for (auto const & edge_ : sweepline_.edges_) {
+                bool const beg = (edge_.b != sweepline_.nov);
+                bool const end = (edge_.e != sweepline_.nov);
+                point_type const & l = *edge_.l;
+                point_type const & r = *edge_.r;
+                if (beg != end) {
+                    point_type const & p = (beg ? edge_.b : edge_.e)->c;
+                    if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
+                        pout(p);
+                        pout(trunc_edge((beg ? l : r), (end ? l : r), p));
                         _gnuplot << "\n";
-                    } else {
-                        point_type const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
-                        pout(trunc_edge(l, r, p));
-                        pout(trunc_edge(r, l, p));
                     }
+                } else if (beg && end) {
+                    pout(edge_.b->c);
+                    pout(edge_.e->c);
+                    _gnuplot << "\n";
+                } else {
+                    point_type const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
+                    pout(trunc_edge(l, r, p));
+                    pout(trunc_edge(r, l, p));
                 }
-                _gnuplot << "e\n";
             }
+            _gnuplot << "e\n";
         }
     }
 
     friend
     std::ostream &
-    operator << (std::ostream & _gnuplot, run const & _run)
+    operator << (std::ostream & _gnuplot, voronoi const & _voronoi)
     {
-        _run.output(_gnuplot);
+        _voronoi.output(_gnuplot);
         return _gnuplot;
     }
 
@@ -279,13 +279,13 @@ struct point_less
 int
 main()
 {
-    run< point_type, point_less, value_type > run_{std::clog};
+    voronoi< point_type, point_less, value_type > voronoi_{std::clog};
     {
 #if 0
         std::istream & in_ = std::cin;
 #elif 1
         std::stringstream in_;
-        run_.generate(in_, 3);
+        voronoi_.generate(in_, 5);
         std::clog << in_.str() << '\n';
 #elif 0
         std::stringstream in_;
@@ -294,9 +294,9 @@ main()
                "1 -1\n"
                "1 1\n";
 #endif
-        in_ >> run_;
+        in_ >> voronoi_;
     }
-    run_();
-    std::cout << run_ << std::endl;
+    voronoi_();
+    std::cout << voronoi_ << std::endl;
     return EXIT_SUCCESS;
 }
