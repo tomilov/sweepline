@@ -349,32 +349,47 @@ private :
         if (v.first != nov) {
             if (ll.second != nov) {
                 assert(rr.second == nov);
-                if (event_less{eps}(v.first, ll.second)) {
+                value_type const & x = v.first->x();
+                value_type const & xx = ll.second->x();
+                if (x + eps < xx) {
                     disable_event(ll.second);
-                } else {
+                    ll.second = rr.second = v.first;
+                    assert((events_.find(v.first) == noe) == v.second);
+                    auto & evep = events_[v.first];
+                    evep.push_back(l);
+                    evep.push_back(r);
+                    assert(ll.second == nov);
+                    assert(rr.second == nov);
+                } else if (xx + eps < x) {
                     if (v.second) {
                         vertices_.erase(v.first);
                     }
-                    return nov;
+                } else {
+                    rr.second = v.first;
+                    events_[v.first].push_back(r);
                 }
             } else if (rr.second != nov) {
                 assert(ll.second == nov);
-                if (event_less{eps}(v.first, rr.second)) {
+                value_type const & x = v.first->x();
+                value_type const & xx = rr.second->x();
+                if (x + eps < xx) {
                     disable_event(rr.second);
-                } else {
+                    rr.second = ll.second = v.first;
+                    assert((events_.find(v.first) == noe) == v.second);
+                    auto & evep = events_[v.first];
+                    evep.push_back(r);
+                    evep.push_back(l);
+                    assert(rr.second == nov);
+                    assert(ll.second == nov);
+                } else if (xx + eps < x) {
                     if (v.second) {
                         vertices_.erase(v.first);
                     }
-                    return nov;
+                } else {
+                    ll.second = v.first;
+                    events_[v.first].push_back(l);
                 }
             }
-            assert(ll.second == nov);
-            assert(rr.second == nov);
-            ll.second = rr.second = v.first;
-            assert((events_.find(v.first) == noe) == v.second);
-            auto & evep = events_[v.first];
-            evep.push_back(l);
-            evep.push_back(r);
         }
         return v.first;
     }
