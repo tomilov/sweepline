@@ -26,13 +26,13 @@ struct voronoi
 
     std::ostream & log_;
 
-    // bounding box
-    value_type const bbox = value_type(10);
-    value_type const delta = value_type(1E-12);
-
-    value_type const eps = std::numeric_limits< value_type >::epsilon();
+    value_type const eps = [] { return value_type(1E-10); }();
     value_type const zero = value_type(0);
     value_type const one = value_type(1);
+
+    // bounding box
+    value_type const bbox = value_type(10);
+    value_type const delta = eps * value_type(10);
 
     std::ostream & gnuplot_ = std::cout;
 
@@ -40,8 +40,9 @@ struct voronoi
     generate(std::ostream & _out, size_type const N = 100000)
     {
         using seed_type = typename std::mt19937::result_type;
-#if 1
-        seed_type const seed_ = 100170765847552;
+#if 0
+        // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
+        seed_type const seed_ = 16609243045470;
 #elif 0
         std::random_device D;
         auto const seed_ = static_cast< seed_type >(D());
@@ -258,6 +259,13 @@ struct point
 
     value_type x, y;
 
+    friend
+    std::ostream &
+    operator << (std::ostream & _out, point const & p)
+    {
+        return _out << '{' << p.x << ", " << p.y << '}';
+    }
+
 };
 
 using point_type = point;
@@ -285,14 +293,16 @@ main()
         std::istream & in_ = std::cin;
 #elif 1
         std::stringstream in_;
-        voronoi_.generate(in_, 3);
+        in_ >> std::scientific;
+        in_.precision(std::numeric_limits< value_type >::digits10 + 2);
+        voronoi_.generate(in_, 1000);
         std::clog << in_.str() << '\n';
 #elif 0
         std::stringstream in_;
         in_ << "3\n"
-               "0 0\n"
-               "1 -1\n"
-               "1 1\n";
+               "-1 0\n"
+               "0 -1\n"
+               "0 1\n";
 #endif
         in_ >> voronoi_;
     }

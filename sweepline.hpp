@@ -15,6 +15,9 @@
 #include <vector>
 #include <experimental/optional>
 #include <stdexcept>
+#include <iomanip>
+#include <ostream>
+#include <iostream>
 
 #include <cassert>
 #include <cmath>
@@ -47,6 +50,13 @@ struct sweepline
         value_type x() const { return c.x + R; }
         value_type const & y() const { return c.y; }
 
+        friend
+        std::ostream &
+        operator << (std::ostream & _out, vertex const & v)
+        {
+            return _out << "v{" << v.c << ", " << v.R << '}';
+        }
+
     };
 
     struct vertex_less
@@ -69,6 +79,13 @@ struct sweepline
 
         site l, r;
         pvertex b, e;
+
+        friend
+        std::ostream &
+        operator << (std::ostream & _out, edge const & ed)
+        {
+            return _out << "e{" << *ed.l << ", " << *ed.r << ", " << *ed.b << ", " << *ed.e << '}';
+        }
 
     };
 
@@ -98,6 +115,13 @@ private :
             } else {
                 return false;
             }
+        }
+
+        friend
+        std::ostream &
+        operator << (std::ostream & _out, endpoint const & ep)
+        {
+            return _out << "ep{" << *ep.l << ", " << *ep.r << ", " << *ep.e << '}' << std::endl;
         }
 
     };
@@ -190,6 +214,11 @@ private :
             return intersect(l, r.x()) + eps_ < r.y();
         }
 
+        void print_delta(vertex const & v, endpoint const & ep) const
+        {
+            std::cerr << v.y() - intersect(ep, v.x()) << std::endl;
+        }
+
         bool operator () (point const & l, endpoint const & r) const
         {
             return l.y + eps_ < intersect(r, l.x);
@@ -274,6 +303,8 @@ private :
         using std::hypot;
 #if 0
         value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(E, F));
+#elif 0
+        value_type R = (hypot(x - a.x, y - a.y) + hypot(x - b.x, y - b.y) + hypot(x - c.x, y - c.y)) / value_type(3);
 #else
         value_type R = hypot(x - a.x, y - a.y);
 #endif
@@ -330,14 +361,14 @@ private :
     disable_event(pvertex const v)
     {
         assert(!events_.empty());
-        pevent const l = std::begin(events_);
-        pevent const r = events_.upper_bound(v);
-        for (pevent ev = l; ev != r; ++ev) {
-            assert(ev->first == v);
-            assert(ev->second->second == v);
-            ev->second->second = nov;
-        }
-        events_.erase(l, r);
+        pevent l = events_.lower_bound(v);
+        do {
+            pvertex & vv = l->second->second;
+            if (vv == v) {
+                vv = nov;
+            }
+            events_.erase(l++);
+        } while ((l != noe) && (l->first == v));
         vertices_.erase(v);
     }
 
@@ -350,43 +381,74 @@ private :
         assert(ll.first.r == rr.first.l);
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
-            if (ll.second != nov) {
-                assert(rr.second == nov);
-                value_type const & x = v.first->x();
-                value_type const & xx = ll.second->x();
-                if (x + eps < xx) {
+            if ((ll.second != nov) && (rr.second != nov)) {
+                value_type const & lx = ll.second->x();
+                value_type const & rx = rr.second->x();
+                if (lx + eps < rx) {
+                    disable_event(rr.second);
+                } else if (rx + eps < lx) {
                     disable_event(ll.second);
-                } else if (xx + eps < x) {
-                    if (v.second) {
-                        vertices_.erase(v.first);
-                    }
-                    return;
+                }
+            }
+            if (ll.second != nov) {
+                value_type const & lx = v.first->x();
+                value_type const & rx = ll.second->x();
+                if (lx + eps < rx) {
+                    disable_event(ll.second);
                 } else {
-                    assert(!v.second);
-                    rr.second = v.first;
-                    events_.insert({v.first, r});
+                    if (rx + eps < lx) {
+                        if (v.second) {
+                            vertices_.erase(v.first);
+                        }
+                    } else {
+                        assert(!v.second);
+                        if (rr.second != v.first) {
+                            assert(rr.second == nov);
+                            rr.second = v.first;
+                            events_.insert({v.first, r});
+                        }
+                    }
                     return;
                 }
             } else if (rr.second != nov) {
-                assert(ll.second == nov);
-                value_type const & x = v.first->x();
-                value_type const & xx = rr.second->x();
-                if (x + eps < xx) {
+                value_type const & lx = v.first->x();
+                value_type const & rx = rr.second->x();
+                if (lx + eps < rx) {
                     disable_event(rr.second);
-                } else if (xx + eps < x) {
-                    if (v.second) {
-                        vertices_.erase(v.first);
-                    }
-                    return;
                 } else {
-                    assert(!v.second);
-                    ll.second = v.first;
-                    events_.insert({v.first, l});
+                    if (rx + eps < lx) {
+                        if (v.second) {
+                            vertices_.erase(v.first);
+                        }
+                    } else {
+                        assert(!v.second);
+                        if (ll.second != v.first) {
+                            assert(ll.second == nov);
+                            ll.second = v.first;
+                            events_.insert({v.first, l});
+                        }
+                    }
                     return;
                 }
             }
+            assert(ll.second == nov);
+            assert(rr.second == nov);
             ll.second = rr.second = v.first;
             events_.insert(events_.insert({v.first, r}), {v.first, l});
+            if (endpoint_less{eps}(*v.first, ll.first)) {
+                endpoint_less{eps}.print_delta(*v.first, ll.first);
+            }
+            if (endpoint_less{eps}(ll.first, *v.first)) {
+                endpoint_less{eps}.print_delta(*v.first, ll.first);
+            }
+            if (endpoint_less{eps}(*v.first, rr.first)) {
+                endpoint_less{eps}.print_delta(*v.first, rr.first);
+            }
+            if (endpoint_less{eps}(rr.first, *v.first)) {
+                endpoint_less{eps}.print_delta(*v.first, rr.first);
+            }
+            assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
+            assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
         }
     }
 
@@ -475,10 +537,25 @@ private :
     }
 
     void
-    finish_endpoints(pendpoint l,
-                     pendpoint const r,
-                     pvertex const v)
+    finish_cells(pevent ev, pvertex const v)
     {
+        pendpoint r = ev->second;
+        do {
+            events_.erase(ev++);
+        } while ((ev != noe) && (ev->first == v));
+        pendpoint l = r;
+        pendpoint const ll = std::begin(endpoints_);
+        while (l != ll) {
+            if (std::prev(l)->second != v) {
+                break;
+            }
+            --l;
+        }
+        while (++r != noep) {
+            if (r->second != v) {
+                break;
+            }
+        }
         assert(1 < std::distance(l, r));
         site const lc = l->first.l;
         site const rc = std::prev(r)->first.r;
@@ -495,17 +572,6 @@ private :
         if (r != noep) {
             check_event(l, r);
         }
-    }
-
-    void
-    finish_cells(pevent const l, pvertex const v)
-    {
-        assert(l->first == v);
-        pevent const r = events_.upper_bound(v);
-        assert(1 < std::distance(l, r));
-        events_.erase(l, r);
-        auto const lr = endpoints_.equal_range(*v);
-        finish_endpoints(lr.first, lr.second, v);
     }
 
     bool
