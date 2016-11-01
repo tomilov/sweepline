@@ -41,7 +41,7 @@ struct voronoi
     {
         using seed_type = typename std::mt19937::result_type;
 #if 1
-        seed_type const seed_ = 56872040875833;
+        seed_type const seed_ = 100170765847552;
 #elif 0
         std::random_device D;
         auto const seed_ = static_cast< seed_type >(D());
@@ -285,7 +285,7 @@ main()
         std::istream & in_ = std::cin;
 #elif 1
         std::stringstream in_;
-        voronoi_.generate(in_, 5);
+        voronoi_.generate(in_, 3);
         std::clog << in_.str() << '\n';
 #elif 0
         std::stringstream in_;

@@ -72,7 +72,7 @@ struct sweepline
 
     };
 
-    using edges = std::list< edge >;
+    using edges = std::deque< edge >;
     using pedge = typename edges::iterator;
 
     vertices vertices_{vertex_less{eps}};
@@ -223,12 +223,15 @@ private :
 
         bool operator () (pvertex const l, pvertex const r) const
         {
+            if (l == r) {
+                return false;
+            }
             return operator () (*l, *r);
         }
 
     };
 
-    using events = std::map< pvertex, std::deque< pendpoint >, event_less >;
+    using events = std::multimap< pvertex, pendpoint, event_less >;
     using pevent = typename events::iterator;
 
     events events_{event_less{eps}};
@@ -326,19 +329,19 @@ private :
     void
     disable_event(pvertex const v)
     {
-        pevent const ev = events_.find(v);
-        assert(ev != noe);
-        assert(1 < ev->second.size());
-        auto & evep = ev->second;
-        for (pendpoint const & ep : evep) {
-            assert(ep->second == ev->first);
-            ep->second = nov;
+        assert(!events_.empty());
+        pevent const l = std::begin(events_);
+        pevent const r = events_.upper_bound(v);
+        for (pevent ev = l; ev != r; ++ev) {
+            assert(ev->first == v);
+            assert(ev->second->second == v);
+            ev->second->second = nov;
         }
-        evep.clear();
+        events_.erase(l, r);
         vertices_.erase(v);
     }
 
-    pvertex
+    void
     check_event(pendpoint const l, pendpoint const r)
     {
         assert(std::next(l) == r);
@@ -353,20 +356,16 @@ private :
                 value_type const & xx = ll.second->x();
                 if (x + eps < xx) {
                     disable_event(ll.second);
-                    ll.second = rr.second = v.first;
-                    assert((events_.find(v.first) == noe) == v.second);
-                    auto & evep = events_[v.first];
-                    evep.push_back(l);
-                    evep.push_back(r);
-                    assert(ll.second == nov);
-                    assert(rr.second == nov);
                 } else if (xx + eps < x) {
                     if (v.second) {
                         vertices_.erase(v.first);
                     }
+                    return;
                 } else {
+                    assert(!v.second);
                     rr.second = v.first;
-                    events_[v.first].push_back(r);
+                    events_.insert({v.first, r});
+                    return;
                 }
             } else if (rr.second != nov) {
                 assert(ll.second == nov);
@@ -374,24 +373,21 @@ private :
                 value_type const & xx = rr.second->x();
                 if (x + eps < xx) {
                     disable_event(rr.second);
-                    rr.second = ll.second = v.first;
-                    assert((events_.find(v.first) == noe) == v.second);
-                    auto & evep = events_[v.first];
-                    evep.push_back(r);
-                    evep.push_back(l);
-                    assert(rr.second == nov);
-                    assert(ll.second == nov);
                 } else if (xx + eps < x) {
                     if (v.second) {
                         vertices_.erase(v.first);
                     }
+                    return;
                 } else {
+                    assert(!v.second);
                     ll.second = v.first;
-                    events_[v.first].push_back(l);
+                    events_.insert({v.first, l});
+                    return;
                 }
             }
+            ll.second = rr.second = v.first;
+            events_.insert(events_.insert({v.first, r}), {v.first, l});
         }
-        return v.first;
     }
 
     pendpoint
@@ -401,14 +397,6 @@ private :
                     pedge const e)
     {
         return endpoints_.insert(ep, {{l, r, e}, nov});
-    }
-
-    pendpoint
-    insert_endpoint(site const l,
-                    site const r,
-                    pedge const e)
-    {
-        return endpoints_.insert(noep, {{l, r, e}, nov});
     }
 
     void
@@ -443,9 +431,9 @@ private :
     {
         assert(endpoints_.empty());
         pedge const e = add_edge(l, r);
-        pendpoint const le = insert_endpoint(l, r, e);
+        pendpoint const le = insert_endpoint(noep, l, r, e);
         if (l->x + eps < r->x)  {
-            pendpoint const re = insert_endpoint(r, l, e);
+            pendpoint const re = insert_endpoint(noep, r, l, e);
             assert(std::next(le) == re);
         }
     }
@@ -459,9 +447,9 @@ private :
                 lr.first = std::prev(noep);
                 site const l = lr.first->first.r;
                 pedge const e = add_edge(l, s);
-                lr.second = insert_endpoint(l, s, e);
+                lr.second = insert_endpoint(noep, l, s, e);
                 if (l->x + eps < s->x)  {
-                    insert_endpoint(s, l, e);
+                    insert_endpoint(noep, s, l, e);
                 }
                 check_event(lr.first, lr.second);
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
@@ -492,15 +480,15 @@ private :
                      pvertex const v)
     {
         assert(1 < std::distance(l, r));
-        site const lp = l->first.l;
-        site const rp = std::prev(r)->first.r;
+        site const lc = l->first.l;
+        site const rc = std::prev(r)->first.r;
         for (pendpoint ep = l; ep != r; ++ep) {
             assert(ep->second == v);
             trunc_edge(*ep->first.e, v);
         }
         endpoints_.erase(l, r);
-        pedge const e = add_edge(lp, rp, v);
-        l = insert_endpoint(r, lp, rp, e);
+        pedge const e = add_edge(lc, rc, v);
+        l = insert_endpoint(r, lc, rc, e);
         if (l != std::begin(endpoints_)) {
             check_event(std::prev(l), l);
         }
@@ -510,26 +498,14 @@ private :
     }
 
     void
-    finish_cells(pevent const ev, pvertex const v)
+    finish_cells(pevent const l, pvertex const v)
     {
-        auto const evep = std::move(ev->second);
-        events_.erase(ev);
-        if (!evep.empty()) {
-            if (2 < evep.size()) {
-                auto const lr = endpoints_.equal_range(*v);
-                finish_endpoints(lr.first, lr.second, v);
-            } else {
-                assert(evep.size() == 2);
-                pendpoint const l = evep.front();
-                pendpoint const r = evep.back();
-                if (std::next(l) == r) {
-                    finish_endpoints(l, std::next(r), v);
-                } else {
-                    assert(std::next(r) == l);
-                    finish_endpoints(r, std::next(l), v);
-                }
-            }
-        }
+        assert(l->first == v);
+        pevent const r = events_.upper_bound(v);
+        assert(1 < std::distance(l, r));
+        events_.erase(l, r);
+        auto const lr = endpoints_.equal_range(*v);
+        finish_endpoints(lr.first, lr.second, v);
     }
 
     bool
