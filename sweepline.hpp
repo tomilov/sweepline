@@ -126,6 +126,17 @@ private :
 
     };
 
+    static
+    value_type
+    intersect(point const & p,
+              value_type const & y,
+              value_type const & directrix)
+    {
+        assert(p.x < directrix);
+        value_type d = p.x - directrix;
+        return (y * (y - (p.y + p.y)) + (p.x * p.x + p.y * p.y - directrix * directrix)) / (d + d);
+    }
+
     struct endpoint_less
     {
 
@@ -169,15 +180,29 @@ private :
                 value_type D = b * b - (a + a) * c;
                 assert(!(D < value_type(0)));
                 using std::sqrt;
-                return (b + sqrt(D)) / a;
+                value_type y = (b + sqrt(D)) / a;
+                {
+                    /*
+                    value_type x0 = (l.x + r.x) / value_type(2);
+                    value_type y0 = (l.y + r.y) / value_type(2);
+                    value_type dx = l.y - r.y;
+                    value_type dy = r.x - l.x;
+                    value_type xx = x0 + (y - y0) * dx / dy;
+                    */
+                    value_type xa = sweepline::intersect(l, y, directrix);
+                    value_type xb = sweepline::intersect(r, y, directrix);
+                    value_type da = std::hypot(xa - l.x, y - l.y);
+                    value_type db = std::hypot(xb - r.x, y - r.y);
+                    asm volatile ("nop");
+                }
+                return y;
             } else { // a ~= 0
                 return c / b; // -c / b
             }
         }
 
         value_type
-        intersect(endpoint const & ep,
-                  value_type const & directrix) const
+        intersect(endpoint const & ep, value_type const & directrix) const
         {
             return intersect(*ep.l, *ep.r, directrix);
         }
@@ -308,6 +333,18 @@ private :
 #else
         value_type R = hypot(x - a.x, y - a.y);
 #endif
+        {
+            value_type x1 = intersect(a, y, x + R);
+            value_type x2 = intersect(b, y, x + R);
+            value_type x3 = intersect(c, y, x + R);
+            value_type y1 = endpoint_less{eps}.intersect(a, b, x + R);
+            value_type y2 = endpoint_less{eps}.intersect(b, c, x + R);
+            value_type y3 = endpoint_less{eps}.intersect(a, c, x + R);
+            value_type y4 = endpoint_less{eps}.intersect(b, a, x + R);
+            value_type y5 = endpoint_less{eps}.intersect(c, b, x + R);
+            value_type y6 = endpoint_less{eps}.intersect(c, a, x + R);
+            asm volatile ("nop");
+        }
         return vertices_.insert({{x, y}, R});
     }
 
@@ -366,6 +403,8 @@ private :
             pvertex & vv = l->second->second;
             if (vv == v) {
                 vv = nov;
+            } else {
+                assert(vv == nov);
             }
             events_.erase(l++);
         } while ((l != noe) && (l->first == v));
@@ -379,8 +418,29 @@ private :
         auto & ll = *l;
         auto & rr = *r;
         assert(ll.first.r == rr.first.l);
+        static int i = 0;
+        std::cerr << ++i << std::endl;
+        if (i == 4131) {
+            asm volatile ("nop");
+        }
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
+            {
+                if (endpoint_less{eps}(*v.first, ll.first)) {
+                    endpoint_less{eps}.print_delta(*v.first, ll.first);
+                }
+                if (endpoint_less{eps}(ll.first, *v.first)) {
+                    endpoint_less{eps}.print_delta(*v.first, ll.first);
+                }
+                if (endpoint_less{eps}(*v.first, rr.first)) {
+                    endpoint_less{eps}.print_delta(*v.first, rr.first);
+                }
+                if (endpoint_less{eps}(rr.first, *v.first)) {
+                    endpoint_less{eps}.print_delta(*v.first, rr.first);
+                }
+                assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
+                assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
+            }
             if ((ll.second != nov) && (rr.second != nov)) {
                 value_type const & lx = ll.second->x();
                 value_type const & rx = rr.second->x();
@@ -435,28 +495,11 @@ private :
             assert(rr.second == nov);
             ll.second = rr.second = v.first;
             events_.insert(events_.insert({v.first, r}), {v.first, l});
-            if (endpoint_less{eps}(*v.first, ll.first)) {
-                endpoint_less{eps}.print_delta(*v.first, ll.first);
-            }
-            if (endpoint_less{eps}(ll.first, *v.first)) {
-                endpoint_less{eps}.print_delta(*v.first, ll.first);
-            }
-            if (endpoint_less{eps}(*v.first, rr.first)) {
-                endpoint_less{eps}.print_delta(*v.first, rr.first);
-            }
-            if (endpoint_less{eps}(rr.first, *v.first)) {
-                endpoint_less{eps}.print_delta(*v.first, rr.first);
-            }
-            assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
-            assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
         }
     }
 
     pendpoint
-    insert_endpoint(pendpoint const ep,
-                    site const l,
-                    site const r,
-                    pedge const e)
+    insert_endpoint(pendpoint const ep, site const l, site const r, pedge const e)
     {
         return endpoints_.insert(ep, {{l, r, e}, nov});
     }

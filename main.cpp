@@ -40,9 +40,9 @@ struct voronoi
     generate(std::ostream & _out, size_type const N = 100000)
     {
         using seed_type = typename std::mt19937::result_type;
-#if 0
+#if 1
         // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
-        seed_type const seed_ = 16609243045470;
+        seed_type const seed_ = 15959779189989;
 #elif 0
         std::random_device D;
         auto const seed_ = static_cast< seed_type >(D());
