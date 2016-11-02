@@ -317,21 +317,19 @@ private :
             // 2.) G is small: collinear points => edges never cross
             return {nov, false};
         }
-        value_type E = c.x - a.x;
-        value_type F = c.y - a.y;
         value_type M = A * (a.x + b.x) + B * (a.y + b.y);
-        value_type N = E * (a.x + c.x) + F * (a.y + c.y);
+        value_type N = C * (b.x + c.x) + D * (b.y + c.y);
         G += G;
         // circumcenter:
-        value_type x = (B * N - F * M) / G;
-        value_type y = (E * M - A * N) / G;
+        value_type x = (B * N - D * M) / G;
+        value_type y = (C * M - A * N) / G;
         using std::hypot;
 #if 0
-        value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(E, F));
+        value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(c.x - a.x, c.y - a.y));
 #elif 0
         value_type R = (hypot(x - a.x, y - a.y) + hypot(x - b.x, y - b.y) + hypot(x - c.x, y - c.y)) / value_type(3);
 #else
-        value_type R = hypot(x - a.x, y - a.y);
+        value_type R = hypot(x - b.x, y - b.y);
 #endif
         {
             value_type x1 = intersect(a, y, x + R);
