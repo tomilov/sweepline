@@ -145,7 +145,7 @@ private :
         value_type
         intersect(point const & l,
                   point const & r,
-                  value_type const & directrix) const
+                  value_type directrix) const
         {
             {
                 bool const rdegenerated = !(r.x + eps_ < directrix);
@@ -162,17 +162,12 @@ private :
             }
             value_type ld = l.x - directrix;
             value_type rd = r.x - directrix;
-            value_type lb = l.y / ld; // -b
-            value_type rb = r.y / rd; // -b
+            value_type b = r.y / rd - l.y / ld; // -b
             ld += ld;
             rd += rd;
-            auto const calc_c = [&] (point const & p, value_type const & d)
-            {
-                return (p.x * p.x + p.y * p.y - directrix * directrix) / d;
-            };
-            value_type lc = calc_c(l, ld);
-            value_type rc = calc_c(r, rd);
-            value_type b = rb - lb; // -b
+            directrix *= directrix;
+            value_type lc = (l.x * l.x + l.y * l.y - directrix) / ld;
+            value_type rc = (r.x * r.x + r.y * r.y - directrix) / rd;
             value_type c = rc - lc;
             if ((l.x + eps_ < r.x) || (r.x + eps_ < l.x)) {
                 value_type a = (ld - rd) / (ld * rd);
@@ -189,10 +184,12 @@ private :
                     value_type dy = r.x - l.x;
                     value_type xx = x0 + (y - y0) * dx / dy;
                     */
+                    value_type y2 = (b - sqrt(D)) / a;
+                    using std::hypot;
                     value_type xa = sweepline::intersect(l, y, directrix);
                     value_type xb = sweepline::intersect(r, y, directrix);
-                    value_type da = std::hypot(xa - l.x, y - l.y);
-                    value_type db = std::hypot(xb - r.x, y - r.y);
+                    value_type da = hypot(xa - l.x, y - l.y);
+                    value_type db = hypot(xb - r.x, y - r.y);
                     asm volatile ("nop");
                 }
                 return y;
@@ -423,7 +420,7 @@ private :
         }
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
-            {
+            {/*
                 if (endpoint_less{eps}(*v.first, ll.first)) {
                     endpoint_less{eps}.print_delta(*v.first, ll.first);
                 }
@@ -435,7 +432,7 @@ private :
                 }
                 if (endpoint_less{eps}(rr.first, *v.first)) {
                     endpoint_less{eps}.print_delta(*v.first, rr.first);
-                }
+                }*/
                 assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
                 assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
             }

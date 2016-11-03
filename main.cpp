@@ -26,7 +26,7 @@ struct voronoi
 
     std::ostream & log_;
 
-    value_type const eps = [] { return value_type(5E-10); }();
+    value_type const eps = [] { return value_type(1E-9); }();
     value_type const zero = value_type(0);
     value_type const one = value_type(1);
 
