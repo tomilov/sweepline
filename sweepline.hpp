@@ -282,7 +282,8 @@ private :
             value_type const & lx = l.x() + eps_;
             value_type const & ly = l.y() + eps_;
             value_type const & rx = r.x();
-            return std::tie(lx, ly) < std::tie(rx, r.y());
+            value_type const & ry = r.y();
+            return std::tie(lx, ly) < std::tie(rx, ry);
         }
 
         bool operator () (pvertex const l, pvertex const r) const
@@ -425,16 +426,16 @@ private :
     disable_event(pvertex const v)
     {
         assert(!events_.empty());
-        pevent l = events_.lower_bound(v);
+        pevent ev = events_.lower_bound(v);
         do {
-            pvertex & vv = l->second->second;
+            pvertex & vv = ev->second->second;
             if (vv == v) {
                 vv = nov;
             } else {
                 assert(vv == nov);
             }
-            events_.erase(l++);
-        } while ((l != noe) && (l->first == v));
+            events_.erase(ev++);
+        } while ((ev != noe) && (ev->first == v));
         vertices_.erase(v);
     }
 
@@ -478,12 +479,12 @@ private :
                 }
             }
             if (ll.second != nov) {
-                value_type const & lx = v.first->x();
-                value_type const & rx = ll.second->x();
-                if (lx + eps < rx) {
+                value_type const & x = v.first->x();
+                value_type const & lx = ll.second->x();
+                if (x + eps < lx) {
                     disable_event(ll.second);
                 } else {
-                    if (rx + eps < lx) {
+                    if (lx + eps < x) {
                         if (v.second) {
                             vertices_.erase(v.first);
                         }
@@ -498,12 +499,12 @@ private :
                     return;
                 }
             } else if (rr.second != nov) {
-                value_type const & lx = v.first->x();
+                value_type const & x = v.first->x();
                 value_type const & rx = rr.second->x();
-                if (lx + eps < rx) {
+                if (x + eps < rx) {
                     disable_event(rr.second);
                 } else {
-                    if (rx + eps < lx) {
+                    if (rx + eps < x) {
                         if (v.second) {
                             vertices_.erase(v.first);
                         }
@@ -583,13 +584,11 @@ private :
                 if (l->x + eps < s->x)  {
                     insert_endpoint(noep, s, l, e);
                 }
-                check_event(lr.first, lr.second);
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 site const r = lr.second->first.l;
                 pedge const e = add_edge(s, r);
                 insert_endpoint(lr.second, r, s, e);
                 lr.first = insert_endpoint(lr.second, s, r, e);
-                check_event(lr.first, lr.second);
             } else { // insert in the middle of the beachline (hottest branch in general case)
                 --lr.first;
                 site const c = lr.first->first.r;
@@ -600,7 +599,9 @@ private :
                 assert(std::next(l) == r);
                 check_event(lr.first, l);
                 check_event(r, lr.second);
+                return;
             }
+            check_event(lr.first, lr.second);
         } else { // many arc collapsing right here, event (equivalent to the current site p) coming on the next step
             finish_endpoints(lr.first, lr.second, lr.first->second, s);
         }
