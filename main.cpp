@@ -31,7 +31,7 @@ struct voronoi
     value_type const one = value_type(1);
 
     // bounding box
-    value_type const bbox = value_type(10);
+    value_type const bbox = value_type(2);
     value_type const delta = eps * value_type(10);
 
     std::ostream & gnuplot_ = std::cout;
@@ -42,7 +42,7 @@ struct voronoi
         using seed_type = typename std::mt19937::result_type;
 #if 1
         // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
-        seed_type const seed_ =  83502665392414; //58771418082316; // 10 64913433408927
+        seed_type const seed_ =  0x4bf1fab5611e; //58771418082316; // 10 64913433408927
 #elif 0
         std::random_device D;
         auto const seed_ = static_cast< seed_type >(D());
@@ -107,6 +107,12 @@ struct voronoi
             }
         }
         std::sort(std::begin(sites_), std::end(sites_), point_less{eps});
+        {
+            size_type i = 0;
+            for (point_type & site_ : sites_) {
+                site_.i = i++;
+            }
+        }
     }
 
     friend
@@ -141,34 +147,27 @@ struct voronoi
     {
         value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
         value_type const dy = l.x - r.x;
-        auto const pp = [&] (value_type const & y) -> point_type { return {(p.x + (y - p.y) * dx / dy), y}; };
-        auto const yy = [&] (value_type const & x) { return p.y + (x - p.x) * dy / dx; };
-        if (eps < dx) {
-            value_type const y = yy(vbox);
-            if (eps < dy) {
-                if (vbox < y) {
-                    return pp(vbox);
+        auto const px = [&] (value_type const & y) -> point_type { return {(p.x + (y - p.y) * dx / dy), y}; };
+        auto const py = [&] (value_type const & x) -> point_type
+        {
+            value_type const y = p.y + (x - p.x) * dy / dx;
+            if (+eps < dy) {
+                if (+vbox < y) {
+                    return px(+vbox);
                 }
             } else if (dy < -eps) {
                 if (y < -vbox) {
-                    return pp(-vbox);
+                    return px(-vbox);
                 }
             }
-            return {vbox, y};
-        } else if (dx < eps) {
-            value_type const y = yy(-vbox);
-            if (eps < dy) {
-                if (vbox < y) {
-                    return pp(vbox);
-                }
-            } else if (dy < -eps) {
-                if (y < -vbox) {
-                    return pp(-vbox);
-                }
-            }
-            return {-vbox, y};
+            return {x, y};
+        };
+        if (+eps < dx) {
+            return py(+vbox);
+        } else if (dx < -eps) {
+            return py(-vbox);
         } else {
-            if (eps < dy) {
+            if (+eps < dy) {
                 return {p.x, +vbox};
             } else if (dy < -eps) {
                 return {p.x, -vbox};
@@ -187,13 +186,18 @@ struct voronoi
         }
         {
             _gnuplot << "set size square;\n"
-                        "set key left;\n";
+                        "set size ratio -1;\n"
+                        "set key left;\n"
+                        "unset colorbox;\n";
             _gnuplot << "set xrange [" << -vbox << ':' << vbox << "];\n";
             _gnuplot << "set yrange [" << -vbox << ':' << vbox << "];\n";
         }
         _gnuplot << "plot";
         _gnuplot << " '-' with points notitle"
                     ", '' with labels offset character 0, character 1 notitle";
+        if (!sweepline_.vertices_.empty()) {
+            _gnuplot << ", '' with circles notitle linecolor palette";
+        }
         if (!sweepline_.edges_.empty()) {
             _gnuplot << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
         }
@@ -212,6 +216,13 @@ struct voronoi
             size_type i = 0;
             for (point_type const & point_ : sites_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
+            }
+            _gnuplot << "e\n";
+        }
+        if (!sweepline_.vertices_.empty()) {
+            size_type i = 0;
+            for (auto const & vertex_ : sweepline_.vertices_) {
+                _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
             }
             _gnuplot << "e\n";
         }
@@ -258,6 +269,7 @@ struct point
 {
 
     value_type x, y;
+    std::size_t i = 0;
 
     friend
     std::ostream &
@@ -291,18 +303,22 @@ main()
     {
 #if 0
         std::istream & in_ = std::cin;
-#elif 1
+#elif 0
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
         voronoi_.generate(in_, 1000);
-        //std::clog << in_.str() << '\n';
-#elif 0
+        std::clog << in_.str() << '\n';
+#elif 1
         std::stringstream in_;
-        in_ << "3\n"
-               "-1 0\n"
-               "0 -1\n"
-               "0 1\n";
+        in_ << "7\n"
+               "-5.56920008946434120e-01 3.38454488271671616e+00\n"
+               "-9.68168690275463040e-01 3.00115130042322020e+00\n"
+               "-9.98006967963330327e-01 2.90502313125170142e+00\n"
+               "-1.18708018159457174e+00 2.70432651536529178e+00\n"
+               "-8.71402752357586907e-01 2.08353572287440381e+00\n"
+               "-1.49069256246730980e-01 1.98005914191878118e+00\n"
+               "1.72338148955212322e-01 2.19011490859531976e+00\n";
 #endif
         in_ >> voronoi_;
     }

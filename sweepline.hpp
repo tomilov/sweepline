@@ -230,12 +230,13 @@ private :
 
         using is_transparent = void;
 
+        static value_type scale(vertex const & v) { using std::hypot; return hypot(v.c.x, v.c.y) + v.R; }
+
         bool operator () (vertex const & l, endpoint const & r) const
         {
             value_type const & x = l.x();
             value_type const & y = l.y();
-            using std::hypot;
-            return y + eps_ * hypot(x, y) < intersect(r, x);
+            return y + eps_ * scale(l) < intersect(r, x);
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
@@ -243,7 +244,7 @@ private :
             value_type const & x = r.x();
             value_type const & y = r.y();
             using std::hypot;
-            return intersect(l, x) + eps_ * hypot(x, y) < y;
+            return intersect(l, x) + eps_ * scale(r) < y;
         }
 
         void print_delta(vertex const & v, endpoint const & ep) const
@@ -253,12 +254,14 @@ private :
 
         bool operator () (point const & l, endpoint const & r) const
         {
-            return l.y + eps_ < intersect(r, l.x);
+            using std::hypot;
+            return l.y + eps_ * hypot(l.x, l.y) < intersect(r, l.x);
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
-            return intersect(l, r.x) + eps_ < r.y;
+            using std::hypot;
+            return intersect(l, r.x) + eps_ * hypot(r.x, r.y) < r.y;
         }
 
     };
@@ -318,12 +321,12 @@ private :
         value_type B = b.y - a.y;
         value_type C = c.x - b.x;
         value_type D = c.y - b.y;
-        value_type G = B * C - A * D;/*
+        value_type G = B * C - A * D;
         if (!(eps * eps < G)) {
             // 1.) G is negative: non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
             return {nov, false};
-        }*/
+        }
         value_type M = A * (a.x + b.x) + B * (a.y + b.y);
         value_type N = C * (b.x + c.x) + D * (b.y + c.y);
         G += G;
