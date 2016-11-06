@@ -132,7 +132,7 @@ private :
               value_type const & y,
               value_type const & directrix)
     {
-        assert(p.x < directrix);
+        //assert(!(directrix + eps < p.x));
         value_type d = p.x - directrix;
         return (y * (y - (p.y + p.y)) + (p.x * p.x + p.y * p.y - directrix * directrix)) / (d + d);
     }
@@ -150,13 +150,16 @@ private :
             {
                 bool const rdegenerated = !(r.x + eps_ < directrix);
                 if (!(l.x + eps_ < directrix)) {
+                    assert(!(directrix + eps_ < l.x));
                     if (rdegenerated) {
+                        assert(!(directrix + eps_ < r.x));
                         assert((l.y + eps_ < r.y) || (r.y + eps_ < l.y)); // l != r
                         return (l.y + r.y) / value_type(2);
                     } else {
                         return l.y;
                     }
                 } else if (rdegenerated) {
+                    assert(!(directrix + eps_ < r.x));
                     return r.y;
                 }
             }
@@ -194,6 +197,7 @@ private :
                 }
                 return y;
             } else { // a ~= 0
+                assert(false);
                 return c / b; // -c / b
             }
         }
@@ -228,12 +232,18 @@ private :
 
         bool operator () (vertex const & l, endpoint const & r) const
         {
-            return l.y() + eps_ < intersect(r, l.x());
+            value_type const & x = l.x();
+            value_type const & y = l.y();
+            using std::hypot;
+            return y + eps_ * hypot(x, y) < intersect(r, x);
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
         {
-            return intersect(l, r.x()) + eps_ < r.y();
+            value_type const & x = r.x();
+            value_type const & y = r.y();
+            using std::hypot;
+            return intersect(l, x) + eps_ * hypot(x, y) < y;
         }
 
         void print_delta(vertex const & v, endpoint const & ep) const
@@ -308,23 +318,39 @@ private :
         value_type B = b.y - a.y;
         value_type C = c.x - b.x;
         value_type D = c.y - b.y;
-        value_type G = B * C - A * D;
+        value_type G = B * C - A * D;/*
         if (!(eps * eps < G)) {
             // 1.) G is negative: non-concave triple of points => circumcircle don't cross the sweep line
             // 2.) G is small: collinear points => edges never cross
             return {nov, false};
-        }
+        }*/
         value_type M = A * (a.x + b.x) + B * (a.y + b.y);
         value_type N = C * (b.x + c.x) + D * (b.y + c.y);
         G += G;
         // circumcenter:
-        value_type x = (B * N - D * M) / G;
         value_type y = (C * M - A * N) / G;
+        if (a.x < b.x) {
+            if (b.y < y) {
+                return {nov, false};
+            }
+        } else {
+            if (y < a.y) {
+                return {nov, false};
+            }
+        }
+        if (b.x < c.x) {
+            if (c.y < y) {
+                return {nov, false};
+            }
+        } else {
+            if (y < b.y) {
+                return {nov, false};
+            }
+        }
+        value_type x = (B * N - D * M) / G;
         using std::hypot;
 #if 0
         value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(c.x - a.x, c.y - a.y));
-#elif 0
-        value_type R = (hypot(x - a.x, y - a.y) + hypot(x - b.x, y - b.y) + hypot(x - c.x, y - c.y)) / value_type(3);
 #else
         value_type R = hypot(x - b.x, y - b.y);
 #endif
@@ -338,6 +364,9 @@ private :
             value_type y4 = endpoint_less{eps}.intersect(b, a, x + R);
             value_type y5 = endpoint_less{eps}.intersect(c, b, x + R);
             value_type y6 = endpoint_less{eps}.intersect(c, a, x + R);
+            /*std::cerr << std::boolalpha
+                      << (point_less{eps}(a, b)) << ' '
+                      << (point_less{eps}(b, c)) << std::endl;*/
             asm volatile ("nop");
         }
         return vertices_.insert({{x, y}, R});
@@ -414,13 +443,13 @@ private :
         auto & rr = *r;
         assert(ll.first.r == rr.first.l);
         static int i = 0;
-        std::cerr << ++i << std::endl;
-        if (i == 4131) {
+        //std::cerr << ++i << std::endl;
+        if (i == 6) { // 415
             asm volatile ("nop");
         }
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
-            {/*
+            {
                 if (endpoint_less{eps}(*v.first, ll.first)) {
                     endpoint_less{eps}.print_delta(*v.first, ll.first);
                 }
@@ -432,7 +461,7 @@ private :
                 }
                 if (endpoint_less{eps}(rr.first, *v.first)) {
                     endpoint_less{eps}.print_delta(*v.first, rr.first);
-                }*/
+                }
                 assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
                 assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
             }

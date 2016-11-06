@@ -42,7 +42,7 @@ struct voronoi
         using seed_type = typename std::mt19937::result_type;
 #if 1
         // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
-        seed_type const seed_ = 15959779189989;
+        seed_type const seed_ =  83502665392414; //58771418082316; // 10 64913433408927
 #elif 0
         std::random_device D;
         auto const seed_ = static_cast< seed_type >(D());
@@ -296,7 +296,7 @@ main()
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
         voronoi_.generate(in_, 1000);
-        std::clog << in_.str() << '\n';
+        //std::clog << in_.str() << '\n';
 #elif 0
         std::stringstream in_;
         in_ << "3\n"
