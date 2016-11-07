@@ -104,19 +104,6 @@ private :
         site l, r;
         pedge e;
 
-        bool operator == (endpoint const & ep) const
-        {
-            if (this == &ep) {
-                return true;
-            }
-            if ((l == ep.l) && (r == ep.r)) {
-                assert(e == ep.e);
-                return true;
-            } else {
-                return false;
-            }
-        }
-
         friend
         std::ostream &
         operator << (std::ostream & _out, endpoint const & ep)
@@ -178,24 +165,7 @@ private :
                 value_type D = b * b - (a + a) * c;
                 assert(!(D < value_type(0)));
                 using std::sqrt;
-                value_type y = (b + sqrt(D)) / a;
-                {
-                    /*
-                    value_type x0 = (l.x + r.x) / value_type(2);
-                    value_type y0 = (l.y + r.y) / value_type(2);
-                    value_type dx = l.y - r.y;
-                    value_type dy = r.x - l.x;
-                    value_type xx = x0 + (y - y0) * dx / dy;
-                    */
-                    value_type y2 = (b - sqrt(D)) / a;
-                    using std::hypot;
-                    value_type xa = sweepline::intersect(l, y, directrix);
-                    value_type xb = sweepline::intersect(r, y, directrix);
-                    value_type da = hypot(xa - l.x, y - l.y);
-                    value_type db = hypot(xb - r.x, y - r.y);
-                    asm volatile ("nop");
-                }
-                return y;
+                return (b + sqrt(D)) / a;
             } else { // a ~= 0
                 assert(false);
                 return c / b; // -c / b
@@ -212,18 +182,17 @@ private :
         {
             // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
             // endpoints removed strictly before violation of this invariant to prevent its occurrence
-            assert(!(l == r));
-            if (l.r == r.l) {
-                return true;
-            }
-            if (l.l == r.r) {
-                return false;
-            }
             if (l.l == r.l) {
                 return true;
             }
             if (r.r == l.r) {
                 return true;
+            }
+            if (l.r == r.l) {
+                return true;
+            }
+            if (l.l == r.r) {
+                return false;
             }
             throw std::logic_error{"undefined behaviour"};
         }
@@ -243,13 +212,7 @@ private :
         {
             value_type const & x = r.x();
             value_type const & y = r.y();
-            using std::hypot;
             return intersect(l, x) + eps_ * scale(r) < y;
-        }
-
-        void print_delta(vertex const & v, endpoint const & ep) const
-        {
-            std::cerr << v.y() - intersect(ep, v.x()) << std::endl;
         }
 
         bool operator () (point const & l, endpoint const & r) const
@@ -358,21 +321,6 @@ private :
 #else
         value_type R = hypot(x - b.x, y - b.y);
 #endif
-        {
-            value_type x1 = intersect(a, y, x + R);
-            value_type x2 = intersect(b, y, x + R);
-            value_type x3 = intersect(c, y, x + R);
-            value_type y1 = endpoint_less{eps}.intersect(a, b, x + R);
-            value_type y2 = endpoint_less{eps}.intersect(b, c, x + R);
-            value_type y3 = endpoint_less{eps}.intersect(a, c, x + R);
-            value_type y4 = endpoint_less{eps}.intersect(b, a, x + R);
-            value_type y5 = endpoint_less{eps}.intersect(c, b, x + R);
-            value_type y6 = endpoint_less{eps}.intersect(c, a, x + R);
-            /*std::cerr << std::boolalpha
-                      << (point_less{eps}(a, b)) << ' '
-                      << (point_less{eps}(b, c)) << std::endl;*/
-            asm volatile ("nop");
-        }
         return vertices_.insert({{x, y}, R});
     }
 
@@ -446,26 +394,9 @@ private :
         auto & ll = *l;
         auto & rr = *r;
         assert(ll.first.r == rr.first.l);
-        static int i = 0;
-        //std::cerr << ++i << std::endl;
-        if (i == 6) { // 415
-            asm volatile ("nop");
-        }
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
             {
-                if (endpoint_less{eps}(*v.first, ll.first)) {
-                    endpoint_less{eps}.print_delta(*v.first, ll.first);
-                }
-                if (endpoint_less{eps}(ll.first, *v.first)) {
-                    endpoint_less{eps}.print_delta(*v.first, ll.first);
-                }
-                if (endpoint_less{eps}(*v.first, rr.first)) {
-                    endpoint_less{eps}.print_delta(*v.first, rr.first);
-                }
-                if (endpoint_less{eps}(rr.first, *v.first)) {
-                    endpoint_less{eps}.print_delta(*v.first, rr.first);
-                }
                 assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
                 assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
             }
