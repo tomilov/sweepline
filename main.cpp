@@ -18,6 +18,8 @@
 
 #include <x86intrin.h>
 
+//#define SWEEPLINE_DRAW_CIRCLES
+
 template< typename point_type, typename point_less, typename value_type >
 struct voronoi
 {
@@ -40,7 +42,7 @@ struct voronoi
     generate(std::ostream & _out, size_type const N = 100000)
     {
         using seed_type = typename std::mt19937::result_type;
-#if 1
+#if 0
         // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
         seed_type const seed_ =  0x4bf1fab5611e; //58771418082316; // 10 64913433408927
 #elif 0
@@ -195,9 +197,11 @@ struct voronoi
         _gnuplot << "plot";
         _gnuplot << " '-' with points notitle"
                     ", '' with labels offset character 0, character 1 notitle";
+#ifdef SWEEPLINE_DRAW_CIRCLES
         if (!sweepline_.vertices_.empty()) {
             _gnuplot << ", '' with circles notitle linecolor palette";
         }
+#endif
         if (!sweepline_.edges_.empty()) {
             _gnuplot << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
         }
@@ -219,6 +223,7 @@ struct voronoi
             }
             _gnuplot << "e\n";
         }
+#ifdef SWEEPLINE_DRAW_CIRCLES
         if (!sweepline_.vertices_.empty()) {
             size_type i = 0;
             for (auto const & vertex_ : sweepline_.vertices_) {
@@ -226,6 +231,7 @@ struct voronoi
             }
             _gnuplot << "e\n";
         }
+#endif
         if (!sweepline_.edges_.empty()) {
             for (auto const & edge_ : sweepline_.edges_) {
                 bool const beg = (edge_.b != sweepline_.nov);
@@ -303,13 +309,13 @@ main()
     {
 #if 0
         std::istream & in_ = std::cin;
-#elif 0
+#elif 1
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
         voronoi_.generate(in_, 1000);
         std::clog << in_.str() << '\n';
-#elif 1
+#elif 0
         std::stringstream in_;
         in_ << "7\n"
                "-5.56920008946434120e-01 3.38454488271671616e+00\n"

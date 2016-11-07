@@ -296,23 +296,21 @@ private :
         G += G;
         // circumcenter:
         value_type y = (C * M - A * N) / G;
-        if (a.x < b.x) {
-            if (b.y < y) {
-                return {nov, false};
+        auto const miss = [&] (point const & l, point const & r)
+        {
+            if (l.x < r.x) {
+                if (r.y < y) {
+                    return true;
+                }
+            } else {
+                if (y < l.y) {
+                    return true;
+                }
             }
-        } else {
-            if (y < a.y) {
-                return {nov, false};
-            }
-        }
-        if (b.x < c.x) {
-            if (c.y < y) {
-                return {nov, false};
-            }
-        } else {
-            if (y < b.y) {
-                return {nov, false};
-            }
+            return false;
+        };
+        if (miss(a, b) || miss(b, c)) {
+            return {nov, false};
         }
         value_type x = (B * N - D * M) / G;
         using std::hypot;
@@ -375,13 +373,11 @@ private :
     {
         assert(!events_.empty());
         pevent ev = events_.lower_bound(v);
+        assert(ev != noe);
+        assert(ev->first == v);
         do {
-            pvertex & vv = ev->second->second;
-            if (vv == v) {
-                vv = nov;
-            } else {
-                assert(vv == nov);
-            }
+            assert(ev->second->second == v);
+            ev->second->second = nov;
             events_.erase(ev++);
         } while ((ev != noe) && (ev->first == v));
         vertices_.erase(v);
@@ -396,64 +392,100 @@ private :
         assert(ll.first.r == rr.first.l);
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
-            {
-                assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
-                assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
-            }
-            if ((ll.second != nov) && (rr.second != nov)) {
-                value_type const & lx = ll.second->x();
-                value_type const & rx = rr.second->x();
-                if (lx + eps < rx) {
-                    disable_event(rr.second);
-                } else if (rx + eps < lx) {
-                    disable_event(ll.second);
-                }
-            }
+            assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
+            assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
+            value_type const & x = v.first->x();
             if (ll.second != nov) {
-                value_type const & x = v.first->x();
-                value_type const & lx = ll.second->x();
-                if (x + eps < lx) {
-                    disable_event(ll.second);
-                } else {
+                if (ll.second != v.first) {
+                    value_type const & lx = ll.second->x();
                     if (lx + eps < x) {
                         if (v.second) {
                             vertices_.erase(v.first);
+                        } else {
+                            disable_event(v.first);
+                        }
+                        if (rr.second != nov) {
+                            value_type const & rx = rr.second->x();
+                            if (x + eps < rx) {
+                                disable_event(rr.second);
+                            }
                         }
                     } else {
-                        assert(!v.second);
-                        if (rr.second != v.first) {
-                            assert(rr.second == nov);
-                            rr.second = v.first;
-                            events_.insert({v.first, r});
+                        assert(x + eps < lx);
+                        disable_event(ll.second);
+                        if (rr.second != nov) { // !
+                            if (rr.second != v.first) {
+                                value_type const & rx = rr.second->x();
+                                if (x + eps < rx) {
+                                    disable_event(rr.second);
+                                    ll.second = rr.second = v.first;
+                                    events_.insert(events_.insert({v.first, r}), {v.first, l});
+                                } else {
+                                    assert(rx + eps < x);
+                                    if (v.second) {
+                                        vertices_.erase(v.first);
+                                    } else {
+                                        disable_event(v.first);
+                                    }
+                                }
+                            } else {
+                                ll.second = v.first;
+                                events_.insert({v.first, l});
+                            }
+                        } else {
+                            ll.second = rr.second = v.first;
+                            events_.insert(events_.insert({v.first, r}), {v.first, l});
                         }
                     }
-                    return;
-                }
-            } else if (rr.second != nov) {
-                value_type const & x = v.first->x();
-                value_type const & rx = rr.second->x();
-                if (x + eps < rx) {
-                    disable_event(rr.second);
                 } else {
-                    if (rx + eps < x) {
-                        if (v.second) {
-                            vertices_.erase(v.first);
+                    if (rr.second != nov) {
+                        if (rr.second != v.first) {
+                            value_type const & rx = rr.second->x();
+                            if (x + eps < rx) {
+                                disable_event(rr.second);
+                                rr.second = v.first;
+                                events_.insert({v.first, r});
+                            } else {
+                                assert(rx + eps < x);
+                                if (v.second) {
+                                    vertices_.erase(v.first);
+                                } else {
+                                    disable_event(v.first);
+                                }
+                            }
+                        } else {
+                            // nop
                         }
                     } else {
-                        assert(!v.second);
-                        if (ll.second != v.first) {
-                            assert(ll.second == nov);
-                            ll.second = v.first;
-                            events_.insert({v.first, l});
-                        }
+                        rr.second = v.first;
+                        events_.insert({v.first, r});
                     }
-                    return;
+                }
+            } else {
+                if (rr.second != nov) { // !
+                    if (rr.second != v.first) {
+                        value_type const & rx = rr.second->x();
+                        if (x + eps < rx) {
+                            disable_event(rr.second);
+                            ll.second = rr.second = v.first;
+                            events_.insert(events_.insert({v.first, r}), {v.first, l});
+                        } else {
+                            assert(rx + eps < x);
+                            if (v.second) {
+                                vertices_.erase(v.first);
+                            } else {
+                                disable_event(v.first);
+                            }
+                        }
+                    } else {
+                        ll.second = v.first;
+                        events_.insert({v.first, l});
+                    }
+                } else {
+                    ll.second = rr.second = v.first;
+                    events_.insert(events_.insert({v.first, r}), {v.first, l});
                 }
             }
-            assert(ll.second == nov);
-            assert(rr.second == nov);
-            ll.second = rr.second = v.first;
-            events_.insert(events_.insert({v.first, r}), {v.first, l});
         }
     }
 
