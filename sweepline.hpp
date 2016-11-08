@@ -179,12 +179,8 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            assert(false); // this line is unrecheable for libc++ and libstdc++ except when site matching event
+            assert(false);
             if (&l == &r) {
-                return false;
-            }
-            if ((l.l == r.l) && (l.r == r.r)) {
-                assert(l.e == r.e);
                 return false;
             }
             point const & ll = *l.l;
@@ -192,7 +188,7 @@ private :
             point const & rl = *r.l;
             point const & rr = *r.r;
             value_type const & directrix = std::max(std::max(ll.x, lr.x), std::max(rl.x, rr.x));
-            return intersect(l, directrix) < intersect(r, directrix);
+            return intersect(ll, lr, directrix) + eps_ < intersect(rl, rr, directrix);
         }
 
         using is_transparent = void;
@@ -209,13 +205,11 @@ private :
 
         bool operator () (point const & l, endpoint const & r) const
         {
-            using std::hypot;
             return l.y + eps_ < intersect(r, l.x);
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
-            using std::hypot;
             return intersect(l, r.x) + eps_ < r.y;
         }
 
@@ -395,7 +389,7 @@ private :
         if (v.first != nov) {
             assert((events_.find(v.first) == noe) == v.second);
             value_type const & x = v.first->x();
-            auto const deselect_event = [&] (auto & ep) -> bool
+            auto const deselect_event = [&] (auto const & ep) -> bool
             {
                 if (ep.second != nov) {
                     if (ep.second != v.first) {
@@ -528,10 +522,10 @@ private :
         pendpoint l = r;
         pendpoint const ll = std::begin(endpoints_);
         while (l != ll) {
-            if (std::prev(l)->second != v) {
+            if ((--l)->second != v) {
+                ++l;
                 break;
             }
-            --l;
         }
         while (++r != noep) {
             if (r->second != v) {
@@ -541,11 +535,11 @@ private :
         assert(1 < std::distance(l, r));
         site const lc = l->first.l;
         site const rc = std::prev(r)->first.r;
-        for (pendpoint ep = l; ep != r; ++ep) {
-            assert(ep->second == v);
-            trunc_edge(*ep->first.e, v);
-        }
-        endpoints_.erase(l, r);
+        do {
+            assert(l->second == v);
+            trunc_edge(*l->first.e, v);
+            endpoints_.erase(l++);
+        } while (l != r);
         pedge const e = add_edge(lc, rc, v);
         l = insert_endpoint(r, lc, rc, e);
         if (l != std::begin(endpoints_)) {

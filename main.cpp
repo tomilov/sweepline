@@ -322,7 +322,15 @@ main()
     {
 #if 0
         std::istream & in_ = std::cin;
-#else
+#elif 1
+        std::stringstream in_;
+        in_ >> std::scientific;
+        in_.precision(std::numeric_limits< value_type >::digits10 + 2);
+        in_ << "3\n"
+               "-3 -4\n"
+               "-3 4\n"
+               "5 0\n";
+#elif 0
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
