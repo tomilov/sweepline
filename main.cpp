@@ -15,6 +15,7 @@
 #include <cmath>
 
 //#define SWEEPLINE_DRAW_CIRCLES
+//#define SWEEPLINE_DRAW_INDICES
 
 template< typename point_type, typename point_less, typename value_type >
 struct voronoi
@@ -24,7 +25,12 @@ struct voronoi
 
     std::ostream & log_;
 
-    value_type const eps = [] { using std::sqrt; return sqrt(std::numeric_limits< value_type >::epsilon()); }();
+    // bounding box
+    value_type const bbox = value_type(10000);
+
+    value_type const eps = value_type(0.0001);
+
+    value_type const delta = value_type(0.001);
 
     value_type const zero = value_type(0);
     value_type const one = value_type(1);
@@ -37,10 +43,6 @@ struct voronoi
         log_ << "delta = " << delta << '\n';
     }
 
-    // bounding box
-    value_type const bbox = value_type(10);
-    value_type const delta = eps * value_type(100) * [] { using std::sqrt; return sqrt(value_type(2)); }();
-
     using seed_type = typename std::mt19937::result_type;
 
     std::mt19937 rng;
@@ -48,16 +50,23 @@ struct voronoi
     std::uniform_real_distribution< value_type > zero_to_one_{zero, std::nextafter(one, one + one)};
 
     void
-    generate(std::ostream & _out, seed_type const seed, size_type const N)
+    seed(seed_type const seed)
     {
         log_ << "seed = " << seed << '\n';
         rng.seed(seed);
+    }
+
+    void
+    uniform_circle(std::ostream & _out, size_type const N)
+    {
         std::set< point_type, point_less > points_{point_less{delta}};
-        _out << N << "\n";
+        _out << N << '\n';
         points_.clear();
         value_type const twosqreps = eps * (eps + eps);
+        constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
-            for (;;) {
+            size_type m = 0;
+            do {
                 point_type p{normal_(rng), normal_(rng)};
                 value_type norm = p.x * p.x + p.y * p.y;
                 if (twosqreps < norm) {
@@ -71,6 +80,11 @@ struct voronoi
                 if (points_.insert(std::move(p)).second) {
                     break;
                 }
+            } while (++m < M);
+            if (m == M) {
+                log_ << "the number (" << M << ") of attempts is exceeded\n";
+                log_ << "only " << n << "points generated\n";
+                break;
             }
         }
         for (point_type const & point_ : points_) {
@@ -98,12 +112,6 @@ struct voronoi
             }
         }
         std::sort(std::begin(sites_), std::end(sites_), point_less{eps});
-        {
-            size_type i = 0;
-            for (point_type & site_ : sites_) {
-                site_.i = i++;
-            }
-        }
     }
 
     friend
@@ -184,8 +192,10 @@ struct voronoi
             _gnuplot << "set yrange [" << -vbox << ':' << vbox << "];\n";
         }
         _gnuplot << "plot";
-        _gnuplot << " '-' with points notitle"
-                    ", '' with labels offset character 0, character 1 notitle";
+        _gnuplot << " '-' with points notitle";
+#ifdef SWEEPLINE_DRAW_INDICES
+        _gnuplot << ", '' with labels offset character 0, character 1 notitle";
+#endif
 #ifdef SWEEPLINE_DRAW_CIRCLES
         if (!sweepline_.vertices_.empty()) {
             _gnuplot << ", '' with circles notitle linecolor palette";
@@ -205,6 +215,7 @@ struct voronoi
             }
             _gnuplot << "e\n";
         }
+#ifdef SWEEPLINE_DRAW_INDICES
         {
             size_type i = 0;
             for (point_type const & point_ : sites_) {
@@ -212,6 +223,7 @@ struct voronoi
             }
             _gnuplot << "e\n";
         }
+#endif
 #ifdef SWEEPLINE_DRAW_CIRCLES
         if (!sweepline_.vertices_.empty()) {
             size_type i = 0;
@@ -264,14 +276,6 @@ struct point
 {
 
     value_type x, y;
-    std::size_t i = 0;
-
-    friend
-    std::ostream &
-    operator << (std::ostream & _out, point const & p)
-    {
-        return _out << '{' << p.x << ", " << p.y << '}';
-    }
 
 };
 
@@ -284,9 +288,17 @@ struct point_less
 
     bool operator () (point_type const & _lhs, point_type const & _rhs) const
     {
-        value_type const & x = _lhs.x + eps_;
-        value_type const & y = _lhs.y + eps_;
-        return std::tie(x, y) < std::tie(_rhs.x, _rhs.y);
+        if (_lhs.x + eps_ < _rhs.x) {
+            return true;
+        } else if (_rhs.x + eps_ < _lhs.x) {
+            return false;
+        } else {
+            if (_lhs.y + eps_ < _rhs.y) {
+                return true;
+            } else {
+                return false;
+            }
+        }
     }
 
 };
@@ -302,41 +314,31 @@ struct point_less
 int
 main()
 {
+    constexpr std::size_t N = 100000;
+
     using voronoi_type = voronoi< point_type, point_less, value_type >;
     voronoi_type voronoi_{std::clog};
     std::ostream & gnuplot_ = std::cout;
     {
 #if 0
         std::istream & in_ = std::cin;
-#elif 1
+#else
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-        using seed_type = typename voronoi_type::seed_type;
+        {
+            using seed_type = typename voronoi_type::seed_type;
 #if 0
-        // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
-        seed_type const seed =  0x4bf1fab5611e; //58771418082316; // 10 64913433408927
-#elif 0
-        std::random_device D;
-        auto const seed = static_cast< seed_type >(D());
-#elif 1
-        //auto const seed = static_cast< seed_type >(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-        auto const seed = static_cast< seed_type >(__rdtsc());
+            seed_type const seed = 22331550565155;
+#else
+            std::random_device D;
+            auto const seed = static_cast< seed_type >(D());
 #endif
-        constexpr std::size_t N = 100;
-        voronoi_.generate(in_, seed, N);
-        gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
-        std::clog << in_.str() << '\n';
-#elif 0
-        std::stringstream in_;
-        in_ << "7\n"
-               "-5.56920008946434120e-01 3.38454488271671616e+00\n"
-               "-9.68168690275463040e-01 3.00115130042322020e+00\n"
-               "-9.98006967963330327e-01 2.90502313125170142e+00\n"
-               "-1.18708018159457174e+00 2.70432651536529178e+00\n"
-               "-8.71402752357586907e-01 2.08353572287440381e+00\n"
-               "-1.49069256246730980e-01 1.98005914191878118e+00\n"
-               "1.72338148955212322e-01 2.19011490859531976e+00\n";
+            voronoi_.seed(seed);
+            gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
+        }
+        voronoi_.uniform_circle(in_, N);
+        //std::clog << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }

@@ -30,6 +30,7 @@ add_compile_options(-fconstexpr-steps=50000000 -ftemplate-depth=200)
 add_compile_options(-ftemplate-backtrace-limit=0 -fconstexpr-backtrace-limit=0 -fdiagnostics-show-template-tree)
 add_compile_options(-W -Weverything -Wmissing-include-dirs -Wconversion -Wmismatched-tags -Wuninitialized -Wfatal-errors -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-padded)
 add_compile_options(-Wno-gnu-anonymous-struct -Wno-nested-anon-types)
+add_compile_options(-Wno-c++1z-extensions)
 #add_compile_options(-ftime-report)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-ggdb -fno-inline -DDEBUG=1 -D_DEBUG=1 -D_GLIBCXX_DEBUG=1 -march=x86-64 -mtune=generic")

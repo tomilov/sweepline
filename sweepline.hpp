@@ -11,7 +11,10 @@
 #include <deque>
 #include <set>
 #include <map>
+#ifdef DEBUG
 #include <ostream>
+#include <iostream>
+#endif
 
 #include <cassert>
 #include <cmath>
@@ -48,7 +51,7 @@ struct sweepline
         std::ostream &
         operator << (std::ostream & _out, vertex const & v)
         {
-            return _out << "v{" << v.c << ", " << v.R << '}';
+            return _out << "v{{" << v.c.x << ", " << v.c.y << "}, " << v.R << "}(" << v.x() << ")";
         }
 
     };
@@ -74,13 +77,6 @@ struct sweepline
         site l, r;
         pvertex b, e;
 
-        friend
-        std::ostream &
-        operator << (std::ostream & _out, edge const & ed)
-        {
-            return _out << "e{" << *ed.l << ", " << *ed.r << ", " << *ed.b << ", " << *ed.e << '}';
-        }
-
     };
 
     using edges = std::deque< edge >;
@@ -97,13 +93,6 @@ private :
 
         site l, r;
         pedge e;
-
-        friend
-        std::ostream &
-        operator << (std::ostream & _out, endpoint const & ep)
-        {
-            return _out << "ep{" << *ep.l << ", " << *ep.r << ", " << *ep.e << '}' << std::endl;
-        }
 
     };
 
@@ -161,7 +150,6 @@ private :
                 using std::sqrt;
                 return (b + sqrt(D)) / a;
             } else { // a ~= 0
-                assert(false);
                 return c / b; // -c / b
             }
         }
@@ -172,10 +160,13 @@ private :
             return intersect(*ep.l, *ep.r, directrix);
         }
 
+        // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
+        // endpoints removed strictly before violation of this invariant to prevent its occurrence
         bool operator () (endpoint const & l, endpoint const & r) const
         {
-            // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
-            // endpoints removed strictly before violation of this invariant to prevent its occurrence
+            // It is undefined behaviour to use following four "if"s,
+            // but it works for all modern standard libraries and I sure
+            // local (insertion by hint) guarantees for comp() should be the part of the Standard
             if (l.l == r.l) {
                 return true;
             }
@@ -188,37 +179,44 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            throw std::logic_error{"undefined behaviour"};
+            assert(false); // this line is unrecheable for libc++ and libstdc++
+            if (&l == &r) {
+                return false;
+            }
+            if ((l.l == r.l) && (l.r == r.r)) {
+                assert(l.e == r.e);
+                return false;
+            }
+            point const & ll = *l.l;
+            point const & lr = *l.r;
+            point const & rl = *r.l;
+            point const & rr = *r.r;
+            value_type const & directrix = std::max(std::max(ll.x, lr.x), std::max(rl.x, rr.x));
+            return intersect(l, directrix) < intersect(r, directrix);
         }
 
         using is_transparent = void;
 
-        static value_type scale(vertex const & v) { using std::hypot; return hypot(v.c.x, v.c.y) + v.R; }
-
         bool operator () (vertex const & l, endpoint const & r) const
         {
-            value_type const & x = l.x();
-            value_type const & y = l.y();
-            return y + eps_ * scale(l) < intersect(r, x);
+            return l.y() + eps_ < intersect(r, l.x());
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
         {
-            value_type const & x = r.x();
-            value_type const & y = r.y();
-            return intersect(l, x) + eps_ * scale(r) < y;
+            return intersect(l, r.x()) + eps_ < r.y();
         }
 
         bool operator () (point const & l, endpoint const & r) const
         {
             using std::hypot;
-            return l.y + eps_ * hypot(l.x, l.y) < intersect(r, l.x);
+            return l.y + eps_ < intersect(r, l.x);
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
             using std::hypot;
-            return intersect(l, r.x) + eps_ * hypot(r.x, r.y) < r.y;
+            return intersect(l, r.x) + eps_ < r.y;
         }
 
     };
@@ -236,11 +234,19 @@ private :
 
         bool operator () (vertex const & l, vertex const & r) const
         {
-            value_type const & lx = l.x() + eps_;
-            value_type const & ly = l.y() + eps_;
+            value_type const & lx = l.x();
             value_type const & rx = r.x();
-            value_type const & ry = r.y();
-            return std::tie(lx, ly) < std::tie(rx, ry);
+            if (lx + eps_ < rx) {
+                return true;
+            } else if (rx + eps_ < lx) {
+                return false;
+            } else {
+                if (l.y() + eps_ < r.y()) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
         }
 
         bool operator () (pvertex const l, pvertex const r) const
@@ -265,7 +271,7 @@ private :
                  value_type c) const
     {
         value_type V = (a + b - c) * (a + c - b) * (b + c - a);
-        //assert(eps < V); // triangle inequality
+        assert(eps * eps * eps < V); // triangle inequality
         using std::sqrt;
         return (a * b * c) / sqrt(V * (a + b + c));
     }
@@ -290,7 +296,7 @@ private :
         G += G;
         // circumcenter:
         value_type y = (C * M - A * N) / G;
-        auto const miss = [&] (point const & l, point const & r)
+        auto const miss = [&] (point const & l, point const & r) -> bool
         {
             if (l.x < r.x) {
                 if (r.y < y) {
@@ -365,6 +371,7 @@ private :
     void
     disable_event(pvertex const v)
     {
+        assert(v != nov);
         assert(!events_.empty());
         pevent ev = events_.lower_bound(v);
         assert(ev != noe);
@@ -386,8 +393,7 @@ private :
         assert(ll.first.r == rr.first.l);
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
-            assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
-            assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
+            assert((events_.find(v.first) == noe) == v.second);
             value_type const & x = v.first->x();
             auto const deselect_event = [&] (auto & ep) -> bool
             {
@@ -514,6 +520,7 @@ private :
     {
         pendpoint r = ev->second;
         do {
+            assert(ev->second->second == v);
             events_.erase(ev++);
         } while ((ev != noe) && (ev->first == v));
         pendpoint l = r;
@@ -550,9 +557,18 @@ private :
     bool
     prior(vertex const & l, point const & r) const
     {
-        value_type const & x = l.x() + eps;
-        value_type const & y = l.y() + eps;
-        return std::tie(x, y) < std::tie(r.x, r.y);
+        value_type const & x = l.x();
+        if (x + eps < r.x) {
+            return true;
+        } else if (r.x + eps < x) {
+            return false;
+        } else {
+            if (l.y() + eps < r.y) {
+                return true;
+            } else {
+                return false;
+            }
+        }
     }
 
 public :
@@ -570,18 +586,18 @@ public :
         make_first_edge(l, ++l);
         while (++l != r) {
             while (!events_.empty()) {
-                pevent const e = std::begin(events_);
-                pvertex const v = e->first;
+                pevent const ev = std::begin(events_);
+                pvertex const v = ev->first;
                 if (!prior(*v, *l)) {
                     break;
                 }
-                finish_cells(e, v);
+                finish_cells(ev, v);
             }
             begin_cell(l);
         }
         while (!events_.empty()) {
-            pevent const e = std::begin(events_);
-            finish_cells(e, e->first);
+            pevent const ev = std::begin(events_);
+            finish_cells(ev, ev->first);
         }
         endpoints_.clear();
     }
