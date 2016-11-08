@@ -1,5 +1,6 @@
 CMakeFiles/
 CMakeCache.txt
+CMakeLists.txt.user
 Makefile
 cmake_install.cmake
 sweepline.cbp
