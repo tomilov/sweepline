@@ -1,22 +1,18 @@
 #include "sweepline.hpp"
 
-#include <chrono>
-#include <iomanip>
-#include <iostream>
-#include <istream>
-#include <iterator>
+#include <utility>
 #include <limits>
-#include <ostream>
-#include <random>
-#include <sstream>
-#include <vector>
 #include <chrono>
+#include <iterator>
+#include <random>
+#include <chrono>
+#include <tuple>
+#include <vector>
+#include <istream>
+#include <ostream>
 
 #include <cassert>
 #include <cmath>
-#include <cstdlib>
-
-#include <x86intrin.h>
 
 //#define SWEEPLINE_DRAW_CIRCLES
 
@@ -33,7 +29,7 @@ struct voronoi
     value_type const zero = value_type(0);
     value_type const one = value_type(1);
 
-    voronoi(std::ostream & _log = std::clog)
+    voronoi(std::ostream & _log)
         : log_(_log)
     {
         assert(!(delta < eps));
@@ -45,36 +41,28 @@ struct voronoi
     value_type const bbox = value_type(10);
     value_type const delta = eps * value_type(100) * [] { using std::sqrt; return sqrt(value_type(2)); }();
 
+    using seed_type = typename std::mt19937::result_type;
+
+    std::mt19937 rng;
+    std::normal_distribution< value_type > normal_;
+    std::uniform_real_distribution< value_type > zero_to_one_{zero, std::nextafter(one, one + one)};
+
     void
-    generate(std::ostream & _out, std::ostream & _gnuplot, size_type const N = 100000)
+    generate(std::ostream & _out, seed_type const seed, size_type const N)
     {
-        using seed_type = typename std::mt19937::result_type;
-#if 0
-        // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
-        seed_type const seed_ =  0x4bf1fab5611e; //58771418082316; // 10 64913433408927
-#elif 0
-        std::random_device D;
-        auto const seed_ = static_cast< seed_type >(D());
-#elif 1
-        //auto const seed_ = static_cast< seed_type >(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-        auto const seed_ = static_cast< seed_type >(__rdtsc());
-#endif
-        log_ << "seed = " << seed_ << '\n';
-        _gnuplot << "set title 'seed = 0x" << std::hex << seed_ << ", N = " <<  std::dec << N << "'\n";
-        std::mt19937 g{seed_};
-        std::normal_distribution< value_type > normal_;
+        log_ << "seed = " << seed << '\n';
+        rng.seed(seed);
         std::set< point_type, point_less > points_{point_less{delta}};
-        std::uniform_real_distribution< value_type > zero_to_one_{zero, std::nextafter(one, one + one)};
         _out << N << "\n";
         points_.clear();
         value_type const twosqreps = eps * (eps + eps);
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
             for (;;) {
-                point_type p{normal_(g), normal_(g)};
+                point_type p{normal_(rng), normal_(rng)};
                 value_type norm = p.x * p.x + p.y * p.y;
                 if (twosqreps < norm) {
                     using std::sqrt;
-                    norm = bbox * sqrt(zero_to_one_(g) / std::move(norm));
+                    norm = bbox * sqrt(zero_to_one_(rng) / std::move(norm));
                     p.x *= norm;
                     p.y *= norm;
                 } else {
@@ -143,7 +131,7 @@ struct voronoi
              << "us\n";
     }
 
-    value_type const vbox = value_type(2) * bbox;
+    value_type const vbox = value_type(1.5) * bbox;
 
     point_type
     trunc_edge(point_type const & l, point_type const & r, point_type const & p) const
@@ -303,10 +291,19 @@ struct point_less
 
 };
 
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+
+#include <cstdlib>
+
+#include <x86intrin.h>
+
 int
 main()
 {
-    voronoi< point_type, point_less, value_type > voronoi_{std::clog};
+    using voronoi_type = voronoi< point_type, point_less, value_type >;
+    voronoi_type voronoi_{std::clog};
     std::ostream & gnuplot_ = std::cout;
     {
 #if 0
@@ -315,7 +312,20 @@ main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-        voronoi_.generate(in_, gnuplot_, 1000);
+        using seed_type = typename voronoi_type::seed_type;
+#if 0
+        // ss == 953, 934 seed = 0x13d69d450e99 N == 1000
+        seed_type const seed =  0x4bf1fab5611e; //58771418082316; // 10 64913433408927
+#elif 0
+        std::random_device D;
+        auto const seed = static_cast< seed_type >(D());
+#elif 1
+        //auto const seed = static_cast< seed_type >(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        auto const seed = static_cast< seed_type >(__rdtsc());
+#endif
+        constexpr std::size_t N = 100;
+        voronoi_.generate(in_, seed, N);
+        gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
         std::clog << in_.str() << '\n';
 #elif 0
         std::stringstream in_;

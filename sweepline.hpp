@@ -17,7 +17,6 @@
 #include <stdexcept>
 #include <iomanip>
 #include <ostream>
-#include <iostream>
 
 #include <cassert>
 #include <cmath>
@@ -395,54 +394,42 @@ private :
             assert(!endpoint_less{eps}(*v.first, ll.first) && !endpoint_less{eps}(ll.first, *v.first));
             assert(!endpoint_less{eps}(*v.first, rr.first) && !endpoint_less{eps}(rr.first, *v.first));
             value_type const & x = v.first->x();
-            if (ll.second != nov) {
-                if (ll.second != v.first) {
-                    value_type const & lx = ll.second->x();
-                    if (lx + eps < x) {
-                        if (v.second) {
-                            vertices_.erase(v.first);
-                        } else {
-                            disable_event(v.first);
-                        }
-                        if (rr.second != nov) {
-                            value_type const & rx = rr.second->x();
-                            if (x + eps < rx) {
-                                disable_event(rr.second);
+            auto const deselect_event = [&] (auto & ep) -> bool
+            {
+                if (ep.second != nov) {
+                    if (ep.second != v.first) {
+                        value_type const & xx = ep.second->x();
+                        if (xx + eps < x) {
+                            if (v.second) {
+                                vertices_.erase(v.first);
+                            } else {
+                                disable_event(v.first);
                             }
+                            return false;
                         }
-                        return;
+                        assert(x + eps < xx);
+                        disable_event(ep.second);
                     }
-                    assert(x + eps < lx);
-                    disable_event(ll.second);
                 }
+                return true;
+            };
+            if (!deselect_event(ll)) {
+                return;
             }
-            if (rr.second != nov) {
-                if (rr.second != v.first) {
-                    value_type const & rx = rr.second->x();
-                    if (rx + eps < x) {
-                        if (v.second) {
-                            vertices_.erase(v.first);
-                        } else {
-                            disable_event(v.first);
-                        }
-                        return;
-                    }
-                    assert(x + eps < rx);
-                    disable_event(rr.second);
+            if (!deselect_event(rr)) {
+                return;
+            }
+            auto const set_event = [&] (auto & ep, pendpoint const lr)
+            {
+                if (ep.second == nov) {
+                    ep.second = v.first;
+                    events_.insert({v.first, lr});
+                } else {
+                    assert(ep.second == v.first);
                 }
-            }
-            if (rr.second == nov) {
-                rr.second = v.first;
-                events_.insert({v.first, r});
-            } else {
-                assert(rr.second == v.first);
-            }
-            if (ll.second == nov) {
-                ll.second = v.first;
-                events_.insert({v.first, l});
-            } else {
-                assert(ll.second == v.first);
-            }
+            };
+            set_event(ll, l);
+            set_event(rr, r);
         }
     }
 
