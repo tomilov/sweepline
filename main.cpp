@@ -328,8 +328,8 @@ main()
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
         {
             using seed_type = typename voronoi_type::seed_type;
-#if 0
-            seed_type const seed = 22331550565155;
+#if 1
+            seed_type const seed = 2847645394;
 #else
             std::random_device D;
             auto const seed = static_cast< seed_type >(D());

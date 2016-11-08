@@ -179,7 +179,7 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            assert(false); // this line is unrecheable for libc++ and libstdc++
+            assert(false); // this line is unrecheable for libc++ and libstdc++ except when site matching event
             if (&l == &r) {
                 return false;
             }
@@ -446,24 +446,26 @@ private :
                      pvertex const v,
                      site const s)
     {
-        assert(1 < std::distance(l, r));
+        events_.erase(v);
         site const lp = l->first.l;
         site const rp = std::prev(r)->first.r;
-        for (pendpoint ep = l; ep != r; ++ep) {
-            assert(ep->second == v);
-            trunc_edge(*ep->first.e, v);
-        }
-        events_.erase(v);
-        endpoints_.erase(l, r);
+        do {
+            assert(l->second == v);
+            trunc_edge(*l->first.e, v);
+            endpoints_.erase(l++);
+        } while (l != r);
         pedge const le = add_edge(lp, s, v);
         pedge const re = add_edge(s, rp, v);
-        l = insert_endpoint(r, lp, s, le);
-        pendpoint const ep = insert_endpoint(r, s, rp, re);
+        if (r == noep) {
+            l = insert_endpoint(r, lp, s, le);
+            insert_endpoint(r, s, rp, re);
+        } else {
+            pendpoint const ep = insert_endpoint(r, s, rp, re); // TODO(tomilov): decide how to deal with such a situation
+            l = insert_endpoint(ep, lp, s, le);
+            check_event(ep, r);
+        }
         if (l != std::begin(endpoints_)) {
             check_event(std::prev(l), l);
-        }
-        if (r != noep) {
-            check_event(ep, r);
         }
     }
 
