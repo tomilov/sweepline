@@ -28,18 +28,25 @@ struct voronoi
 
     std::ostream & log_;
 
-    value_type const eps = [] { return value_type(1E-9); }();
+    value_type const eps = [] { using std::sqrt; return sqrt(std::numeric_limits< value_type >::epsilon()); }();
+
     value_type const zero = value_type(0);
     value_type const one = value_type(1);
 
-    // bounding box
-    value_type const bbox = value_type(2);
-    value_type const delta = eps * value_type(10);
+    voronoi(std::ostream & _log = std::clog)
+        : log_(_log)
+    {
+        assert(!(delta < eps));
+        log_ << "eps = " << eps << '\n';
+        log_ << "delta = " << delta << '\n';
+    }
 
-    std::ostream & gnuplot_ = std::cout;
+    // bounding box
+    value_type const bbox = value_type(10);
+    value_type const delta = eps * value_type(100) * [] { using std::sqrt; return sqrt(value_type(2)); }();
 
     void
-    generate(std::ostream & _out, size_type const N = 100000)
+    generate(std::ostream & _out, std::ostream & _gnuplot, size_type const N = 100000)
     {
         using seed_type = typename std::mt19937::result_type;
 #if 0
@@ -52,8 +59,8 @@ struct voronoi
         //auto const seed_ = static_cast< seed_type >(std::chrono::high_resolution_clock::now().time_since_epoch().count());
         auto const seed_ = static_cast< seed_type >(__rdtsc());
 #endif
-        log_ << seed_ << '\n';
-        gnuplot_ << "set title 'seed = 0x" << std::hex << seed_ << ", N = " <<  std::dec << N << "'\n";
+        log_ << "seed = " << seed_ << '\n';
+        _gnuplot << "set title 'seed = 0x" << std::hex << seed_ << ", N = " <<  std::dec << N << "'\n";
         std::mt19937 g{seed_};
         std::normal_distribution< value_type > normal_;
         std::set< point_type, point_less > points_{point_less{delta}};
@@ -81,12 +88,6 @@ struct voronoi
         for (point_type const & point_ : points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
-    }
-
-    voronoi(std::ostream & _log = std::clog)
-        : log_(_log)
-    {
-        assert(!(delta < eps));
     }
 
     using points = std::vector< point_type >;
@@ -306,6 +307,7 @@ int
 main()
 {
     voronoi< point_type, point_less, value_type > voronoi_{std::clog};
+    std::ostream & gnuplot_ = std::cout;
     {
 #if 0
         std::istream & in_ = std::cin;
@@ -313,7 +315,7 @@ main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-        voronoi_.generate(in_, 1000);
+        voronoi_.generate(in_, gnuplot_, 1000);
         std::clog << in_.str() << '\n';
 #elif 0
         std::stringstream in_;
@@ -329,6 +331,6 @@ main()
         in_ >> voronoi_;
     }
     voronoi_();
-    std::cout << voronoi_ << std::endl;
+    gnuplot_ << voronoi_ << std::endl;
     return EXIT_SUCCESS;
 }
