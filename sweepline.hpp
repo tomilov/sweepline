@@ -1,21 +1,16 @@
 #pragma once
 
-#include <algorithm>
-#include <deque>
-#include <functional>
-#include <numeric>
-#include <iterator>
-#include <limits>
-#include <list>
-#include <set>
-#include <map>
-#include <tuple>
 #include <type_traits>
 #include <utility>
-#include <vector>
-#include <experimental/optional>
-#include <stdexcept>
-#include <iomanip>
+#include <tuple>
+#include <functional>
+#include <iterator>
+#include <limits>
+#include <algorithm>
+#include <numeric>
+#include <deque>
+#include <set>
+#include <map>
 #include <ostream>
 
 #include <cassert>
