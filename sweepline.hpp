@@ -11,16 +11,11 @@
 #include <deque>
 #include <set>
 #include <map>
-#ifdef DEBUG
-#include <ostream>
-#include <iostream>
-#endif
 
 #include <cassert>
 #include <cmath>
 
 template< typename site,
-          typename point_less,
           typename point,
           typename value_type >
 struct sweepline
@@ -38,6 +33,25 @@ struct sweepline
         : eps(_eps)
     { ; }
 
+    static
+    bool
+    less(value_type const & _eps,
+         value_type const & lx, value_type const & ly,
+         value_type const & rx, value_type const & ry)
+    {
+        if (lx + _eps < rx) {
+            return true;
+        } else if (rx + _eps < lx) {
+            return false;
+        } else {
+            if (ly + _eps < ry) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
     struct vertex // denote circumscribed circle
     {
 
@@ -47,28 +61,26 @@ struct sweepline
         value_type x() const { return c.x + R; }
         value_type const & y() const { return c.y; }
 
-        friend
-        std::ostream &
-        operator << (std::ostream & _out, vertex const & v)
-        {
-            return _out << "v{{" << v.c.x << ", " << v.c.y << "}, " << v.R << "}(" << v.x() << ")";
-        }
-
     };
 
-    struct vertex_less
+    struct point_less
     {
 
         value_type const & eps_;
 
+        bool operator () (point const & l, point const & r) const
+        {
+            return less(eps_, l.x, l.y, r.x, r.y);
+        }
+
         bool operator () (vertex const & l, vertex const & r) const
         {
-            return point_less{eps_}(l.c, r.c);
+            return operator () (l.c, r.c);
         }
 
     };
 
-    using vertices = std::set< vertex, vertex_less >;
+    using vertices = std::set< vertex, point_less >;
     using pvertex = typename vertices::iterator;
 
     struct edge // ((b, e), (l, r)) is ccw
@@ -82,7 +94,7 @@ struct sweepline
     using edges = std::deque< edge >;
     using pedge = typename edges::iterator;
 
-    vertices vertices_{vertex_less{eps}};
+    vertices vertices_{point_less{eps}};
     pvertex const nov = std::end(vertices_);
     edges edges_;
 
@@ -228,19 +240,7 @@ private :
 
         bool operator () (vertex const & l, vertex const & r) const
         {
-            value_type const & lx = l.x();
-            value_type const & rx = r.x();
-            if (lx + eps_ < rx) {
-                return true;
-            } else if (rx + eps_ < lx) {
-                return false;
-            } else {
-                if (l.y() + eps_ < r.y()) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }
+            return less(eps_, l.x(), l.y(), r.x(), r.y());
         }
 
         bool operator () (pvertex const l, pvertex const r) const
@@ -258,6 +258,18 @@ private :
 
     events events_{event_less{eps}};
     pevent const noe = std::end(events_);
+
+    void
+    make_first_edge(site const l, site const r)
+    {
+        assert(endpoints_.empty());
+        pedge const e = add_edge(l, r);
+        pendpoint const le = insert_endpoint(noep, l, r, e);
+        if (l->x + eps < r->x)  {
+            pendpoint const re = insert_endpoint(noep, r, l, e);
+            assert(std::next(le) == re);
+        }
+    }
 
     value_type
     circumradius(value_type a,
@@ -437,12 +449,20 @@ private :
     void
     finish_endpoints(pendpoint l,
                      pendpoint const r,
-                     pvertex const v,
+                     pvertex v,
                      site const s)
     {
-        events_.erase(v);
         site const lp = l->first.l;
         site const rp = std::prev(r)->first.r;
+        if (v == nov) {
+            assert(std::next(l) == r);
+            bool inserted = false;
+            std::tie(v, inserted) = make_vertex(*lp, *s, *rp);
+            assert(inserted);
+            l->second = v;
+        } else {
+            events_.erase(v);
+        }
         do {
             assert(l->second == v);
             trunc_edge(*l->first.e, v);
@@ -454,24 +474,12 @@ private :
             l = insert_endpoint(r, lp, s, le);
             insert_endpoint(r, s, rp, re);
         } else {
-            pendpoint const ep = insert_endpoint(r, s, rp, re); // TODO(tomilov): decide how to deal with such a situation
+            pendpoint const ep = insert_endpoint(r, s, rp, re);
             l = insert_endpoint(ep, lp, s, le);
             check_event(ep, r);
         }
         if (l != std::begin(endpoints_)) {
             check_event(std::prev(l), l);
-        }
-    }
-
-    void
-    make_first_edge(site const l, site const r)
-    {
-        assert(endpoints_.empty());
-        pedge const e = add_edge(l, r);
-        pendpoint const le = insert_endpoint(noep, l, r, e);
-        if (l->x + eps < r->x)  {
-            pendpoint const re = insert_endpoint(noep, r, l, e);
-            assert(std::next(le) == re);
         }
     }
 
@@ -553,18 +561,7 @@ private :
     bool
     prior(vertex const & l, point const & r) const
     {
-        value_type const & x = l.x();
-        if (x + eps < r.x) {
-            return true;
-        } else if (r.x + eps < x) {
-            return false;
-        } else {
-            if (l.y() + eps < r.y) {
-                return true;
-            } else {
-                return false;
-            }
-        }
+        return less(eps, l.x(), l.y(), r.x, r.y);
     }
 
 public :

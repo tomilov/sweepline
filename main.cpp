@@ -17,7 +17,7 @@
 //#define SWEEPLINE_DRAW_CIRCLES
 //#define SWEEPLINE_DRAW_INDICES
 
-template< typename point_type, typename point_less, typename value_type >
+template< typename point_type, typename value_type >
 struct voronoi
 {
 
@@ -95,6 +95,10 @@ struct voronoi
     using points = std::vector< point_type >;
     points sites_;
 
+    using point_iterator = typename points::const_iterator;
+    using sweepline_type = sweepline< point_iterator, point_type, value_type >;
+    using point_less = typename sweepline_type::point_less;
+
     void input(std::istream & _in)
     {
         size_type N = 0;
@@ -122,8 +126,6 @@ struct voronoi
         return _in;
     }
 
-    using point_iterator = typename points::const_iterator;
-    using sweepline_type = sweepline< point_iterator, point_less, point_type, value_type >;
     sweepline_type sweepline_{eps};
 
     void operator () ()
@@ -281,28 +283,6 @@ struct point
 
 using point_type = point;
 
-struct point_less
-{
-
-    value_type const & eps_;
-
-    bool operator () (point_type const & _lhs, point_type const & _rhs) const
-    {
-        if (_lhs.x + eps_ < _rhs.x) {
-            return true;
-        } else if (_rhs.x + eps_ < _lhs.x) {
-            return false;
-        } else {
-            if (_lhs.y + eps_ < _rhs.y) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-
-};
-
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -314,9 +294,7 @@ struct point_less
 int
 main()
 {
-    constexpr std::size_t N = 100000;
-
-    using voronoi_type = voronoi< point_type, point_less, value_type >;
+    using voronoi_type = voronoi< point_type, value_type >;
     voronoi_type voronoi_{std::clog};
     std::ostream & gnuplot_ = std::cout;
     {
@@ -326,17 +304,16 @@ main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
+#if 1
         in_ << "3\n"
                "-3 -4\n"
                "-3 4\n"
                "5 0\n";
-#elif 0
-        std::stringstream in_;
-        in_ >> std::scientific;
-        in_.precision(std::numeric_limits< value_type >::digits10 + 2);
+#else
+        constexpr std::size_t N = 100000;
         {
             using seed_type = typename voronoi_type::seed_type;
-#if 1
+#if 0
             seed_type const seed = 2847645394;
 #else
             std::random_device D;
@@ -346,6 +323,7 @@ main()
             gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
         }
         voronoi_.uniform_circle(in_, N);
+#endif
         //std::clog << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
