@@ -232,7 +232,7 @@ private :
 
     };
 
-    using endpoints = std::multimap< endpoint, pvertex, endpoint_less >;
+    using endpoints = std::map< endpoint, pvertex, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
     endpoints endpoints_{endpoint_less{eps}};
@@ -476,7 +476,6 @@ private :
         } while (l != r);
         pedge const le = add_edge(lp, s, v);
         pedge const re = add_edge(s, rp, v);
-        assert(endpoints_.empty());
         l = insert_endpoint(r, lp, s, le);
         pendpoint const ep = insert_endpoint(r, s, rp, re);
         if (l != std::begin(endpoints_)) {
@@ -490,29 +489,7 @@ private :
     void
     begin_cell(site const s)
     {
-#ifdef _LIBCPP_VERSION
-        // avoid libc++ bug
-        std::pair< pendpoint, pendpoint > lr{noep, noep};
-        lr.first = lr.second = endpoints_.upper_bound(*s);
-        if (lr.first != noep) {
-            auto const ll = std::begin(endpoints_);
-            if (lr.first != ll) {
-                if (endpoints_.key_comp((--lr.first)->first, *s)) {
-                    ++lr.first;
-                    break;
-                }
-            }
-            while (++lr.second != noep) {
-                if (endpoints_.key_comp(*s, lr.second->first)) {
-                    break;
-                }
-            }
-        }
-#elif defined(__GLIBCPP__) || defined(__GLIBCXX__)
         auto lr = endpoints_.equal_range(*s);
-#else
-#error "Unknown standard library used"
-#endif
         if (lr.first == lr.second) {
             if (lr.first == noep) {
                 lr.first = std::prev(noep);
@@ -541,6 +518,20 @@ private :
             }
             check_event(lr.first, lr.second);
         } else { // many arc collapsing right here, event (equivalent to the current site p) coming on the next step
+            auto const ll = std::begin(endpoints_);
+            while (lr.first != ll) {
+                --lr.first;
+                if (endpoint_less{eps}(lr.first->first, *s)) {
+                    ++lr.first;
+                    break;
+                }
+            }
+            while (lr.second != noep) {
+                ++lr.second;
+                if (endpoint_less{eps}(*s, lr.second->first)) {
+                    break;
+                }
+            }
             finish_endpoints(lr.first, lr.second, lr.first->second, s);
         }
     }
