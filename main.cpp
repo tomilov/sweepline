@@ -107,7 +107,8 @@ struct voronoi
         }
         sites_.reserve(N);
         for (size_type n = 0; n < N; ++n) {
-            point_type & point_ = sites_.emplace_back();
+            sites_.emplace_back();
+            point_type & point_ = sites_.back();
             if (!(_in >> point_.x)) {
                 assert(false);
             }
@@ -272,6 +273,14 @@ struct voronoi
 
 };
 
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+
+#include <cstdlib>
+
+#include <x86intrin.h>
+
 using value_type = double;
 
 struct point
@@ -282,14 +291,6 @@ struct point
 };
 
 using point_type = point;
-
-#include <iomanip>
-#include <iostream>
-#include <sstream>
-
-#include <cstdlib>
-
-#include <x86intrin.h>
 
 int
 main()
@@ -305,10 +306,11 @@ main()
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
 #if 1
-        in_ << "3\n"
-               "-3 -4\n"
-               "-3 4\n"
-               "5 0\n";
+        in_ << "4\n"
+               "-1 -0\n"
+               "0 -1\n"
+               "0 1\n"
+               "1 0\n";
 #else
         constexpr std::size_t N = 100000;
         {

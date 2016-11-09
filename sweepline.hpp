@@ -11,6 +11,9 @@
 #include <deque>
 #include <set>
 #include <map>
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 #include <cassert>
 #include <cmath>
@@ -217,17 +220,19 @@ private :
 
         bool operator () (point const & l, endpoint const & r) const
         {
+            std::cerr << l.y << ' ' << intersect(r, l.x) << std::endl;
             return l.y + eps_ < intersect(r, l.x);
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
+            std::cerr << r.y << ' ' << intersect(l, r.x) << std::endl;
             return intersect(l, r.x) + eps_ < r.y;
         }
 
     };
 
-    using endpoints = std::map< endpoint, pvertex, endpoint_less >;
+    using endpoints = std::multimap< endpoint, pvertex, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
     endpoints endpoints_{endpoint_less{eps}};
@@ -471,23 +476,43 @@ private :
         } while (l != r);
         pedge const le = add_edge(lp, s, v);
         pedge const re = add_edge(s, rp, v);
-        if (r == noep) {
-            l = insert_endpoint(r, lp, s, le);
-            insert_endpoint(r, s, rp, re);
-        } else {
-            pendpoint const ep = insert_endpoint(r, s, rp, re);
-            l = insert_endpoint(ep, lp, s, le);
-            check_event(ep, r);
-        }
+        assert(endpoints_.empty());
+        l = insert_endpoint(r, lp, s, le);
+        pendpoint const ep = insert_endpoint(r, s, rp, re);
         if (l != std::begin(endpoints_)) {
             check_event(std::prev(l), l);
+        }
+        if (r != noep) {
+            check_event(ep, r);
         }
     }
 
     void
     begin_cell(site const s)
     {
+#ifdef _LIBCPP_VERSION
+        // avoid libc++ bug
+        std::pair< pendpoint, pendpoint > lr{noep, noep};
+        lr.first = lr.second = endpoints_.upper_bound(*s);
+        if (lr.first != noep) {
+            auto const ll = std::begin(endpoints_);
+            if (lr.first != ll) {
+                if (endpoints_.key_comp((--lr.first)->first, *s)) {
+                    ++lr.first;
+                    break;
+                }
+            }
+            while (++lr.second != noep) {
+                if (endpoints_.key_comp(*s, lr.second->first)) {
+                    break;
+                }
+            }
+        }
+#elif defined(__GLIBCPP__) || defined(__GLIBCXX__)
         auto lr = endpoints_.equal_range(*s);
+#else
+#error "Unknown standard library used"
+#endif
         if (lr.first == lr.second) {
             if (lr.first == noep) {
                 lr.first = std::prev(noep);
