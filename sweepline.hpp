@@ -457,10 +457,11 @@ private :
         if (v == nov) {
             assert(std::next(l) == r);
             bool inserted = false;
-            std::tie(v, inserted) = make_vertex(*lp, *s, *rp);
+            std::tie(v, inserted) = make_vertex(*s, *lp, *rp);
             assert(inserted);
             l->second = v;
         } else {
+            assert(events_.find(v) != noe);
             events_.erase(v);
         }
         do {
