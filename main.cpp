@@ -61,7 +61,6 @@ struct voronoi
     {
         std::set< point_type, point_less > points_{point_less{delta}};
         _out << N << '\n';
-        points_.clear();
         value_type const twosqreps = eps * (eps + eps);
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
@@ -77,6 +76,37 @@ struct voronoi
                 } else {
                     p.x = p.y = zero;
                 }
+                if (points_.insert(std::move(p)).second) {
+                    break;
+                }
+            } while (++m < M);
+            if (m == M) {
+                log_ << "the number (" << M << ") of attempts is exceeded\n";
+                log_ << "only " << n << "points generated\n";
+                break;
+            }
+        }
+        for (point_type const & point_ : points_) {
+            _out << point_.x << ' ' << point_.y << '\n';
+        }
+    }
+
+    void
+    uniform_square(std::ostream & _out, value_type const bbox, size_type const N)
+    {
+        std::set< point_type, point_less > points_{point_less{delta}};
+        _out << N << '\n';
+        constexpr size_type M = 1000; // number of attempts
+        for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
+            size_type m = 0;
+            do {
+                point_type p{zero_to_one_(rng), zero_to_one_(rng)};
+                p.x += p.x;
+                p.y += p.y;
+                p.x -= one;
+                p.y -= one;
+                p.x *= bbox;
+                p.y *= bbox;
                 if (points_.insert(std::move(p)).second) {
                     break;
                 }
@@ -365,7 +395,7 @@ int main()
 {
     using voronoi_type = voronoi< point_type, value_type >;
     voronoi_type voronoi_{std::clog};
-    voronoi_.draw_circles = true;
+    voronoi_.draw_circles = false;
     voronoi_.draw_indices = false;
     std::ostream & gnuplot_ = std::cout;
     {
@@ -411,7 +441,7 @@ int main()
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
 #elif 1
-        // Uniformely distributed into the circle
+        // Uniformely distributed into the circle or square
         constexpr std::size_t N = 1000;
         {
             using seed_type = typename voronoi_type::seed_type;
@@ -424,7 +454,8 @@ int main()
             voronoi_.seed(seed);
             gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        voronoi_.uniform_circle(in_, value_type(10000), N);
+        //voronoi_.uniform_circle(in_, value_type(10000), N);
+        voronoi_.uniform_square(in_, value_type(10000), N);
 #endif
         //std::clog << in_.str() << '\n';
 #endif
