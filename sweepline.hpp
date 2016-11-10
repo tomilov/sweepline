@@ -236,11 +236,9 @@ private :
 
     };
 
-    using endpoints = std::map< endpoint, pvertex, endpoint_less >;
+    struct wevent;
+    using endpoints = std::map< endpoint, wevent, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
-
-    endpoints endpoints_{endpoint_less{eps}};
-    pendpoint const noep = std::end(endpoints_);
 
     struct event_less
     {
@@ -264,6 +262,10 @@ private :
 
     using events = std::multimap< pvertex, pendpoint, event_less >;
     using pevent = typename events::iterator;
+    struct wevent { pevent ev; };
+
+    endpoints endpoints_{endpoint_less{eps}};
+    pendpoint const noep = std::end(endpoints_);
 
     events events_{event_less{eps}};
     pevent const noev = std::end(events_);
@@ -329,7 +331,8 @@ private :
         }
         value_type x = (B * N - D * M) / G;
         using std::hypot;
-        value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(a.x - c.x, a.y - c.y));
+        //value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(a.x - c.x, a.y - c.y));
+        value_type R = hypot(b.x - x, b.y - y);
         return vertices_.insert({{x, y}, R});
     }
 
@@ -448,7 +451,7 @@ private :
     pendpoint
     insert_endpoint(pendpoint const ep, site const l, site const r, pedge const e)
     {
-        return endpoints_.insert(ep, {{l, r, e}, nov});
+        return endpoints_.insert(ep, {{l, r, e}, {noev}});
     }
 
     void
@@ -519,7 +522,7 @@ private :
             }
             check_event(lr.first, lr.second);
         } else { // one endpoint or many arc collapsing right here, event (equivalent to the current site p) coming on the next step
-            { // libc++ bug https://llvm.org/bugs/show_bug.cgi?id=30959
+            { // workaround for libc++ bug https://llvm.org/bugs/show_bug.cgi?id=30959
                 auto const ll = std::begin(endpoints_);
                 while (lr.first != ll) {
                     --lr.first;
@@ -542,42 +545,41 @@ private :
     void
     finish_cells(pevent ev, pvertex const v)
     {
-        pendpoint r = ev->second;
+        auto lr = endpoints_.equal_range(*v);
+        { // workaround for libc++ bug https://llvm.org/bugs/show_bug.cgi?id=30959
+            auto const ll = std::begin(endpoints_);
+            while (lr.first != ll) {
+                --lr.first;
+                if (endpoint_less{eps}(lr.first->first, *v)) {
+                    ++lr.first;
+                    break;
+                }
+            }
+            while (lr.second != noep) {
+                ++lr.second;
+                if (endpoint_less{eps}(*v, lr.second->first)) {
+                    break;
+                }
+            }
+        }
+        assert(1 < std::distance(lr.first, lr.second));
+        site const lc = lr.first->first.l;
+        site const rc = std::prev(lr.second)->first.r;
         do {
-            assert(ev->second->second == v);
+            assert(lr.first->second.ev->first == v);
+            trunc_edge(*lr.first->first.e, v);
+            endpoints_.erase(lr.first++);
+        } while (lr.first != lr.second);
+        pedge const e = add_edge(lc, rc, v);
+        lr.first = insert_endpoint(lr.second, lc, rc, e);
+        do {
             events_.erase(ev++);
         } while ((ev != noev) && (ev->first == v));
-        pendpoint l = r;
-        {
-            pendpoint const ll = std::begin(endpoints_);
-            while (l != ll) {
-                --l;
-                if (l->second != v) {
-                    ++l;
-                    break;
-                }
-            }
-            while (++r != noep) {
-                if (r->second != v) {
-                    break;
-                }
-            }
+        if (lr.first != std::begin(endpoints_)) {
+            check_event(std::prev(lr.first), lr.first);
         }
-        assert(1 < std::distance(l, r));
-        site const lc = l->first.l;
-        site const rc = std::prev(r)->first.r;
-        do {
-            assert(l->second == v);
-            trunc_edge(*l->first.e, v);
-            endpoints_.erase(l++);
-        } while (l != r);
-        pedge const e = add_edge(lc, rc, v);
-        l = insert_endpoint(r, lc, rc, e);
-        if (l != std::begin(endpoints_)) {
-            check_event(std::prev(l), l);
-        }
-        if (r != noep) {
-            check_event(l, r);
+        if (lr.second != noep) {
+            check_event(lr.first, lr.second);
         }
     }
 
@@ -622,7 +624,7 @@ public :
         for (auto const & ep : endpoints_) {
             edge const & e = *ep.first.e;
             assert((e.b == nov) || (e.e == nov));
-            assert(ep.second == nov);
+            assert(ep.second.ev == noev);
         }
 #endif
         endpoints_.clear();
