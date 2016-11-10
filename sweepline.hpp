@@ -27,11 +27,13 @@ struct sweepline
     static_assert(std::is_same< value_type, decltype(std::declval< point >().y) >::value,
                   "point format error");
 
-    value_type eps;
+    value_type const & eps;
+
+    sweepline(value_type const && _eps) = delete;
 
     explicit
-    sweepline(value_type _eps)
-        : eps(std::move(_eps))
+    sweepline(value_type const & _eps)
+        : eps(_eps)
     {
         assert(!(eps < value_type(0)));
     }
@@ -74,6 +76,11 @@ struct sweepline
         bool operator () (point const & l, point const & r) const
         {
             return less(eps_, l.x, l.y, r.x, r.y);
+        }
+
+        bool operator () (site const l, site const r) const
+        {
+            return operator () (*l, *r);
         }
 
         bool operator () (vertex const & l, vertex const & r) const
@@ -183,9 +190,9 @@ private :
         // endpoints removed strictly before violation of this invariant to prevent its occurrence
         bool operator () (endpoint const & l, endpoint const & r) const
         {
-            if (&l == &r) {
+            /*if (&l == &r) {
                 return false;
-            }
+            }*/
             // All the next code up to "}" is (striclty saying) undefined behaviour,
             // but it works for all modern standard libraries and (I sure)
             // more stricter then current local (insertion by hint) guarantees
@@ -582,8 +589,9 @@ private :
 
 public :
 
+    template< typename iterator >
     void
-    operator () (site l, site const r)
+    operator () (iterator l, iterator const r)
     {
         assert(vertices_.empty());
         assert(edges_.empty());

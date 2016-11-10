@@ -33,9 +33,6 @@ struct voronoi
 
     value_type delta = value_type(0.001);
 
-    value_type const zero = value_type(0);
-    value_type const one = value_type(1);
-
     voronoi(std::ostream & _log)
         : log_(_log)
     {
@@ -44,15 +41,18 @@ struct voronoi
         log_ << "delta = " << delta << '\n';
     }
 
-    using seed_type = typename std::mt19937::result_type;
-
 private :
+
+    value_type const zero = value_type(0);
+    value_type const one = value_type(1);
 
     std::mt19937 rng;
     std::normal_distribution< value_type > normal_;
     std::uniform_real_distribution< value_type > zero_to_one_{zero, std::nextafter(one, one + one)};
 
 public :
+
+    using seed_type = typename std::mt19937::result_type;
 
     void
     seed(seed_type const seed)
@@ -192,6 +192,7 @@ public :
     using sweepline_type = sweepline< site >;
 
 private :
+
     using point_less = typename sweepline_type::point_less;
 
     points sites_;
@@ -212,7 +213,6 @@ private :
                 assert(false);
             }
         }
-        std::sort(std::begin(sites_), std::end(sites_), point_less{eps});
     }
 
 public :
@@ -229,7 +229,39 @@ public :
 
     void operator () ()
     {
+#if 1
+        using pproxy = std::vector< site >;
+        pproxy pproxy_;
+        pproxy_.reserve(sites_.size());
+        auto const send = std::cend(sites_);
+        for (auto p = std::cbegin(sites_); p != send; ++p) {
+            pproxy_.push_back(p);
+        }
+        std::sort(std::begin(pproxy_), std::end(pproxy_), point_less{eps});
+        using ppoint = typename pproxy::const_iterator;
+        struct point_proxy
+                : std::iterator< std::forward_iterator_tag, point_type const >
+        {
+
+            ppoint p;
+
+            point_proxy(ppoint pp) : p(pp) { ; }
+            operator site const & () const { return *p; }
+
+            point_proxy & operator ++ () { ++p; return *this; }
+            point_proxy operator ++ (int) { auto pp = p; operator ++ (); return {pp}; }
+
+            point_type const & operator * () const { return **p; }
+
+            bool operator == (point_proxy const & rhs) const { return (p == rhs.p); }
+            bool operator != (point_proxy const & rhs) const { return !operator == (rhs); }
+
+        };
+        sweepline_(point_proxy{std::cbegin(pproxy_)}, point_proxy{std::cend(pproxy_)});
+#else
+        std::sort(std::begin(sites_), std::end(sites_), point_less{eps});
         sweepline_(std::cbegin(sites_), std::cend(sites_));
+#endif
     }
 
     value_type zoom = value_type(0.2);
@@ -473,7 +505,7 @@ int main()
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
 #elif 1
-        // Uniformely distributed into the circle or square
+        // Rectangle mesh or uniformely distributed into the circle or square:
         constexpr std::size_t N = 100000;
         {
             using seed_type = typename voronoi_type::seed_type;
@@ -486,9 +518,9 @@ int main()
             voronoi_.seed(seed);
             gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        //voronoi_.uniform_circle(in_, value_type(10000), N);
+        //voronoi_.rectangle_mesh(in_, 10);
+        voronoi_.uniform_circle(in_, value_type(10000), N);
         //voronoi_.uniform_square(in_, value_type(10000), N);
-        voronoi_.rectangle_mesh(in_, 10);
 #endif
         //log_ << in_.str() << '\n';
 #endif
