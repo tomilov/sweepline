@@ -19,7 +19,7 @@
 #include <cmath>
 
 template< typename site,
-          typename point,
+          typename point = typename std::iterator_traits< site >::value_type,
           typename value_type = decltype(std::declval< point >().x) >
 struct sweepline
 {
@@ -27,14 +27,14 @@ struct sweepline
     static_assert(std::is_same< value_type, decltype(std::declval< point >().y) >::value,
                   "point format error");
 
-    value_type const & eps;
-
-    sweepline(value_type const && _eps) = delete; // lifetime of sweepline instance must be exceeded by a lifetime of eps
+    value_type eps;
 
     explicit
-    sweepline(value_type const & _eps)
-        : eps(_eps)
-    { ; }
+    sweepline(value_type _eps)
+        : eps(std::move(_eps))
+    {
+        assert(!(eps < value_type(0)));
+    }
 
     static
     bool // imprecise comparator: lexicographically compare with tolerance
@@ -97,9 +97,13 @@ struct sweepline
     using edges = std::deque< edge >;
     using pedge = typename edges::iterator;
 
+    // Voronoi diagram:
+    // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator is not preserved during this operations
+    // {
     vertices vertices_{point_less{eps}};
     pvertex const nov = std::end(vertices_);
     edges edges_;
+    // }
 
 private :
 
@@ -255,7 +259,7 @@ private :
     using pevent = typename events::iterator;
 
     events events_{event_less{eps}};
-    pevent const noe = std::end(events_);
+    pevent const noev = std::end(events_);
 
     void
     make_first_edge(site const l, site const r)
@@ -374,13 +378,13 @@ private :
         assert(v != nov);
         assert(!events_.empty());
         pevent ev = events_.lower_bound(v);
-        assert(ev != noe);
+        assert(ev != noev);
         assert(ev->first == v);
         do {
             assert(ev->second->second == v);
             ev->second->second = nov;
             events_.erase(ev++);
-        } while ((ev != noe) && (ev->first == v));
+        } while ((ev != noev) && (ev->first == v));
         vertices_.erase(v);
     }
 
@@ -393,7 +397,7 @@ private :
         assert(ll.first.r == rr.first.l);
         auto const v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r);
         if (v.first != nov) {
-            assert((events_.find(v.first) == noe) == v.second);
+            assert((events_.find(v.first) == noev) == v.second);
             value_type const & x = v.first->x();
             auto const deselect_event = [&] (auto const & ep) -> bool
             {
@@ -455,7 +459,7 @@ private :
             assert(inserted);
             l->second = v;
         } else {
-            assert(events_.find(v) != noe);
+            assert(events_.find(v) != noev);
             events_.erase(v);
         }
         do {
@@ -535,7 +539,7 @@ private :
         do {
             assert(ev->second->second == v);
             events_.erase(ev++);
-        } while ((ev != noe) && (ev->first == v));
+        } while ((ev != noev) && (ev->first == v));
         pendpoint l = r;
         pendpoint const ll = std::begin(endpoints_);
         while (l != ll) {
@@ -579,6 +583,8 @@ public :
     void
     operator () (site l, site const r)
     {
+        assert(vertices_.empty());
+        assert(edges_.empty());
         assert(std::is_sorted(l, r, point_less{eps}));
         if (l == r) {
             return;
@@ -603,6 +609,12 @@ public :
             finish_cells(ev, ev->first);
         }
         endpoints_.clear();
+    }
+
+    void clear()
+    {
+        vertices_.clear();
+        edges_.clear();
     }
 
 };

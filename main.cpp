@@ -6,16 +6,17 @@
 #include <iterator>
 #include <algorithm>
 #include <random>
-#include <chrono>
 #include <tuple>
+#include <set>
 #include <vector>
+#include <iomanip>
 #include <istream>
 #include <ostream>
 
 #include <cassert>
 #include <cmath>
 
-template< typename point_type, typename value_type >
+template< typename point_type, typename value_type = decltype(std::declval< point_type >().x) >
 struct voronoi
 {
 
@@ -28,9 +29,9 @@ struct voronoi
 
     // bounding box
 
-    value_type const eps = value_type(0.0001);
+    value_type eps = value_type(1E-14);
 
-    value_type const delta = value_type(0.001);
+    value_type delta = value_type(0.001);
 
     value_type const zero = value_type(0);
     value_type const one = value_type(1);
@@ -45,9 +46,13 @@ struct voronoi
 
     using seed_type = typename std::mt19937::result_type;
 
+private :
+
     std::mt19937 rng;
     std::normal_distribution< value_type > normal_;
     std::uniform_real_distribution< value_type > zero_to_one_{zero, std::nextafter(one, one + one)};
+
+public :
 
     void
     seed(seed_type const seed)
@@ -137,37 +142,40 @@ struct voronoi
             _out << max << " 0\n";
             _out << '-' << max << " 0\n";
         }
-        auto const print = [&] (bool const direct, bool const signx, bool const signy)
+        auto const qprint = [&] (bool const swap, bool const sx, bool const sy)
         {
             for (ipoint const & p : q) {
                 assert(p.x != 0);
                 assert(p.y != 0);
-                if (signx) {
+                if (sx) {
                     _out << '-';
                 }
-                _out << (direct ? p.x : p.y) << ' ';
-                if (signy) {
+                _out << (swap ? p.x : p.y) << ' ';
+                if (sy) {
                     _out << '-';
                 }
-                _out << (direct ? p.y : p.x) << '\n';
+                _out << (swap ? p.y : p.x) << '\n';
             }
         };
-        print(true,  true,  true);
-        print(true,  false, true);
-        print(true,  true,  false);
-        print(true,  false, false);
-        print(false, true,  true);
-        print(false, false, true);
-        print(false, true,  false);
-        print(false, false, false);
+        qprint(true,  true,  true);
+        qprint(true,  false, true);
+        qprint(true,  true,  false);
+        qprint(true,  false, false);
+        qprint(false, true,  true);
+        qprint(false, false, true);
+        qprint(false, true,  false);
+        qprint(false, false, false);
     }
 
     using points = std::vector< point_type >;
-    points sites_;
+    using site = typename points::const_iterator;
 
-    using point_iterator = typename points::const_iterator;
-    using sweepline_type = sweepline< point_iterator, point_type, value_type >;
+    using sweepline_type = sweepline< site >;
+
+private :
     using point_less = typename sweepline_type::point_less;
+
+    points sites_;
 
     void input(std::istream & _in)
     {
@@ -188,6 +196,8 @@ struct voronoi
         std::sort(std::begin(sites_), std::end(sites_), point_less{eps});
     }
 
+public :
+
     friend
     std::istream &
     operator >> (std::istream & _in, voronoi & _voronoi)
@@ -200,20 +210,15 @@ struct voronoi
 
     void operator () ()
     {
-        using std::chrono::duration_cast;
-        using std::chrono::microseconds;
-        using std::chrono::steady_clock;
-        steady_clock::time_point const start = steady_clock::now();
-        log_ << "begin sweepline\n";
         sweepline_(std::cbegin(sites_), std::cend(sites_));
-        log_ << "sweepline time = "
-             << duration_cast< microseconds >(steady_clock::now() - start).count()
-             << "us\n";
     }
 
     value_type zoom = value_type(0.2);
 
-    void output(std::ostream & _gnuplot) const
+    template< typename V, typename E >
+    void output(std::ostream & _gnuplot,
+                V const & _vertices,
+                E const & _edges) const
     {
         if (sites_.empty()) {
             _gnuplot << "print 'no point to process'\n;";
@@ -236,23 +241,24 @@ struct voronoi
             }
         };
         std::for_each(std::next(std::cbegin(sites_)), std::cend(sites_), minmax);
-        if (pmin.x + eps < pmax.x) {
+        assert(value_type(-0.5) < zoom);
+        if (pmin.x + delta < pmax.x) {
             value_type dx = pmax.x - pmin.x;
             dx *= zoom;
             pmin.x -= dx;
             pmax.x += dx;
         } else {
-            pmin.x -= value_type(1);
-            pmax.x += value_type(1);
+            pmin.x -= delta;
+            pmax.x += delta;
         }
-        if (pmin.y + eps < pmax.y) {
+        if (pmin.y + delta < pmax.y) {
             value_type dy = pmax.y - pmin.y;
             dy *= zoom;
             pmin.y -= dy;
             pmax.y += dy;
         } else {
-            pmin.y -= value_type(1);
-            pmax.y += value_type(1);
+            pmin.y -= delta;
+            pmax.y += delta;
         }
         {
             _gnuplot << "set size square;\n"
@@ -269,11 +275,11 @@ struct voronoi
         if (draw_indices) {
             _gnuplot << ", '' with labels offset character 0, character 1 notitle";
         }
-        if (draw_circles && !sweepline_.vertices_.empty()) {
+        if (draw_circles && !_vertices.empty()) {
             _gnuplot << ", '' with circles notitle linecolor palette";
         }
-        if (!sweepline_.edges_.empty()) {
-            _gnuplot << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
+        if (!_edges.empty()) {
+            _gnuplot << ", '' with lines title 'edges (" << _edges.size() <<  ")'";
         }
         _gnuplot << ";\n";
         auto const pout = [&] (auto const & p)
@@ -293,9 +299,9 @@ struct voronoi
             }
             _gnuplot << "e\n";
         }
-        if (draw_circles && !sweepline_.vertices_.empty()) {
+        if (draw_circles && !_vertices.empty()) {
             size_type i = 0;
-            for (auto const & vertex_ : sweepline_.vertices_) {
+            for (auto const & vertex_ : _vertices) {
                 _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
             }
             _gnuplot << "e\n";
@@ -334,10 +340,10 @@ struct voronoi
                 }
             }
         };
-        if (!sweepline_.edges_.empty()) {
-            for (auto const & edge_ : sweepline_.edges_) {
-                bool const beg = (edge_.b != sweepline_.nov);
-                bool const end = (edge_.e != sweepline_.nov);
+        if (!_edges.empty()) {
+            for (auto const & edge_ : _edges) {
+                bool const beg = (edge_.b != std::end(_vertices));
+                bool const end = (edge_.e != std::end(_vertices));
                 point_type const & l = *edge_.l;
                 point_type const & r = *edge_.r;
                 if (beg != end) {
@@ -362,6 +368,16 @@ struct voronoi
         }
     }
 
+private :
+
+    void
+    output(std::ostream & _out) const
+    {
+        return output(_out, sweepline_.vertices_, sweepline_.edges_);
+    }
+
+public :
+
     friend
     std::ostream &
     operator << (std::ostream & _gnuplot, voronoi const & _voronoi)
@@ -372,13 +388,12 @@ struct voronoi
 
 };
 
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 
 #include <cstdlib>
-
-#include <x86intrin.h>
 
 using value_type = double;
 
@@ -389,14 +404,15 @@ struct point
 
 };
 
-using point_type = point;
-
 int main()
 {
-    using voronoi_type = voronoi< point_type, value_type >;
-    voronoi_type voronoi_{std::clog};
+    using voronoi_type = voronoi< point >;
+    std::ostream & log_ = std::clog;
+    voronoi_type voronoi_{log_};
+    // setup:
     voronoi_.draw_circles = false;
     voronoi_.draw_indices = false;
+    // input:
     std::ostream & gnuplot_ = std::cout;
     {
 #if 0
@@ -442,7 +458,7 @@ int main()
 #endif
 #elif 1
         // Uniformely distributed into the circle or square
-        constexpr std::size_t N = 1000;
+        constexpr std::size_t N = 10000;
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
@@ -452,16 +468,61 @@ int main()
             auto const seed = static_cast< seed_type >(D());
 #endif
             voronoi_.seed(seed);
-            gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
+            gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        //voronoi_.uniform_circle(in_, value_type(10000), N);
-        voronoi_.uniform_square(in_, value_type(10000), N);
+        voronoi_.uniform_circle(in_, value_type(10000), N);
+        //voronoi_.uniform_square(in_, value_type(10000), N);
 #endif
-        //std::clog << in_.str() << '\n';
+        //log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }
-    voronoi_();
+    {
+        using std::chrono::duration_cast;
+        using std::chrono::microseconds;
+        using std::chrono::steady_clock;
+        auto const start = steady_clock::now();
+        voronoi_();
+        log_ << "begin sweepline\n";
+        log_ << "sweepline time = "
+             << duration_cast< microseconds >(steady_clock::now() - start).count()
+             << "us\n";
+    }
+    // output:
+    auto const & sweepline_ = voronoi_.sweepline_;
+    log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
+    log_ << "edges # " << sweepline_.edges_.size() << '\n';
+#if 0
     gnuplot_ << voronoi_ << std::endl;
+#else
+    { // clone
+        using sweepline_type = typename voronoi_type::sweepline_type;
+        // source
+        // destination
+        using vertices = std::vector< typename sweepline_type::vertex >;
+        using pvertex = typename vertices::const_iterator;
+        using site = typename voronoi_type::site;
+        // transformation function:
+        vertices const vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
+        pvertex const nov = std::cend(vertices_);
+        // cloning
+        auto const vclone = [&] (typename sweepline_type::pvertex const v) -> pvertex
+        {
+            return std::prev(nov, std::distance(v, sweepline_.nov));
+        };
+        struct edge { site l, r; pvertex b, e; };
+        auto const eclone = [&] (typename sweepline_type::edge const & _edge) -> edge
+        {
+            return {_edge.l, _edge.r, vclone(_edge.b), vclone(_edge.e)};
+        };
+        std::vector< edge > edges_;
+        edges_.reserve(sweepline_.edges_.size());
+        std::transform(std::cbegin(sweepline_.edges_), std::cend(sweepline_.edges_),
+                       std::back_inserter(edges_),
+                       eclone);
+        voronoi_.output(gnuplot_, vertices_, edges_);
+        gnuplot_ << std::endl;
+    }
+#endif
     return EXIT_SUCCESS;
 }
