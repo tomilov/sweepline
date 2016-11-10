@@ -4,6 +4,7 @@
 #include <limits>
 #include <chrono>
 #include <iterator>
+#include <algorithm>
 #include <random>
 #include <chrono>
 #include <tuple>
@@ -14,9 +15,6 @@
 #include <cassert>
 #include <cmath>
 
-//#define SWEEPLINE_DRAW_CIRCLES
-//#define SWEEPLINE_DRAW_INDICES
-
 template< typename point_type, typename value_type >
 struct voronoi
 {
@@ -25,8 +23,10 @@ struct voronoi
 
     std::ostream & log_;
 
+    bool draw_indices = false;
+    bool draw_circles = false;
+
     // bounding box
-    value_type const bbox = value_type(10000);
 
     value_type const eps = value_type(0.0001);
 
@@ -57,7 +57,7 @@ struct voronoi
     }
 
     void
-    uniform_circle(std::ostream & _out, size_type const N)
+    uniform_circle(std::ostream & _out, value_type const bbox, size_type const N)
     {
         std::set< point_type, point_less > points_{point_less{delta}};
         _out << N << '\n';
@@ -181,43 +181,7 @@ struct voronoi
              << "us\n";
     }
 
-    value_type const vbox = value_type(1.5) * bbox;
-
-    point_type
-    trunc_edge(point_type const & l, point_type const & r, point_type const & p) const
-    {
-        value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
-        value_type const dy = l.x - r.x;
-        auto const px = [&] (value_type const & y) -> point_type { return {(p.x + (y - p.y) * dx / dy), y}; };
-        auto const py = [&] (value_type const & x) -> point_type
-        {
-            value_type const y = p.y + (x - p.x) * dy / dx;
-            if (+eps < dy) {
-                if (+vbox < y) {
-                    return px(+vbox);
-                }
-            } else if (dy < -eps) {
-                if (y < -vbox) {
-                    return px(-vbox);
-                }
-            }
-            return {x, y};
-        };
-        if (+eps < dx) {
-            return py(+vbox);
-        } else if (dx < -eps) {
-            return py(-vbox);
-        } else {
-            if (+eps < dy) {
-                return {p.x, +vbox};
-            } else if (dy < -eps) {
-                return {p.x, -vbox};
-            } else {
-                assert(false);
-                return {p.x, p.y};
-            }
-        }
-    }
+    value_type zoom = value_type(0.2);
 
     void output(std::ostream & _gnuplot) const
     {
@@ -225,24 +189,59 @@ struct voronoi
             _gnuplot << "print 'no point to process'\n;";
             return;
         }
+        // pmin, pmax denotes bounding box
+        point_type pmin = sites_.front();
+        point_type pmax = pmin;
+        auto const minmax = [&] (point_type const & p)
+        {
+            if (p.x < pmin.x) {
+                pmin.x = p.x;
+            } else if (pmax.x < p.x) {
+                pmax.x = p.x;
+            }
+            if (p.y < pmin.y) {
+                pmin.y = p.y;
+            } else if (pmax.y < p.y) {
+                pmax.y = p.y;
+            }
+        };
+        std::for_each(std::next(std::cbegin(sites_)), std::cend(sites_), minmax);
+        if (pmin.x + eps < pmax.x) {
+            value_type dx = pmax.x - pmin.x;
+            dx *= zoom;
+            pmin.x -= dx;
+            pmax.x += dx;
+        } else {
+            pmin.x -= value_type(1);
+            pmax.x += value_type(1);
+        }
+        if (pmin.y + eps < pmax.y) {
+            value_type dy = pmax.y - pmin.y;
+            dy *= zoom;
+            pmin.y -= dy;
+            pmax.y += dy;
+        } else {
+            pmin.y -= value_type(1);
+            pmax.y += value_type(1);
+        }
         {
             _gnuplot << "set size square;\n"
-                        //"set size ratio -1;\n"
                         "set key left;\n"
                         "unset colorbox;\n";
-            _gnuplot << "set xrange [" << -vbox << ':' << vbox << "];\n";
-            _gnuplot << "set yrange [" << -vbox << ':' << vbox << "];\n";
+            if (draw_circles) {
+                _gnuplot << "set size ratio -1;\n";
+            }
+            _gnuplot << "set xrange [" << pmin.x << ':' << pmax.x << "];\n";
+            _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
         }
         _gnuplot << "plot";
         _gnuplot << " '-' with points notitle";
-#ifdef SWEEPLINE_DRAW_INDICES
-        _gnuplot << ", '' with labels offset character 0, character 1 notitle";
-#endif
-#ifdef SWEEPLINE_DRAW_CIRCLES
-        if (!sweepline_.vertices_.empty()) {
+        if (draw_indices) {
+            _gnuplot << ", '' with labels offset character 0, character 1 notitle";
+        }
+        if (draw_circles && !sweepline_.vertices_.empty()) {
             _gnuplot << ", '' with circles notitle linecolor palette";
         }
-#endif
         if (!sweepline_.edges_.empty()) {
             _gnuplot << ", '' with lines title 'edges (" << sweepline_.edges_.size() <<  ")'";
         }
@@ -257,24 +256,54 @@ struct voronoi
             }
             _gnuplot << "e\n";
         }
-#ifdef SWEEPLINE_DRAW_INDICES
-        {
+        if (draw_indices) {
             size_type i = 0;
             for (point_type const & point_ : sites_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
             }
             _gnuplot << "e\n";
         }
-#endif
-#ifdef SWEEPLINE_DRAW_CIRCLES
-        if (!sweepline_.vertices_.empty()) {
+        if (draw_circles && !sweepline_.vertices_.empty()) {
             size_type i = 0;
             for (auto const & vertex_ : sweepline_.vertices_) {
                 _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
             }
             _gnuplot << "e\n";
         }
-#endif
+        auto const trunc_edge = [&] (point_type const & l, point_type const & r, point_type const & p) -> point_type
+        {
+            value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
+            value_type const dy = l.x - r.x;
+            auto const px = [&] (value_type const & y) -> point_type { return {(p.x + (y - p.y) * dx / dy), y}; };
+            auto const py = [&] (value_type const & x) -> point_type
+            {
+                value_type const y = p.y + (x - p.x) * dy / dx;
+                if (+eps < dy) {
+                    if (pmax.y < y) {
+                        return px(pmax.y);
+                    }
+                } else if (dy < -eps) {
+                    if (y < pmin.y) {
+                        return px(pmin.y);
+                    }
+                }
+                return {x, y};
+            };
+            if (+eps < dx) {
+                return py(pmax.x);
+            } else if (dx < -eps) {
+                return py(pmin.x);
+            } else {
+                if (+eps < dy) {
+                    return {p.x, pmax.y};
+                } else if (dy < -eps) {
+                    return {p.x, pmin.y};
+                } else {
+                    assert(false);
+                    return {p.x, p.y};
+                }
+            }
+        };
         if (!sweepline_.edges_.empty()) {
             for (auto const & edge_ : sweepline_.edges_) {
                 bool const beg = (edge_.b != sweepline_.nov);
@@ -283,7 +312,7 @@ struct voronoi
                 point_type const & r = *edge_.r;
                 if (beg != end) {
                     point_type const & p = (beg ? edge_.b : edge_.e)->c;
-                    if (!(p.x < -vbox) && !(vbox < p.x) && !(p.y < -vbox) && !(vbox < p.y)) {
+                    if (!(p.x < pmin.x) && !(pmax.x < p.x) && !(p.y < pmin.y) && !(pmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge((beg ? l : r), (end ? l : r), p));
                         _gnuplot << "\n";
@@ -336,6 +365,8 @@ int main()
 {
     using voronoi_type = voronoi< point_type, value_type >;
     voronoi_type voronoi_{std::clog};
+    voronoi_.draw_circles = true;
+    voronoi_.draw_indices = false;
     std::ostream & gnuplot_ = std::cout;
     {
 #if 0
@@ -344,7 +375,7 @@ int main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-#if 1
+#if 0
         in_ << "7\n"
                "1 0\n"
                "2 0\n"
@@ -379,9 +410,9 @@ int main()
                                       {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
-#elif 0
+#elif 1
         // Uniformely distributed into the circle
-        constexpr std::size_t N = 100000;
+        constexpr std::size_t N = 1000;
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
@@ -393,9 +424,9 @@ int main()
             voronoi_.seed(seed);
             gnuplot_ << "set title 'seed = 0x" << std::hex << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        voronoi_.uniform_circle(in_, N);
+        voronoi_.uniform_circle(in_, value_type(10000), N);
 #endif
-        std::clog << in_.str() << '\n';
+        //std::clog << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }

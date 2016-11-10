@@ -20,11 +20,11 @@
 
 template< typename site,
           typename point,
-          typename value_type >
+          typename value_type = decltype(std::declval< point >().x) >
 struct sweepline
 {
 
-    static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
+    static_assert(std::is_same< value_type, decltype(std::declval< point >().y) >::value,
                   "point format error");
 
     value_type const & eps;
@@ -86,7 +86,7 @@ struct sweepline
     using vertices = std::set< vertex, point_less >;
     using pvertex = typename vertices::iterator;
 
-    struct edge // ((b, e), (l, r)) is ccw
+    struct edge // ((b, e), (l, r)) is CCW
     {
 
         site l, r;
@@ -117,7 +117,7 @@ private :
               value_type const & y,
               value_type const & directrix)
     {
-        //assert(!(directrix + eps < p.x));
+        assert(!(directrix/* + eps*/ < p.x));
         value_type d = p.x - directrix;
         return (y * (y - (p.y + p.y)) + (p.x * p.x + p.y * p.y - directrix * directrix)) / (d + d);
     }
@@ -182,9 +182,10 @@ private :
             if (&l == &r) {
                 return false;
             }
-            // It is undefined behaviour to use following four "if"s,
-            // but it works for all modern standard libraries and I sure
-            // local (insertion by hint) guarantees for comp() should be the part of the Standard
+            // All the next code up to "}" is (striclty saying) undefined behaviour,
+            // but it works for all modern standard libraries and (I sure)
+            // more stricter then current local (insertion by hint) guarantees
+            // for comp() should be the part of the Standard
             if (l.l == r.l) {
                 return true;
             }
