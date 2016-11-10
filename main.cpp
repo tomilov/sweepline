@@ -292,9 +292,183 @@ struct point
 
 using point_type = point;
 
+namespace
+{
+
+using C = std::size_t;
+
+static
+constexpr
+bool
+is_prime(C const i)
+{
+    if ((i % 2) == 0) {
+        return false;
+    }
+    for (C j = 3; j * j <= i; j += 2) {
+        if ((i % j) == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+#ifndef NDEBUG
+static_assert(is_prime(1));
+static_assert(is_prime(3));
+static_assert(is_prime(5));
+static_assert(is_prime(7));
+static_assert(!is_prime(9));
+static_assert(is_prime(11));
+static_assert(is_prime(13));
+static_assert(!is_prime(15));
+#endif
+C primes1mod4_[1692];
+C primes3mod4_[1708];
+std::size_t
+fermat(C d)
+{
+    assert(!(d < 0));
+    if (d < 3) {
+        return 1;
+    }
+    while ((d % 2) == 0) {
+        d /= 2;
+    }
+    for (C const & prime3mod4_ : primes3mod4_) {
+        if (d < prime3mod4_) {
+            break;
+        }
+        std::size_t t = 0;
+        while ((d % prime3mod4_) == 0) {
+            d /= prime3mod4_;
+            ++t;
+        }
+        if ((t % 2) != 0) {
+            return 0;
+        }
+    }
+    std::size_t r = 1;
+    for (C const & prime1mod4_ : primes1mod4_) {
+        std::size_t s = 1;
+        if (d < prime1mod4_) {
+            break;
+        }
+        while ((d % prime1mod4_) == 0) {
+            d /= prime1mod4_;
+            ++s;
+        }
+        r *= s;
+    }
+    if (1 < d) {
+        // d is prime number
+        if ((d % 4) == 3) {
+            return 0;
+        } else {
+            assert((d % 4) == 1);
+            return r;
+        }
+    }
+    return (r + 1) / 2;
+}
+
+static constexpr C A_MAX = 1000000000;
+
+constexpr
+C
+floor_sqrt(C const d)
+{
+    C r = 0;
+    while (!(d < r * r)) {
+        ++r;
+    }
+    return r - 1;
+}
+
+static constexpr C C_MAX = floor_sqrt(A_MAX); // 31622
+
+void
+init_fermat()
+{
+    auto prime1mod4_ = std::begin(primes1mod4_);
+    auto prime3mod4_ = std::begin(primes3mod4_);
+    C i = 3;
+    while (!(A_MAX < i * i)) {
+        if (is_prime(i)) {
+            assert(prime3mod4_ != std::end(primes3mod4_));
+            *prime3mod4_ = i;
+            ++prime3mod4_;
+        }
+        i += 2;
+        if (A_MAX < i * i) {
+            break;
+        }
+        if (is_prime(i)) {
+            assert(prime1mod4_ != std::end(primes1mod4_));
+            *prime1mod4_ = i;
+            ++prime1mod4_;
+        }
+        i += 2;
+    }
+    assert(prime3mod4_ == std::end(primes3mod4_));
+    assert(prime3mod4_ == std::end(primes3mod4_));
+    assert(i == C_MAX + 1);
+}
+
+}
+
 int
 main()
 {
+    init_fermat();
+    std::size_t nsqr_max = 0;
+    std::size_t max_i = 0;
+    for (std::size_t i = 1; i <= 10000; ++i) {
+        std::size_t nsqr = fermat(i * i);
+        if (nsqr_max < nsqr) {
+            nsqr_max = nsqr;
+            max_i = i;
+            std::cout << i << ' ' << nsqr << std::endl;
+        }
+    }
+    std::size_t I = max_i * max_i;
+    for (std::size_t i = 0; i <= max_i; ++i) {
+        std::size_t J = i * i;
+        std::size_t j = floor_sqrt(I - J);
+        if (j < i) {
+            break;
+        }
+        if (J + j * j == I) {
+            std::cout << i << ", " << j << std::endl;
+        }
+    }
+    /*
+        5525 N=23:
+        0, 5525
+        235, 5520
+        525, 5500
+        612, 5491
+        845, 5460
+        1036, 5427
+        1131, 5408
+        1320, 5365
+        1360, 5355
+        1547, 5304
+        2044, 5133
+        2125, 5100
+        2163, 5084
+        2340, 5005
+        2600, 4875
+        2805, 4760
+        2880, 4715
+        3124, 4557
+        3315, 4420
+        3468, 4301
+        3500, 4275
+        3720, 4085
+        3861, 3952
+     */
+    return EXIT_SUCCESS;
+
     using voronoi_type = voronoi< point_type, value_type >;
     voronoi_type voronoi_{std::clog};
     std::ostream & gnuplot_ = std::cout;
