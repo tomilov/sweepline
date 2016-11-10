@@ -37,7 +37,7 @@ struct sweepline
     { ; }
 
     static
-    bool
+    bool // imprecise comparator: lexicographically compare with tolerance
     less(value_type const & _eps,
          value_type const & lx, value_type const & ly,
          value_type const & rx, value_type const & ry)
@@ -179,6 +179,9 @@ private :
         // endpoints removed strictly before violation of this invariant to prevent its occurrence
         bool operator () (endpoint const & l, endpoint const & r) const
         {
+            if (&l == &r) {
+                return false;
+            }
             // It is undefined behaviour to use following four "if"s,
             // but it works for all modern standard libraries and I sure
             // local (insertion by hint) guarantees for comp() should be the part of the Standard
@@ -194,16 +197,7 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            assert(false);
-            if (&l == &r) {
-                return false;
-            }
-            point const & ll = *l.l;
-            point const & lr = *l.r;
-            point const & rl = *r.l;
-            point const & rr = *r.r;
-            value_type const & directrix = std::max(std::max(ll.x, lr.x), std::max(rl.x, rr.x));
-            return intersect(ll, lr, directrix) + eps_ < intersect(rl, rr, directrix);
+            return std::max(l.l->x, l.r->x) < std::max(r.l->x, r.r->x);
         }
 
         using is_transparent = void;
@@ -220,13 +214,11 @@ private :
 
         bool operator () (point const & l, endpoint const & r) const
         {
-            std::cerr << l.y << ' ' << intersect(r, l.x) << std::endl;
             return l.y + eps_ < intersect(r, l.x);
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
-            std::cerr << r.y << ' ' << intersect(l, r.x) << std::endl;
             return intersect(l, r.x) + eps_ < r.y;
         }
 
@@ -282,7 +274,7 @@ private :
                  value_type c) const
     {
         value_type V = (a + b - c) * (a + c - b) * (b + c - a);
-        assert(eps * eps * eps < V); // triangle inequality
+        assert(eps * eps * eps < V + V); // triangle inequality
         using std::sqrt;
         return (a * b * c) / sqrt(V * (a + b + c));
     }
@@ -325,11 +317,7 @@ private :
         }
         value_type x = (B * N - D * M) / G;
         using std::hypot;
-#if 1
         value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(a.x - c.x, a.y - c.y));
-#else
-        value_type R = hypot(x - b.x, y - b.y);
-#endif
         return vertices_.insert({{x, y}, R});
     }
 
@@ -476,8 +464,9 @@ private :
         } while (l != r);
         pedge const le = add_edge(lp, s, v);
         pedge const re = add_edge(s, rp, v);
-        l = insert_endpoint(r, lp, s, le);
         pendpoint const ep = insert_endpoint(r, s, rp, re);
+        l = insert_endpoint(ep, lp, s, le);
+        assert(std::next(l) == ep);
         if (l != std::begin(endpoints_)) {
             check_event(std::prev(l), l);
         }
@@ -517,19 +506,21 @@ private :
                 return;
             }
             check_event(lr.first, lr.second);
-        } else { // many arc collapsing right here, event (equivalent to the current site p) coming on the next step
-            auto const ll = std::begin(endpoints_);
-            while (lr.first != ll) {
-                --lr.first;
-                if (endpoint_less{eps}(lr.first->first, *s)) {
-                    ++lr.first;
-                    break;
+        } else { // one endpoint or many arc collapsing right here, event (equivalent to the current site p) coming on the next step
+            { // libc++ bug https://llvm.org/bugs/show_bug.cgi?id=30959
+                auto const ll = std::begin(endpoints_);
+                while (lr.first != ll) {
+                    --lr.first;
+                    if (endpoint_less{eps}(lr.first->first, *s)) {
+                        ++lr.first;
+                        break;
+                    }
                 }
-            }
-            while (lr.second != noep) {
-                ++lr.second;
-                if (endpoint_less{eps}(*s, lr.second->first)) {
-                    break;
+                while (lr.second != noep) {
+                    ++lr.second;
+                    if (endpoint_less{eps}(*s, lr.second->first)) {
+                        break;
+                    }
                 }
             }
             finish_endpoints(lr.first, lr.second, lr.first->second, s);
@@ -547,7 +538,8 @@ private :
         pendpoint l = r;
         pendpoint const ll = std::begin(endpoints_);
         while (l != ll) {
-            if ((--l)->second != v) {
+            --l;
+            if (l->second != v) {
                 ++l;
                 break;
             }
