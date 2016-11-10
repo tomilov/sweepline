@@ -541,17 +541,19 @@ private :
             events_.erase(ev++);
         } while ((ev != noev) && (ev->first == v));
         pendpoint l = r;
-        pendpoint const ll = std::begin(endpoints_);
-        while (l != ll) {
-            --l;
-            if (l->second != v) {
-                ++l;
-                break;
+        {
+            pendpoint const ll = std::begin(endpoints_);
+            while (l != ll) {
+                --l;
+                if (l->second != v) {
+                    ++l;
+                    break;
+                }
             }
-        }
-        while (++r != noep) {
-            if (r->second != v) {
-                break;
+            while (++r != noep) {
+                if (r->second != v) {
+                    break;
+                }
             }
         }
         assert(1 < std::distance(l, r));
@@ -608,6 +610,13 @@ public :
             pevent const ev = std::begin(events_);
             finish_cells(ev, ev->first);
         }
+#ifndef NDEBUG
+        for (auto const & ep : endpoints_) {
+            edge const & e = *ep.first.e;
+            assert((e.b == nov) || (e.e == nov));
+            assert(ep.second == nov);
+        }
+#endif
         endpoints_.clear();
     }
 

@@ -127,6 +127,25 @@ public :
         }
     }
 
+    void
+    rectangle_mesh(std::ostream & _out, size_type const bbox) const
+    {
+        _out << (1 + 4 * bbox * (bbox + 1)) << '\n';
+        _out << "0 0\n";
+        for (size_type x = 1; x <= bbox; ++x) {
+            _out << "0 " << x << '\n';
+            _out << x << " 0\n";
+            _out << "0 -" << x << '\n';
+            _out << '-' << x << " 0\n";
+            for (size_type y = 1; y <= bbox; ++y) {
+                _out << x << ' ' << y << '\n';
+                _out << '-' << x << ' ' << y << '\n';
+                _out << x << " -" << y << '\n';
+                _out << '-' << x << " -" << y << '\n';
+            }
+        }
+    }
+
     struct ipoint { size_type x, y; };
 
     template< std::size_t nsqr >
@@ -409,9 +428,6 @@ int main()
     using voronoi_type = voronoi< point >;
     std::ostream & log_ = std::clog;
     voronoi_type voronoi_{log_};
-    // setup:
-    voronoi_.draw_circles = false;
-    voronoi_.draw_indices = false;
     // input:
     std::ostream & gnuplot_ = std::cout;
     {
@@ -458,7 +474,7 @@ int main()
 #endif
 #elif 1
         // Uniformely distributed into the circle or square
-        constexpr std::size_t N = 10000;
+        constexpr std::size_t N = 100000;
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
@@ -470,8 +486,9 @@ int main()
             voronoi_.seed(seed);
             gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        voronoi_.uniform_circle(in_, value_type(10000), N);
+        //voronoi_.uniform_circle(in_, value_type(10000), N);
         //voronoi_.uniform_square(in_, value_type(10000), N);
+        voronoi_.rectangle_mesh(in_, 10);
 #endif
         //log_ << in_.str() << '\n';
 #endif
@@ -489,10 +506,13 @@ int main()
              << "us\n";
     }
     // output:
+    // setup:
+    voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
+    voronoi_.draw_indices = false;
     auto const & sweepline_ = voronoi_.sweepline_;
     log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
-#if 0
+#if 1
     gnuplot_ << voronoi_ << std::endl;
 #else
     { // clone
