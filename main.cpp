@@ -92,6 +92,46 @@ struct voronoi
         }
     }
 
+    struct ipoint { size_type x, y; };
+
+    template< std::size_t nsqr >
+    void
+    quadrant(std::ostream & _out, size_type const max, ipoint const (& q)[nsqr])
+    {
+        if (0 == max) {
+            _out << nsqr * 2 * 4 << '\n';
+        } else {
+            _out << (nsqr * 2 * 4) + 4 << '\n';
+            _out << "0 " << max << '\n';
+            _out << "0 -" << max << '\n';
+            _out << max << " 0\n";
+            _out << '-' << max << " 0\n";
+        }
+        auto const print = [&] (bool const direct, bool const signx, bool const signy)
+        {
+            for (ipoint const & p : q) {
+                assert(p.x != 0);
+                assert(p.y != 0);
+                if (signx) {
+                    _out << '-';
+                }
+                _out << (direct ? p.x : p.y) << ' ';
+                if (signy) {
+                    _out << '-';
+                }
+                _out << (direct ? p.y : p.x) << '\n';
+            }
+        };
+        print(true,  true,  true);
+        print(true,  false, true);
+        print(true,  true,  false);
+        print(true,  false, false);
+        print(false, true,  true);
+        print(false, false, true);
+        print(false, true,  false);
+        print(false, false, false);
+    }
+
     using points = std::vector< point_type >;
     points sites_;
 
@@ -107,8 +147,7 @@ struct voronoi
         }
         sites_.reserve(N);
         for (size_type n = 0; n < N; ++n) {
-            sites_.emplace_back();
-            point_type & point_ = sites_.back();
+            point_type & point_ = sites_.emplace_back();
             if (!(_in >> point_.x)) {
                 assert(false);
             }
@@ -292,183 +331,8 @@ struct point
 
 using point_type = point;
 
-namespace
+int main()
 {
-
-using C = std::size_t;
-
-static
-constexpr
-bool
-is_prime(C const i)
-{
-    if ((i % 2) == 0) {
-        return false;
-    }
-    for (C j = 3; j * j <= i; j += 2) {
-        if ((i % j) == 0) {
-            return false;
-        }
-    }
-    return true;
-}
-#ifndef NDEBUG
-static_assert(is_prime(1));
-static_assert(is_prime(3));
-static_assert(is_prime(5));
-static_assert(is_prime(7));
-static_assert(!is_prime(9));
-static_assert(is_prime(11));
-static_assert(is_prime(13));
-static_assert(!is_prime(15));
-#endif
-C primes1mod4_[1692];
-C primes3mod4_[1708];
-std::size_t
-fermat(C d)
-{
-    assert(!(d < 0));
-    if (d < 3) {
-        return 1;
-    }
-    while ((d % 2) == 0) {
-        d /= 2;
-    }
-    for (C const & prime3mod4_ : primes3mod4_) {
-        if (d < prime3mod4_) {
-            break;
-        }
-        std::size_t t = 0;
-        while ((d % prime3mod4_) == 0) {
-            d /= prime3mod4_;
-            ++t;
-        }
-        if ((t % 2) != 0) {
-            return 0;
-        }
-    }
-    std::size_t r = 1;
-    for (C const & prime1mod4_ : primes1mod4_) {
-        std::size_t s = 1;
-        if (d < prime1mod4_) {
-            break;
-        }
-        while ((d % prime1mod4_) == 0) {
-            d /= prime1mod4_;
-            ++s;
-        }
-        r *= s;
-    }
-    if (1 < d) {
-        // d is prime number
-        if ((d % 4) == 3) {
-            return 0;
-        } else {
-            assert((d % 4) == 1);
-            return r;
-        }
-    }
-    return (r + 1) / 2;
-}
-
-static constexpr C A_MAX = 1000000000;
-
-constexpr
-C
-floor_sqrt(C const d)
-{
-    C r = 0;
-    while (!(d < r * r)) {
-        ++r;
-    }
-    return r - 1;
-}
-
-static constexpr C C_MAX = floor_sqrt(A_MAX); // 31622
-
-void
-init_fermat()
-{
-    auto prime1mod4_ = std::begin(primes1mod4_);
-    auto prime3mod4_ = std::begin(primes3mod4_);
-    C i = 3;
-    while (!(A_MAX < i * i)) {
-        if (is_prime(i)) {
-            assert(prime3mod4_ != std::end(primes3mod4_));
-            *prime3mod4_ = i;
-            ++prime3mod4_;
-        }
-        i += 2;
-        if (A_MAX < i * i) {
-            break;
-        }
-        if (is_prime(i)) {
-            assert(prime1mod4_ != std::end(primes1mod4_));
-            *prime1mod4_ = i;
-            ++prime1mod4_;
-        }
-        i += 2;
-    }
-    assert(prime3mod4_ == std::end(primes3mod4_));
-    assert(prime3mod4_ == std::end(primes3mod4_));
-    assert(i == C_MAX + 1);
-}
-
-}
-
-int
-main()
-{
-    init_fermat();
-    std::size_t nsqr_max = 0;
-    std::size_t max_i = 0;
-    for (std::size_t i = 1; i <= 10000; ++i) {
-        std::size_t nsqr = fermat(i * i);
-        if (nsqr_max < nsqr) {
-            nsqr_max = nsqr;
-            max_i = i;
-            std::cout << i << ' ' << nsqr << std::endl;
-        }
-    }
-    std::size_t I = max_i * max_i;
-    for (std::size_t i = 0; i <= max_i; ++i) {
-        std::size_t J = i * i;
-        std::size_t j = floor_sqrt(I - J);
-        if (j < i) {
-            break;
-        }
-        if (J + j * j == I) {
-            std::cout << i << ", " << j << std::endl;
-        }
-    }
-    /*
-        5525 N=23:
-        0, 5525
-        235, 5520
-        525, 5500
-        612, 5491
-        845, 5460
-        1036, 5427
-        1131, 5408
-        1320, 5365
-        1360, 5355
-        1547, 5304
-        2044, 5133
-        2125, 5100
-        2163, 5084
-        2340, 5005
-        2600, 4875
-        2805, 4760
-        2880, 4715
-        3124, 4557
-        3315, 4420
-        3468, 4301
-        3500, 4275
-        3720, 4085
-        3861, 3952
-     */
-    return EXIT_SUCCESS;
-
     using voronoi_type = voronoi< point_type, value_type >;
     voronoi_type voronoi_{std::clog};
     std::ostream & gnuplot_ = std::cout;
@@ -479,13 +343,40 @@ main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-#if 1
+#if 0
         in_ << "4\n"
-               "-1 -0\n"
+               "0 5\n"
                "0 -1\n"
                "0 1\n"
                "1 0\n";
+#elif 1
+        // Concentric:
+#if 0
+        in_ << "4\n"
+               "-1 0\n"
+               "0 -1\n"
+               "0 1\n"
+               "1 0\n";
+#elif 0
+        voronoi_.quadrant(in_, 5, {{3, 4}});
+#elif 0
+        voronoi_.quadrant(in_, 25, {{7, 24}, {15, 20}});
+#elif 0
+        voronoi_.quadrant(in_, 65, {{16, 63}, {25, 60}, {33, 56}, {39, 52}});
+#elif 0
+        voronoi_.quadrant(in_, 325, {{36, 323}, {80, 315}, {91, 312}, {125, 300}, {165, 280}, {195, 260}, {204, 253}});
+#elif 0
+        voronoi_.quadrant(in_, 1105, {{47,  1104}, {105, 1100}, {169, 1092}, {264, 1073}, {272, 1071}, {425, 1020}, {468, 1001},
+                                      {520, 975 }, {561, 952 }, {576, 943 }, {663, 884 }, {700, 855 }, {744, 817 }});
 #else
+        voronoi_.quadrant(in_, 5525, {{235,  5520}, {525,  5500}, {612,  5491}, {845,  5460},
+                                      {1036, 5427}, {1131, 5408}, {1320, 5365}, {1360, 5355}, {1547, 5304},
+                                      {2044, 5133}, {2125, 5100}, {2163, 5084}, {2340, 5005}, {2600, 4875},
+                                      {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
+                                      {3500, 4275}, {3720, 4085}, {3861, 3952}});
+#endif
+#elif 0
+        // Uniformely distributed into the circle
         constexpr std::size_t N = 100000;
         {
             using seed_type = typename voronoi_type::seed_type;
@@ -500,7 +391,7 @@ main()
         }
         voronoi_.uniform_circle(in_, N);
 #endif
-        //std::clog << in_.str() << '\n';
+        std::clog << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }
