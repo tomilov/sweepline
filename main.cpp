@@ -227,7 +227,7 @@ struct voronoi
         }
         {
             _gnuplot << "set size square;\n"
-                        "set size ratio -1;\n"
+                        //"set size ratio -1;\n"
                         "set key left;\n"
                         "unset colorbox;\n";
             _gnuplot << "set xrange [" << -vbox << ':' << vbox << "];\n";
@@ -297,6 +297,7 @@ struct voronoi
                     pout(trunc_edge(l, r, p));
                     pout(trunc_edge(r, l, p));
                 }
+                _gnuplot << "\n"; // separate lines (sic! it is incredible, but output for chained lines works fine!!!)
             }
             _gnuplot << "e\n";
         }
@@ -343,13 +344,16 @@ int main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-#if 0
-        in_ << "4\n"
-               "0 5\n"
-               "0 -1\n"
+#if 1
+        in_ << "7\n"
                "0 1\n"
-               "1 0\n";
-#elif 1
+               "0 2\n"
+               "0 3\n"
+               "0 4\n"
+               "0 5\n"
+               "0 6\n"
+               "0 7\n";
+#elif 0
         // Concentric:
 #if 0
         in_ << "4\n"
