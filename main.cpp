@@ -346,13 +346,13 @@ int main()
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
 #if 1
         in_ << "7\n"
-               "0 1\n"
-               "0 2\n"
-               "0 3\n"
-               "0 4\n"
-               "0 5\n"
-               "0 6\n"
-               "0 7\n";
+               "1 0\n"
+               "2 0\n"
+               "3 0\n"
+               "4 0\n"
+               "5 0\n"
+               "6 0\n"
+               "7 0\n";
 #elif 0
         // Concentric:
 #if 0
