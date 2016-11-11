@@ -20,6 +20,17 @@
 #include <cassert>
 #include <cmath>
 
+namespace
+{
+
+std::size_t counter1 = 0;
+std::size_t counter2 = 0;
+std::size_t counter3 = 0;
+std::size_t counter4 = 0;
+std::size_t counter5 = 0;
+
+}
+
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
           typename value_type = decltype(std::declval< point >().x) >
@@ -255,7 +266,6 @@ private :
     };
 
     using bundle = std::deque< pendpoint >;
-    using ray = typename bundle::const_iterator;
     using events = std::map< vertex, bundle, event_less >;
     using pevent = typename events::iterator;
 
@@ -281,11 +291,17 @@ private :
     events events_{event_less{eps}};
     pevent const noev = std::end(events_);
 
+    pedge
+    add_edge(site const l, site const r, pvertex const v)
+    {
+        return edges_.insert(std::cend(edges_), {l, r, v, nov});
+    }
+
     void
     make_first_edge(site const l, site const r)
     {
         assert(endpoints_.empty());
-        pedge const e = add_edge(l, r);
+        pedge const e = add_edge(l, r, nov);
         pendpoint const le = insert_endpoint(noep, l, r, e);
         if (l->x + eps < r->x)  {
             pendpoint const re = insert_endpoint(noep, r, l, e);
@@ -302,6 +318,22 @@ private :
         assert(eps * eps * eps < V + V); // triangle inequality
         using std::sqrt;
         return (a * b * c) / sqrt(V * (a + b + c));
+    }
+
+    static
+    bool
+    miss(value_type const & y, point const & l, point const & r)
+    {
+        if (l.x < r.x) {
+            if (r.y < y) {
+                return true;
+            }
+        } else {
+            if (y < l.y) {
+                return true;
+            }
+        }
+        return false;
     }
 
     std::experimental::optional< vertex >
@@ -324,39 +356,13 @@ private :
         G += G;
         // circumcenter:
         value_type y = (C * M - A * N) / G;
-        auto const miss = [&] (point const & l, point const & r) -> bool
-        {
-            if (l.x < r.x) {
-                if (r.y < y) {
-                    return true;
-                }
-            } else {
-                if (y < l.y) {
-                    return true;
-                }
-            }
-            return false;
-        };
-        if (miss(a, b) || miss(b, c)) {
-            return {};
-        }
+        assert(!miss(y, a, b));
+        assert(!miss(y, b, c));
         value_type x = (B * N - D * M) / G;
         using std::hypot;
         //value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(a.x - c.x, a.y - c.y));
         value_type R = hypot(b.x - x, b.y - y);
         return {{{x, y}, R}};
-    }
-
-    pedge
-    add_edge(site const l, site const r, pvertex const v)
-    {
-        return edges_.insert(std::cend(edges_), {l, r, v, nov});
-    }
-
-    pedge
-    add_edge(site const l, site const r)
-    {
-        return add_edge(l, r, nov);
     }
 
     void
@@ -429,28 +435,20 @@ private :
                 return false;
             };
             if (deselect_event(ll) || deselect_event(rr)) {
-                if (ev != noev) {
-                    disable_event(ev);
-                }
+                assert(ev != noev);
+                disable_event(ev);
             } else {
                 if (ev == noev) {
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(*v), {}});
                     assert(inserted);
                 }
+                assert(ll.second == noev);
+                assert(rr.second == noev);
                 auto & event_ = *ev;
-                auto const set_event = [&] (auto & ep, pendpoint const lr)
-                {
-                    if (ep.second == noev) {
-                        ep.second = ev;
-                        event_.second.push_back(lr);
-                    } else {
-                        assert(ep.second == ev);
-                        assert(std::find(std::cbegin(event_.second), std::cend(event_.second), lr) != std::cend(event_.second));
-                    }
-                };
-                set_event(ll, l);
-                set_event(rr, r);
+                ll.second = rr.second = ev;
+                event_.second.push_back(l);
+                event_.second.push_back(r);
             }
         }
     }
@@ -513,7 +511,7 @@ private :
             if (lr.first == noep) {
                 lr.first = std::prev(noep);
                 site const l = lr.first->first.r;
-                pedge const e = add_edge(l, s);
+                pedge const e = add_edge(l, s, nov);
                 lr.second = insert_endpoint(noep, l, s, e);
                 if (l->x + eps < s->x)  {
                     pendpoint const ep = insert_endpoint(noep, s, l, e);
@@ -521,14 +519,14 @@ private :
                 }
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 site const r = lr.second->first.l;
-                pedge const e = add_edge(s, r);
+                pedge const e = add_edge(s, r, nov);
                 insert_endpoint(lr.second, r, s, e);
                 lr.first = insert_endpoint(lr.second, s, r, e);
             } else { // insert in the middle of the beachline (hottest branch in general case)
                 --lr.first;
                 site const c = lr.first->first.r;
                 assert(c == lr.second->first.l);
-                pedge const e = add_edge(c, s);
+                pedge const e = add_edge(c, s, nov);
                 pendpoint const l = insert_endpoint(lr.second, c, s, e);
                 pendpoint const r = insert_endpoint(lr.second, s, c, e);
                 assert(std::next(l) == r);
@@ -564,8 +562,7 @@ private :
     angle(point const & l, point const & r)
     {
         using std::atan2;
-        value_type a = atan2(l.x - r.x, l.y - r.y);
-        return a;
+        return atan2(l.x - r.x, l.y - r.y);
     }
 
     static
@@ -574,14 +571,8 @@ private :
     {
         assert(1 < b.size());
         if (b.size() == 2) {
-            pendpoint const l = b.front();
-            pendpoint const r = b.back();
-            if (std::next(l) == r) {
-                return {l, r};
-            } else {
-                assert(std::next(r) == l);
-                return {r, l};
-            }
+            assert(std::next(b.front()) == b.back());
+            return {b.front(), b.back()};
         } else {
             assert(false); // TODO(tomilov):
             auto const angle_less = [&] (pendpoint const l, pendpoint const r) -> bool
@@ -595,10 +586,10 @@ private :
         }
     }
 
+    static
     bool
     check_endpoint_range(pevent const ev, pendpoint l, pendpoint const r)
     {
-        assert(r != noep);
         if (l == r) {
             return false;
         }
@@ -646,7 +637,7 @@ private :
     }
 
     bool
-    check_last_endpoints()
+    check_last_endpoints() const
     {
         for (auto const & ep : endpoints_) {
             edge const & e = *ep.first.e;
