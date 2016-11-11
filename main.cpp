@@ -29,7 +29,7 @@ struct voronoi
 
     // bounding box
 
-    value_type eps = value_type(1E-14);
+    value_type eps = value_type(10) * std::numeric_limits< value_type >::epsilon();
 
     value_type delta = value_type(0.001);
 
@@ -511,7 +511,7 @@ int main()
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
-            seed_type const seed = 2847645394;
+            seed_type const seed = 436218383;
 #else
             std::random_device D;
             auto const seed = static_cast< seed_type >(D());

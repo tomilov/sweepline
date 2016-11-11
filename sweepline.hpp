@@ -26,7 +26,7 @@ template< typename site,
 struct sweepline
 {
 
-    static_assert(std::is_same< value_type, decltype(std::declval< point >().y) >::value,
+    static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
                   "point format error");
 
     value_type const & eps;
@@ -92,7 +92,7 @@ struct sweepline
 
     };
 
-    using vertices = std::set< vertex, point_less >;
+    using vertices = std::list< vertex >;
     using pvertex = typename vertices::iterator;
 
     struct edge // ((b, e), (l, r)) is CCW
@@ -109,7 +109,7 @@ struct sweepline
     // Voronoi diagram:
     // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator is not preserved during this operations
     // {
-    vertices vertices_{point_less{eps}};
+    vertices vertices_;
     pvertex const nov = std::end(vertices_);
     edges edges_;
     // }
@@ -469,6 +469,7 @@ private :
                      pevent ev,
                      site const s)
     {
+        assert(false); // TODO(tomilov):
         site const lf = l->first.l;
         site const rf = std::prev(r)->first.r;
         auto const create_vertex = [&] () -> vertex
@@ -482,18 +483,17 @@ private :
                 return ev->first;
             }
         };
-        auto const pv = vertices_.insert(create_vertex());
-        assert(pv.second);
+        pvertex const v = vertices_.insert(nov, create_vertex());
         do {
             assert(l->second == ev);
-            trunc_edge(*l->first.e, pv.first);
+            trunc_edge(*l->first.e, v);
             endpoints_.erase(l++);
         } while (l != r);
         if (ev != noev) {
             events_.erase(ev);
         }
-        pedge const le = add_edge(lf, s, pv.first);
-        pedge const re = add_edge(s, rf, pv.first);
+        pedge const le = add_edge(lf, s, v);
+        pedge const re = add_edge(s, rf, v);
         pendpoint const ep = insert_endpoint(r, s, rf, re);
         l = insert_endpoint(ep, lf, s, le);
         assert(std::next(l) == ep);
@@ -583,7 +583,7 @@ private :
                 return {r, l};
             }
         } else {
-            assert(false);
+            assert(false); // TODO(tomilov):
             auto const angle_less = [&] (pendpoint const l, pendpoint const r) -> bool
             {
                 endpoint const & ll = l->first;
@@ -616,21 +616,20 @@ private :
     }
 
     void
-    finish_cells(pevent const ev, bundle const & b, vertex const & v)
+    finish_cells(pevent const ev, bundle const & b, vertex const & _vertex)
     {
         auto lr = boundaries(b);
         assert(check_endpoint_range(ev, lr.first, lr.second));
-        auto const pv = vertices_.insert(v);
-        assert(pv.second);
+        pvertex const v = vertices_.insert(nov, _vertex);
         events_.erase(ev);
         site const lc = lr.first->first.l;
         site const rc = lr.second->first.r;
         ++lr.second;
         do {
-            trunc_edge(*lr.first->first.e, pv.first);
+            trunc_edge(*lr.first->first.e, v);
             endpoints_.erase(lr.first++);
         } while (lr.first != lr.second);
-        pedge const e = add_edge(lc, rc, pv.first);
+        pedge const e = add_edge(lc, rc, v);
         lr.first = insert_endpoint(lr.second, lc, rc, e);
         if (lr.first != std::begin(endpoints_)) {
             check_event(std::prev(lr.first), lr.first);
