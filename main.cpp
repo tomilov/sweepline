@@ -546,7 +546,7 @@ int main()
     log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
 #if 1
-    //gnuplot_ << voronoi_ << std::endl;
+    gnuplot_ << voronoi_ << std::endl;
 #else
     { // clone
         using sweepline_type = typename voronoi_type::sweepline_type;

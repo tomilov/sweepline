@@ -435,20 +435,22 @@ private :
                 return false;
             };
             if (deselect_event(ll) || deselect_event(rr)) {
-                assert(ev != noev);
-                disable_event(ev);
+                if (ev != noev) {
+                    disable_event(ev);
+                }
             } else {
                 if (ev == noev) {
                     bool inserted = false;
-                    std::tie(ev, inserted) = events_.insert({std::move(*v), {}});
+                    std::tie(ev, inserted) = events_.insert({std::move(*v), {l, r}});
                     assert(inserted);
+                } else {
+                    bundle & bundle_ = ev->second;
+                    bundle_.push_back(l);
+                    bundle_.push_back(r);
                 }
                 assert(ll.second == noev);
                 assert(rr.second == noev);
-                auto & event_ = *ev;
                 ll.second = rr.second = ev;
-                event_.second.push_back(l);
-                event_.second.push_back(r);
             }
         }
     }
