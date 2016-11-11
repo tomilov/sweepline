@@ -96,11 +96,6 @@ struct sweepline
             return operator () (*l, *r);
         }
 
-        bool operator () (vertex const & l, vertex const & r) const
-        {
-            return operator () (l.c, r.c);
-        }
-
     };
 
     using vertices = std::list< vertex >;
@@ -281,6 +276,11 @@ private :
             return ev;
         }
 
+        operator pevent & ()
+        {
+            return ev;
+        }
+
         pevent ev;
 
     };
@@ -420,21 +420,21 @@ private :
         if (auto v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r)) {
             auto ev = events_.find(*v);
             value_type const & x = v->x();
-            auto const deselect_event = [&] (auto & ep) -> bool
+            auto const deselect_event = [&] (pevent const pev) -> bool
             {
-                if (ep.second != noev) {
-                    if (ep.second != ev) {
-                        value_type const & xx = ep.second.ev->first.x();
+                if (pev != noev) {
+                    if (pev != ev) {
+                        value_type const & xx = pev->first.x();
                         if (xx + eps < x) {
                             return true;
                         }
                         assert(x + eps < xx);
-                        disable_event(ep.second);
+                        disable_event(pev);
                     }
                 }
                 return false;
             };
-            if (deselect_event(ll) || deselect_event(rr)) {
+            if (deselect_event(ll.second) || deselect_event(rr.second)) {
                 if (ev != noev) {
                     disable_event(ev);
                 }
@@ -443,14 +443,20 @@ private :
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(*v), {l, r}});
                     assert(inserted);
-                } else {
-                    bundle & bundle_ = ev->second;
-                    bundle_.push_back(l);
-                    bundle_.push_back(r);
                 }
-                assert(ll.second == noev);
-                assert(rr.second == noev);
-                ll.second = rr.second = ev;
+                bundle & bundle_ = ev->second;
+                auto const set_event = [&] (pevent & pev, pendpoint const lr)
+                {
+                    if (pev == noev) {
+                        pev = ev;
+                        bundle_.push_back(lr);
+                    } else {
+                        assert(pev == ev);
+                        assert(std::find(std::cbegin(bundle_), std::cend(bundle_), lr) != std::cend(bundle_));
+                    }
+                };
+                set_event(ll.second, l);
+                set_event(rr.second, r);
             }
         }
     }
@@ -469,7 +475,6 @@ private :
                      pevent ev,
                      site const s)
     {
-        assert(false); // TODO(tomilov):
         site const lf = l->first.l;
         site const rf = std::prev(r)->first.r;
         auto const create_vertex = [&] () -> vertex
@@ -564,7 +569,7 @@ private :
     angle(point const & l, point const & r)
     {
         using std::atan2;
-        return atan2(l.x - r.x, l.y - r.y);
+        return atan2(r.x - l.x, r.y - l.y);
     }
 
     static
@@ -576,7 +581,6 @@ private :
             assert(std::next(b.front()) == b.back());
             return {b.front(), b.back()};
         } else {
-            assert(false); // TODO(tomilov):
             auto const angle_less = [&] (pendpoint const l, pendpoint const r) -> bool
             {
                 endpoint const & ll = l->first;
@@ -644,6 +648,8 @@ private :
         for (auto const & ep : endpoints_) {
             edge const & e = *ep.first.e;
             if ((e.b != nov) && (e.e != nov)) {
+                if (e.b != nov) ++counter1;
+                if (e.e != nov) ++counter2;
                 return false;
             }
             if (ep.second != noev) {

@@ -146,6 +146,22 @@ public :
         }
     }
 
+    void
+    diagonal_mesh(std::ostream & _out, size_type const bbox) const
+    {
+        _out << /*4 * */(bbox * (bbox + 1) / 2) << '\n';
+        bool even = true;
+        for (size_type x = 1; x <= bbox; ++x) {
+            for (size_type y = (even ? 0 : 1); y <= bbox; y += 2) {
+                _out << x << ' ' << y << '\n';
+                //_out << y << " -" << x << '\n';
+                //_out << '-' << x << " -" << y << '\n';
+                //_out << '-' << y << ' ' << x << '\n';
+            }
+            even = !even;
+        }
+    }
+
     struct ipoint { size_type x, y; };
 
     template< std::size_t nsqr >
@@ -229,7 +245,8 @@ public :
 
     void operator () ()
     {
-#if 0
+        log_ << "N = " << sites_.size() << '\n';
+#if 1
         using pproxy = std::vector< site >;
         pproxy pproxy_;
         pproxy_.reserve(sites_.size());
@@ -470,15 +487,42 @@ int main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
+#if 1
 #if 0
         in_ << "3\n"
                "0 0\n"
-               "1 1\n"
                "1 -1\n"
-               "4 0\n"
-               "5 0\n"
-               "6 0\n"
-               "7 0\n";
+               "1 1\n";
+#elif 0
+        in_ << "3\n"
+               "-1 0\n"
+               "0 1\n"
+               "1 0\n";
+#elif 0
+        in_ << "3\n"
+               "-1 0\n"
+               "0 -1\n"
+               "1 0\n";
+#elif 0
+        in_ << "3\n"
+               "0 -1\n"
+               "0 1\n"
+               "1 0\n";
+#elif 0
+        in_ << "4\n"
+               "-3 -4\n"
+               "-3 4\n"
+               "-4 -3\n"
+               "-4 3\n";
+#elif 1
+        // dia (very good test)
+        in_ << "4\n"
+               "1 2\n"
+               "2 3\n"
+               "3 0\n"
+               "3 2\n"
+               ;
+#endif
 #elif 0
         // Concentric:
 #if 0
@@ -488,7 +532,7 @@ int main()
                "0 1\n"
                "1 0\n";
 #elif 0
-        voronoi_.quadrant(in_, 5, {{3, 4}});
+        voronoi_.quadrant(in_, /*5*/0, {{3, 4}});
 #elif 0
         voronoi_.quadrant(in_, 25, {{7, 24}, {15, 20}});
 #elif 0
@@ -505,7 +549,7 @@ int main()
                                       {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
-#elif 1
+#elif 0
         // Rectangle mesh or uniformely distributed into the circle or square:
         constexpr std::size_t N = 100000;
         {
@@ -520,10 +564,11 @@ int main()
             gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
         //voronoi_.rectangle_mesh(in_, 10);
-        voronoi_.uniform_circle(in_, value_type(10000), N);
+        voronoi_.diagonal_mesh(in_, 3);
+        //voronoi_.uniform_circle(in_, value_type(10000), N);
         //voronoi_.uniform_square(in_, value_type(10000), N);
 #endif
-        //log_ << in_.str() << '\n';
+        log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }
