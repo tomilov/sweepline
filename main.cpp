@@ -229,7 +229,7 @@ public :
 
     void operator () ()
     {
-#if 1
+#if 0
         using pproxy = std::vector< site >;
         pproxy pproxy_;
         pproxy_.reserve(sites_.size());
@@ -278,7 +278,7 @@ public :
         // pmin, pmax denotes bounding box
         point_type pmin = sites_.front();
         point_type pmax = pmin;
-        auto const minmax = [&] (point_type const & p)
+        auto const pminmax = [&] (point_type const & p)
         {
             if (p.x < pmin.x) {
                 pmin.x = p.x;
@@ -291,7 +291,8 @@ public :
                 pmax.y = p.y;
             }
         };
-        std::for_each(std::next(std::cbegin(sites_)), std::cend(sites_), minmax);
+        std::for_each(std::next(std::cbegin(sites_)), std::cend(sites_), pminmax);
+        std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
         assert(value_type(-0.5) < zoom);
         if (pmin.x + delta < pmax.x) {
             value_type dx = pmax.x - pmin.x;
@@ -470,10 +471,10 @@ int main()
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
 #if 0
-        in_ << "7\n"
-               "1 0\n"
-               "2 0\n"
-               "3 0\n"
+        in_ << "3\n"
+               "0 0\n"
+               "1 1\n"
+               "1 -1\n"
                "4 0\n"
                "5 0\n"
                "6 0\n"
@@ -506,10 +507,10 @@ int main()
 #endif
 #elif 1
         // Rectangle mesh or uniformely distributed into the circle or square:
-        constexpr std::size_t N = 3;
+        constexpr std::size_t N = 100000;
         {
             using seed_type = typename voronoi_type::seed_type;
-#if 1
+#if 0
             seed_type const seed = 2847645394;
 #else
             std::random_device D;
