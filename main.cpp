@@ -506,10 +506,10 @@ int main()
 #endif
 #elif 1
         // Rectangle mesh or uniformely distributed into the circle or square:
-        constexpr std::size_t N = 100000;
+        constexpr std::size_t N = 3;
         {
             using seed_type = typename voronoi_type::seed_type;
-#if 0
+#if 1
             seed_type const seed = 2847645394;
 #else
             std::random_device D;
