@@ -149,14 +149,14 @@ public :
     void
     diagonal_mesh(std::ostream & _out, size_type const bbox) const
     {
-        _out << /*4 * */(bbox * (bbox + 1) / 2) << '\n';
+        _out << 4 * (bbox * (bbox + 1) / 2) << '\n';
         bool even = true;
         for (size_type x = 1; x <= bbox; ++x) {
             for (size_type y = (even ? 0 : 1); y <= bbox; y += 2) {
                 _out << x << ' ' << y << '\n';
-                //_out << y << " -" << x << '\n';
-                //_out << '-' << x << " -" << y << '\n';
-                //_out << '-' << y << ' ' << x << '\n';
+                _out << y << " -" << x << '\n';
+                _out << '-' << x << " -" << y << '\n';
+                _out << '-' << y << ' ' << x << '\n';
             }
             even = !even;
         }
@@ -340,15 +340,15 @@ public :
             _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
         }
         _gnuplot << "plot";
-        _gnuplot << " '-' with points notitle";
+        _gnuplot << " '-' with points title 'sites # " << sites_.size() << "'";
         if (draw_indices) {
             _gnuplot << ", '' with labels offset character 0, character 1 notitle";
         }
         if (draw_circles && !_vertices.empty()) {
-            _gnuplot << ", '' with circles notitle linecolor palette";
+            _gnuplot << ", '' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
         }
         if (!_edges.empty()) {
-            _gnuplot << ", '' with lines title 'edges (" << _edges.size() <<  ")'";
+            _gnuplot << ", '' with lines title 'edges # " << _edges.size() <<  "'";
         }
         _gnuplot << ";\n";
         auto const pout = [&] (auto const & p)
@@ -479,7 +479,6 @@ int main()
     std::ostream & log_ = std::clog;
     voronoi_type voronoi_{log_};
     // input:
-    std::ostream & gnuplot_ = std::cout;
     {
 #if 0
         std::istream & in_ = std::cin;
@@ -487,7 +486,7 @@ int main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-#if 1
+#if 0
 #if 0
         in_ << "3\n"
                "0 0\n"
@@ -515,7 +514,7 @@ int main()
                "-4 -3\n"
                "-4 3\n";
 #elif 1
-        // dia (very good test)
+        // very good test!
         in_ << "4\n"
                "1 2\n"
                "2 3\n"
@@ -549,9 +548,8 @@ int main()
                                       {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
-#elif 0
-        // Rectangle mesh or uniformely distributed into the circle or square:
-        constexpr std::size_t N = 100000;
+#elif 1
+        // Rectangle mesh, diagonal mesh or points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
@@ -561,14 +559,14 @@ int main()
             auto const seed = static_cast< seed_type >(D());
 #endif
             voronoi_.seed(seed);
-            gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
+            //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
         //voronoi_.rectangle_mesh(in_, 10);
-        voronoi_.diagonal_mesh(in_, 3);
-        //voronoi_.uniform_circle(in_, value_type(10000), N);
-        //voronoi_.uniform_square(in_, value_type(10000), N);
+        voronoi_.diagonal_mesh(in_, 20);
+        //voronoi_.uniform_circle(in_, value_type(10000), 100000);
+        //voronoi_.uniform_square(in_, value_type(10000), 100000);
 #endif
-        log_ << in_.str() << '\n';
+        //log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }
@@ -590,7 +588,8 @@ int main()
     auto const & sweepline_ = voronoi_.sweepline_;
     log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
-#if 1
+    std::ostream & gnuplot_ = std::cout;
+#if 0
     gnuplot_ << voronoi_ << std::endl;
 #else
     { // clone
@@ -622,10 +621,5 @@ int main()
         gnuplot_ << std::endl;
     }
 #endif
-    log_ << counter1 << std::endl;
-    log_ << counter2 << std::endl;
-    log_ << counter3 << std::endl;
-    log_ << counter4 << std::endl;
-    log_ << counter5 << std::endl;
     return EXIT_SUCCESS;
 }

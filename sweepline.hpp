@@ -20,17 +20,6 @@
 #include <cassert>
 #include <cmath>
 
-namespace
-{
-
-std::size_t counter1 = 0;
-std::size_t counter2 = 0;
-std::size_t counter3 = 0;
-std::size_t counter4 = 0;
-std::size_t counter5 = 0;
-
-}
-
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
           typename value_type = decltype(std::declval< point >().x) >
@@ -217,7 +206,8 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            return std::max(l.l->x, l.r->x) < std::max(r.l->x, r.r->x);
+            point_less point_less_{eps_};
+            return point_less_(std::max(*l.l, *l.r, point_less_), std::max(*r.l, *r.r, point_less_));
         }
 
         using is_transparent = void;
@@ -441,7 +431,7 @@ private :
             } else {
                 if (ev == noev) {
                     bool inserted = false;
-                    std::tie(ev, inserted) = events_.insert({std::move(*v), {l, r}});
+                    std::tie(ev, inserted) = events_.insert({std::move(*v), {}});
                     assert(inserted);
                 }
                 bundle & bundle_ = ev->second;
@@ -479,14 +469,21 @@ private :
         site const rf = std::prev(r)->first.r;
         auto const create_vertex = [&] () -> vertex
         {
-            if (ev == noev) {
-                assert(std::next(l) == r);
-                auto v = make_vertex(*s, *lf, *rf);
-                assert(!!v);
-                return std::move(*v);
-            } else {
-                return ev->first;
+            if (ev != noev) {
+                vertex const & vertex_ = ev->first;
+                if (std::next(l) == r) {
+                    assert(s->x + eps < vertex_.x());
+                    disable_event(ev);
+                    ev = noev;
+                } else {
+                    assert(!(s->x + eps < vertex_.x()));
+                    return vertex_;
+                }
             }
+            assert(std::next(l) == r);
+            auto v = make_vertex(*s, *lf, *rf);
+            assert(!!v);
+            return std::move(*v);
         };
         pvertex const v = vertices_.insert(nov, create_vertex());
         do {
@@ -580,7 +577,7 @@ private :
         if (b.size() == 2) {
             assert(std::next(b.front()) == b.back());
             return {b.front(), b.back()};
-        } else {
+        } else { // b can be sorted right here if needed in some application
             auto const angle_less = [&] (pendpoint const l, pendpoint const r) -> bool
             {
                 endpoint const & ll = l->first;
@@ -613,7 +610,7 @@ private :
     }
 
     void
-    finish_cells(pevent const ev, bundle const & b, vertex const & _vertex)
+    finish_cells(pevent const ev, vertex const & _vertex, bundle const & b)
     {
         auto lr = boundaries(b);
         assert(check_endpoint_range(ev, lr.first, lr.second));
@@ -648,8 +645,6 @@ private :
         for (auto const & ep : endpoints_) {
             edge const & e = *ep.first.e;
             if ((e.b != nov) && (e.e != nov)) {
-                if (e.b != nov) ++counter1;
-                if (e.e != nov) ++counter2;
                 return false;
             }
             if (ep.second != noev) {
@@ -682,14 +677,14 @@ public :
                 if (!prior(event_.first, *l)) {
                     break;
                 }
-                finish_cells(ev, event_.second, event_.first);
+                finish_cells(ev, event_.first, event_.second);
             }
             begin_cell(l);
         }
         while (!events_.empty()) {
             pevent const ev = std::begin(events_);
             auto & event_ = *ev;
-            finish_cells(ev, event_.second, event_.first);
+            finish_cells(ev, event_.first, event_.second);
         }
         assert(check_last_endpoints());
         endpoints_.clear();
