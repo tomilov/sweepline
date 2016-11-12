@@ -517,40 +517,40 @@ int main()
     voronoi_type voronoi_{log_};
     // input:
     {
-#if 0
+#if 1
         std::istream & in_ = std::cin;
-#elif 1
+#else
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-#if 1
-#if 0
+# if 0
+#  if 0
         in_ << "3\n"
                "0 0\n"
                "1 -1\n"
                "1 1\n";
-#elif 0
+#  elif 0
         in_ << "3\n"
                "-1 0\n"
                "0 1\n"
                "1 0\n";
-#elif 0
+#  elif 0
         in_ << "3\n"
                "-1 0\n"
                "0 -1\n"
                "1 0\n";
-#elif 0
+#  elif 0
         in_ << "3\n"
                "0 -1\n"
                "0 1\n"
                "1 0\n";
-#elif 0
+#  elif 0
         in_ << "4\n"
                "-3 -4\n"
                "-3 4\n"
                "-4 -3\n"
                "-4 3\n";
-#else
+#  else
         // very good test!
         in_ << "4\n"
                "1 2\n"
@@ -558,53 +558,53 @@ int main()
                "3 0\n"
                "3 2\n"
                ;
-#endif
-#elif 0
+#  endif
+# elif 0
         // Concentric:
-#if 0
+#  if 0
         in_ << "4\n"
                "-1 0\n"
                "0 -1\n"
                "0 1\n"
                "1 0\n";
-#elif 0
+#  elif 0
         voronoi_.quadrant(in_, /*5*/0, {{3, 4}});
-#elif 0
+#  elif 0
         voronoi_.quadrant(in_, 25, {{7, 24}, {15, 20}});
-#elif 0
+#  elif 0
         voronoi_.quadrant(in_, 65, {{16, 63}, {25, 60}, {33, 56}, {39, 52}});
-#elif 0
+#  elif 0
         voronoi_.quadrant(in_, 325, {{36, 323}, {80, 315}, {91, 312}, {125, 300}, {165, 280}, {195, 260}, {204, 253}});
-#elif 0
+#  elif 0
         voronoi_.quadrant(in_, 1105, {{47,  1104}, {105, 1100}, {169, 1092}, {264, 1073}, {272, 1071}, {425, 1020}, {468, 1001},
                                       {520, 975 }, {561, 952 }, {576, 943 }, {663, 884 }, {700, 855 }, {744, 817 }});
-#else
+#  else
         voronoi_.quadrant(in_, 5525, {{235,  5520}, {525,  5500}, {612,  5491}, {845,  5460},
                                       {1036, 5427}, {1131, 5408}, {1320, 5365}, {1360, 5355}, {1547, 5304},
                                       {2044, 5133}, {2125, 5100}, {2163, 5084}, {2340, 5005}, {2600, 4875},
                                       {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
-#endif
-#elif 0
+#  endif
+# elif 1
         // Rectangle grid, diagonal grid or points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
-#if 0
+#  if 0
             seed_type const seed = 855215359;
-#else
+#  else
             std::random_device D;
             auto const seed = static_cast< seed_type >(D());
-#endif
+#  endif
             voronoi_.seed(seed);
             //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
         //voronoi_.rectangle_grid(in_, 10);
         //voronoi_.diagonal_grid(in_, 20);
         //voronoi_.hexagonal_grid(in_, 20);
-        voronoi_.uniform_circle(in_, value_type(10000), 100000);
+        voronoi_.uniform_circle(in_, value_type(10000), 1000000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
-#endif
-        //log_ << in_.str() << '\n';
+# endif
+        log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }
@@ -628,7 +628,7 @@ int main()
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
     std::ostream & gnuplot_ = std::cout;
 #if 1
-    gnuplot_ << voronoi_ << std::endl;
+    //gnuplot_ << voronoi_ << std::endl;
 #else
     { // clone
         using sweepline_type = typename voronoi_type::sweepline_type;
