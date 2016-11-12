@@ -300,30 +300,14 @@ private :
     }
 
     value_type
-    circumradius(value_type a,
-                 value_type b,
-                 value_type c) const
+    circumradius(value_type const a,
+                 value_type const b,
+                 value_type const c) const
     {
-        value_type V = (a + b - c) * (a + c - b) * (b + c - a);
+        value_type const V = (a + b - c) * (a + c - b) * (b + c - a);
         assert(eps * eps * eps < V + V); // triangle inequality
         using std::sqrt;
         return (a * b * c) / sqrt(V * (a + b + c));
-    }
-
-    static
-    bool
-    miss(value_type const & y, point const & l, point const & r)
-    {
-        if (l.x < r.x) {
-            if (r.y < y) {
-                return true;
-            }
-        } else {
-            if (y < l.y) {
-                return true;
-            }
-        }
-        return false;
     }
 
     std::experimental::optional< vertex >
@@ -331,16 +315,14 @@ private :
                 point const & b,
                 point const & c)
     {
-        value_type A = a.x * a.x + a.y * a.y;
-        value_type B = b.x * b.x + b.y * b.y;
-        value_type C = c.x * c.x + c.y * c.y;
-        value_type dax = a.x - c.x;
-        value_type day = a.y - c.y;
-        value_type dbx = b.x - c.x;
-        value_type dby = b.y - c.y;
-        value_type x = (A - C) * dby - (B - C) * day;
-        value_type y = dax * (B - C) - dbx * (A - C);
-        value_type alpha = dax * dby - day * dbx;
+        value_type const A = a.x * a.x + a.y * a.y;
+        value_type const B = b.x * b.x + b.y * b.y;
+        value_type const C = c.x * c.x + c.y * c.y;
+        point const ca = {a.x - c.x, a.y - c.y};
+        point const cb = {b.x - c.x, b.y - c.y};
+        value_type x = (A - C) * cb.y - (B - C) * ca.y;
+        value_type y = ca.x * (B - C) - cb.x * (A - C);
+        value_type alpha = ca.x * cb.y - ca.y * cb.x;
         if (!(eps * eps < -alpha)) {
             return {};
         }
@@ -349,7 +331,7 @@ private :
         alpha += alpha;
         x /= alpha;
         y /= alpha;
-        using std::sqrt;
+        using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
         value_type R = sqrt(beta + x * x + y * y);
         return {{{x, y}, R}};
     }

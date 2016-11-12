@@ -62,7 +62,7 @@ public :
     }
 
     void
-    uniform_circle(std::ostream & _out, value_type const bbox, size_type const N)
+    uniform_circle(std::ostream & _out, value_type const radius, size_type const N)
     {
         std::set< point_type, point_less > points_{point_less{delta}};
         _out << N << '\n';
@@ -75,7 +75,7 @@ public :
                 value_type norm = p.x * p.x + p.y * p.y;
                 if (twosqreps < norm) {
                     using std::sqrt;
-                    norm = bbox * sqrt(zero_to_one_(rng) / std::move(norm));
+                    norm = radius * sqrt(zero_to_one_(rng) / std::move(norm));
                     p.x *= norm;
                     p.y *= norm;
                 } else {
@@ -130,7 +130,8 @@ public :
     void
     rectangle_grid(std::ostream & _out, size_type const bbox) const
     {
-        _out << (1 + 4 * bbox * (bbox + 1)) << '\n';
+        size_type const N = 1 + 4 * bbox * (bbox + 1);
+        _out << N << '\n';
         _out << "0 0\n";
         for (size_type x = 1; x <= bbox; ++x) {
             _out << "0 " << x << '\n';
@@ -200,12 +201,12 @@ public :
 
     template< std::size_t nsqr >
     void
-    quadrant(std::ostream & _out, size_type const max, ipoint const (& q)[nsqr])
+    quadrant(std::ostream & _out, size_type const max, ipoint const (& q)[nsqr]) const
     {
         if (0 == max) {
-            _out << (nsqr * 2 * 4) << '\n';
+            _out << (nsqr * 8) << '\n';
         } else {
-            _out << ((nsqr * 2 * 4) + 4) << '\n';
+            _out << (nsqr * 8 + 4) << '\n';
             _out << "0 " << max << '\n';
             _out << "0 -" << max << '\n';
             _out << max << " 0\n";
@@ -327,42 +328,44 @@ public :
             return;
         }
         // pmin, pmax denotes bounding box
-        point_type pmin = sites_.front();
-        point_type pmax = pmin;
+        point_type vmin = sites_.front();
+        point_type vmax = vmin;
         auto const pminmax = [&] (point_type const & p)
         {
-            if (p.x < pmin.x) {
-                pmin.x = p.x;
-            } else if (pmax.x < p.x) {
-                pmax.x = p.x;
+            if (p.x < vmin.x) {
+                vmin.x = p.x;
+            } else if (vmax.x < p.x) {
+                vmax.x = p.x;
             }
-            if (p.y < pmin.y) {
-                pmin.y = p.y;
-            } else if (pmax.y < p.y) {
-                pmax.y = p.y;
+            if (p.y < vmin.y) {
+                vmin.y = p.y;
+            } else if (vmax.y < p.y) {
+                vmax.y = p.y;
             }
         };
         std::for_each(std::next(std::cbegin(sites_)), std::cend(sites_), pminmax);
-        std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
         assert(value_type(-0.5) < zoom);
-        if (pmin.x + delta < pmax.x) {
-            value_type dx = pmax.x - pmin.x;
+        if (vmin.x + delta < vmax.x) {
+            value_type dx = vmax.x - vmin.x;
             dx *= zoom;
-            pmin.x -= dx;
-            pmax.x += dx;
+            vmin.x -= dx;
+            vmax.x += dx;
         } else {
-            pmin.x -= delta;
-            pmax.x += delta;
+            vmin.x -= delta;
+            vmax.x += delta;
         }
-        if (pmin.y + delta < pmax.y) {
-            value_type dy = pmax.y - pmin.y;
+        if (vmin.y + delta < vmax.y) {
+            value_type dy = vmax.y - vmin.y;
             dy *= zoom;
-            pmin.y -= dy;
-            pmax.y += dy;
+            vmin.y -= dy;
+            vmax.y += dy;
         } else {
-            pmin.y -= delta;
-            pmax.y += delta;
+            vmin.y -= delta;
+            vmax.y += delta;
         }
+        point_type pmin = vmin;
+        point_type pmax = vmax;
+        std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
         {
             _gnuplot << "set size square;\n"
                         "set key left;\n"
@@ -418,25 +421,25 @@ public :
             {
                 value_type const y = p.y + (x - p.x) * dy / dx;
                 if (+eps < dy) {
-                    if (pmax.y < y) {
-                        return px(pmax.y);
+                    if (vmax.y < y) {
+                        return px(vmax.y);
                     }
                 } else if (dy < -eps) {
-                    if (y < pmin.y) {
-                        return px(pmin.y);
+                    if (y < vmin.y) {
+                        return px(vmin.y);
                     }
                 }
                 return {x, y};
             };
             if (+eps < dx) {
-                return py(pmax.x);
+                return py(vmax.x);
             } else if (dx < -eps) {
-                return py(pmin.x);
+                return py(vmin.x);
             } else {
                 if (+eps < dy) {
-                    return {p.x, pmax.y};
+                    return {p.x, vmax.y};
                 } else if (dy < -eps) {
-                    return {p.x, pmin.y};
+                    return {p.x, vmin.y};
                 } else {
                     assert(false);
                     return {p.x, p.y};
@@ -451,7 +454,7 @@ public :
                 point_type const & r = *edge_.r;
                 if (beg != end) {
                     point_type const & p = (beg ? edge_.b : edge_.e)->c;
-                    if (!(p.x < pmin.x) && !(pmax.x < p.x) && !(p.y < pmin.y) && !(pmax.y < p.y)) {
+                    if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge((beg ? l : r), (end ? l : r), p));
                         _gnuplot << "\n";
@@ -520,7 +523,7 @@ int main()
         std::stringstream in_;
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
-#if 0
+#if 1
 #if 0
         in_ << "3\n"
                "0 0\n"
@@ -582,12 +585,12 @@ int main()
                                       {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
-#elif 1
+#elif 0
         // Rectangle grid, diagonal grid or points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
-            seed_type const seed = 436218383;
+            seed_type const seed = 855215359;
 #else
             std::random_device D;
             auto const seed = static_cast< seed_type >(D());
@@ -597,8 +600,8 @@ int main()
         }
         //voronoi_.rectangle_grid(in_, 10);
         //voronoi_.diagonal_grid(in_, 20);
-        voronoi_.hexagonal_grid(in_, 20);
-        //voronoi_.uniform_circle(in_, value_type(10000), 10000);
+        //voronoi_.hexagonal_grid(in_, 20);
+        voronoi_.uniform_circle(in_, value_type(10000), 100000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 #endif
         //log_ << in_.str() << '\n';
