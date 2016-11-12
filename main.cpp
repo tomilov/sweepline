@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <istream>
 #include <ostream>
+#include <sstream>
 
 #include <cassert>
 #include <cmath>
@@ -473,9 +474,10 @@ public :
             }
         };
         if (!_edges.empty()) {
+            auto const nov = std::end(_vertices);
             for (auto const & edge_ : _edges) {
-                bool const beg = (edge_.b != std::end(_vertices));
-                bool const end = (edge_.e != std::end(_vertices));
+                bool const beg = (edge_.b != nov);
+                bool const end = (edge_.e != nov);
                 point_type const & l = *edge_.l;
                 point_type const & r = *edge_.r;
                 if (beg != end) {
@@ -630,7 +632,7 @@ int main()
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
         //voronoi_.hexagonal_grid(in_, 20); voronoi_.draw_circles = true;
-        voronoi_.triangular_grid(in_, 2); //voronoi_.draw_circles = true;
+        voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
         //voronoi_.uniform_circle(in_, value_type(10000), 100000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 # endif
@@ -653,15 +655,13 @@ int main()
     // setup:
     //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
     //voronoi_.draw_indices = false;
-    auto const & sweepline_ = voronoi_.sweepline_;
+    using sweepline_type = typename voronoi_type::sweepline_type;
+    sweepline_type const & sweepline_ = voronoi_.sweepline_;
     log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
     std::ostream & gnuplot_ = std::cout;
-#if 1
-    gnuplot_ << voronoi_ << std::endl;
-#else
+#if 0
     { // clone
-        using sweepline_type = typename voronoi_type::sweepline_type;
         // source
         // destination
         using vertices = std::vector< typename sweepline_type::vertex >;
@@ -688,6 +688,8 @@ int main()
         voronoi_.output(gnuplot_, vertices_, edges_);
         gnuplot_ << std::endl;
     }
+#else
+    gnuplot_ << voronoi_ << std::endl;
 #endif
     return EXIT_SUCCESS;
 }

@@ -10,7 +10,6 @@
 #include <numeric>
 #include <deque>
 #include <list>
-#include <set>
 #include <map>
 #include <experimental/optional>
 #ifdef DEBUG
@@ -333,7 +332,7 @@ private :
         x /= alpha;
         y /= alpha;
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
-        value_type R = sqrt(beta + x * x + y * y);
+        value_type const R = sqrt(beta + x * x + y * y);
         return {{{x, y}, R}};
     }
 
