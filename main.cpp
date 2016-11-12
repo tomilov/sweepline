@@ -29,7 +29,7 @@ struct voronoi
 
     // bounding box
 
-    value_type eps = value_type(1000) * std::numeric_limits< value_type >::epsilon();
+    value_type eps = value_type(10) * std::numeric_limits< value_type >::epsilon();
 
     value_type delta = value_type(0.001);
 
@@ -187,6 +187,34 @@ public :
             i += 2;
             for (size_type y = 1 + (x % 2); y <= size; y += 2) {
                 size_type const yy = 3 * y;
+                _out << xx << ' ' << yy << '\n';
+                _out << xx << " -" << yy << '\n';
+                _out << '-' << xx << ' ' << yy << '\n';
+                _out << '-' << xx << " -" << yy << '\n';
+                i += 4;
+            }
+        }
+        assert(i == N);
+    }
+
+    void
+    triangular_grid(std::ostream & _out, size_type const size) const
+    {
+        size_type const N = 2 * (1 + size + size) * size;
+        _out << N << '\n';
+        using std::sqrt;
+        value_type const step = sqrt(value_type(3));
+        size_type i = 0;
+        for (size_type x = 1; x <= size; ++x) {
+            size_type const xx = 3 * x;
+            {
+                value_type const yy = step * (3 * x - 1 - (x % 2));
+                _out << "0 " << yy << '\n';
+                _out << "0 -" << yy << '\n';
+            }
+            i += 2;
+            for (size_type y = 1; y <= size; ++y) {
+                value_type const yy = step * (3 * y - 1 - ((y + x) % 2));
                 _out << xx << ' ' << yy << '\n';
                 _out << xx << " -" << yy << '\n';
                 _out << '-' << xx << ' ' << yy << '\n';
@@ -372,9 +400,7 @@ public :
                         "unset colorbox;\n";
             _gnuplot << "set xrange [" << pmin.x << ':' << pmax.x << "];\n";
             _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
-            if (draw_circles) {
-                _gnuplot << "set size ratio -1;\n";
-            }
+            _gnuplot << "set size ratio -1;\n";
         }
         _gnuplot << "plot";
         _gnuplot << " '-' with points title 'sites # " << sites_.size() << "'";
@@ -524,6 +550,8 @@ int main()
         in_ >> std::scientific;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
 # if 0
+        voronoi_.draw_circles = true;
+        voronoi_.draw_indices = true;
 #  if 0
         in_ << "3\n"
                "0 0\n"
@@ -561,6 +589,7 @@ int main()
 #  endif
 # elif 0
         // Concentric:
+        voronoi_.draw_circles = true;
 #  if 0
         in_ << "4\n"
                "-1 0\n"
@@ -598,10 +627,11 @@ int main()
             voronoi_.seed(seed);
             //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        //voronoi_.rectangle_grid(in_, 10);
-        //voronoi_.diagonal_grid(in_, 20);
-        //voronoi_.hexagonal_grid(in_, 20);
-        voronoi_.uniform_circle(in_, value_type(10000), 100000);
+        //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
+        //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
+        //voronoi_.hexagonal_grid(in_, 20); voronoi_.draw_circles = true;
+        voronoi_.triangular_grid(in_, 2); //voronoi_.draw_circles = true;
+        //voronoi_.uniform_circle(in_, value_type(10000), 100000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 # endif
         //log_ << in_.str() << '\n';
@@ -621,8 +651,8 @@ int main()
     }
     // output:
     // setup:
-    voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
-    voronoi_.draw_indices = false;
+    //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
+    //voronoi_.draw_indices = false;
     auto const & sweepline_ = voronoi_.sweepline_;
     log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
     log_ << "edges # " << sweepline_.edges_.size() << '\n';

@@ -234,8 +234,8 @@ private :
 
     };
 
-    struct wevent;
-    using endpoints = std::map< endpoint, wevent, endpoint_less >;
+    class event;
+    using endpoints = std::map< endpoint, event, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
     struct event_less
@@ -258,24 +258,17 @@ private :
     using events = std::map< vertex, bundle, event_less >;
     using pevent = typename events::iterator;
 
-    struct wevent
+    class event
     {
 
-        wevent(pevent const _ev)
-            : ev(_ev)
-        { ; }
-
-        operator pevent () const
-        {
-            return ev;
-        }
-
-        operator pevent & ()
-        {
-            return ev;
-        }
-
         pevent ev;
+
+    public :
+
+        event(pevent const _ev) : ev(_ev) { ; }
+
+        operator pevent () const { return ev; }
+        operator pevent & () { return ev; }
 
     };
 
