@@ -517,7 +517,7 @@ int main()
     voronoi_type voronoi_{log_};
     // input:
     {
-#if 1
+#if 0
         std::istream & in_ = std::cin;
 #else
         std::stringstream in_;
@@ -601,10 +601,10 @@ int main()
         //voronoi_.rectangle_grid(in_, 10);
         //voronoi_.diagonal_grid(in_, 20);
         //voronoi_.hexagonal_grid(in_, 20);
-        voronoi_.uniform_circle(in_, value_type(10000), 1000000);
+        voronoi_.uniform_circle(in_, value_type(10000), 100000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 # endif
-        log_ << in_.str() << '\n';
+        //log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
     }
@@ -628,7 +628,7 @@ int main()
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
     std::ostream & gnuplot_ = std::cout;
 #if 1
-    //gnuplot_ << voronoi_ << std::endl;
+    gnuplot_ << voronoi_ << std::endl;
 #else
     { // clone
         using sweepline_type = typename voronoi_type::sweepline_type;

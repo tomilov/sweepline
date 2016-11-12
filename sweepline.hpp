@@ -250,7 +250,11 @@ private :
 
     };
 
-    using bundle = std::deque< pendpoint >;
+    using rays = std::list< pendpoint >;
+    using pray = typename rays::iterator;
+
+    using bundle = std::pair< pray, pray >;
+
     using events = std::map< vertex, bundle, event_less >;
     using pevent = typename events::iterator;
 
@@ -277,6 +281,10 @@ private :
 
     endpoints endpoints_{endpoint_less{eps}};
     pendpoint const noep = std::end(endpoints_);
+
+    rays rays_;
+    pray const noray = std::end(rays_);
+    pray rev = noray; // revocation boundary
 
     events events_{event_less{eps}};
     pevent const noev = std::end(events_);
@@ -371,14 +379,56 @@ private :
     }
 
     void
+    add_ray(pray const r, pendpoint const ep)
+    {
+        assert(r != noray);
+        if (noray == rev) {
+            rays_.insert(r, ep);
+        } else {
+            *rev = ep;
+            rays_.splice(r, rays_, rev++);
+        }
+    }
+
+    bundle
+    add_bundle(pendpoint const l, pendpoint const r)
+    {
+        if (rev == noray) {
+            return {rays_.insert(noray, l), rays_.insert(noray, r)};
+        } else {
+            pray const ll = rev;
+            *ll = l;
+            if (++rev == noray) {
+                return {ll, rays_.insert(noray, r)};
+            } else {
+                *rev = r;
+                return {ll, rev++};
+            }
+        }
+    }
+
+    void
+    remove_event(pevent const ev, bundle const & b)
+    {
+        rays_.splice(noray, rays_, b.first, std::next(b.second));
+        if (rev == noray) {
+            rev = b.first;
+        }
+        events_.erase(ev);
+    }
+
+    void
     disable_event(pevent const ev)
     {
         assert(ev != noev);
-        for (pendpoint const & ep : ev->second) {
+        bundle const & b = ev->second;
+        pray const r = std::next(b.second);
+        for (auto l = b.first; l != r; ++l) {
+            pendpoint const ep = *l;
             assert(ep->second == ev);
             ep->second = noev;
         }
-        events_.erase(ev);
+        remove_event(ev, b);
     }
 
     void
@@ -414,23 +464,23 @@ private :
                     assert(ll.second == noev);
                     assert(rr.second == noev);
                     bool inserted = false;
-                    std::tie(ev, inserted) = events_.insert({std::move(*v), {l, r}});
+                    std::tie(ev, inserted) = events_.insert({std::move(*v), add_bundle(l, r)});
                     assert(inserted);
                     ll.second = rr.second = ev;
                 } else {
-                    bundle & bundle_ = ev->second;
+                    bundle & b = ev->second;
                     auto const set_event = [&] (pevent & pev, pendpoint const lr)
                     {
                         if (pev == noev) {
                             pev = ev;
-                            bundle_.push_back(lr);
+                            add_ray(b.second, lr);
                         } else {
                             assert(pev == ev);
-                            assert(std::find(std::cbegin(bundle_), std::cend(bundle_), lr) != std::cend(bundle_));
+                            assert(std::find(b.first, std::next(b.second), lr) != std::next(b.second));
                         }
                     };
-                    set_event(ll.second, l);
                     set_event(rr.second, r);
+                    set_event(ll.second, l);
                 }
             }
         }
@@ -455,14 +505,13 @@ private :
         auto const create_vertex = [&] () -> vertex
         {
             if (ev != noev) {
-                vertex const & vertex_ = ev->first;
                 if (std::next(l) == r) {
-                    assert(s->x + eps < vertex_.x());
+                    assert(s->x + eps < ev->first.x());
                     disable_event(ev);
                     ev = noev;
                 } else {
-                    assert(!(s->x + eps < vertex_.x()));
-                    return vertex_;
+                    assert(!(s->x + eps < ev->first.x()));
+                    return ev->first;
                 }
             }
             assert(std::next(l) == r);
@@ -477,7 +526,7 @@ private :
             endpoints_.erase(l++);
         } while (l != r);
         if (ev != noev) {
-            events_.erase(ev);
+            remove_event(ev, ev->second);
         }
         pedge const le = add_edge(lf, s, v);
         pedge const re = add_edge(s, rf, v);
@@ -556,20 +605,20 @@ private :
 
     static
     std::pair< pendpoint, pendpoint >
-    boundaries(bundle const & b)
+    boundaries(pray const l, pray const r)
     {
-        assert(1 < b.size());
-        if (b.size() == 2) {
-            assert(std::next(b.front()) == b.back());
-            return {b.front(), b.back()};
-        } else { // b can be sorted right here if needed in some application
-            auto const angle_less = [&] (pendpoint const l, pendpoint const r) -> bool
+        assert(0 < std::distance(l, r));
+        if (std::next(l) == r) {
+            assert(std::next(*l) == *r);
+            return {*l, *r};
+        } else { // [l; r] can be sorted right here if needed in some application
+            auto const angle_less = [&] (pendpoint const ll, pendpoint const rr) -> bool
             {
-                endpoint const & ll = l->first;
-                endpoint const & rr = r->first;
-                return angle(*ll.l, *ll.r) < angle(*rr.l, *rr.r);
+                endpoint const & lll = ll->first;
+                endpoint const & rrr = rr->first;
+                return angle(*lll.l, *lll.r) < angle(*rrr.l, *rrr.r);
             };
-            auto const lr = std::minmax_element(std::cbegin(b), std::cend(b), angle_less);
+            auto const lr = std::minmax_element(l, std::next(r), angle_less);
             return {*lr.first, *lr.second};
         }
     }
@@ -595,12 +644,14 @@ private :
     }
 
     void
-    finish_cells(pevent const ev, vertex const & _vertex, bundle const & b)
+    finish_cells(pevent const ev,
+                 vertex const & _vertex,
+                 bundle const & b)
     {
-        auto lr = boundaries(b);
+        auto lr = boundaries(b.first, b.second);
         assert(check_endpoint_range(ev, lr.first, lr.second));
         pvertex const v = vertices_.insert(nov, _vertex);
-        events_.erase(ev);
+        remove_event(ev, b);
         site const lc = lr.first->first.l;
         site const rc = lr.second->first.r;
         ++lr.second;
@@ -672,7 +723,9 @@ public :
             finish_cells(ev, event_.first, event_.second);
         }
         assert(check_last_endpoints());
+        assert(rev == std::begin(rays_));
         endpoints_.clear();
+        rays_.clear();
     }
 
     void clear()
