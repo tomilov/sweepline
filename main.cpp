@@ -29,7 +29,7 @@ struct voronoi
 
     // bounding box
 
-    value_type eps = value_type(10) * std::numeric_limits< value_type >::epsilon();
+    value_type eps = value_type(1000) * std::numeric_limits< value_type >::epsilon();
 
     value_type delta = value_type(0.001);
 
@@ -128,7 +128,7 @@ public :
     }
 
     void
-    rectangle_mesh(std::ostream & _out, size_type const bbox) const
+    rectangle_grid(std::ostream & _out, size_type const bbox) const
     {
         _out << (1 + 4 * bbox * (bbox + 1)) << '\n';
         _out << "0 0\n";
@@ -147,19 +147,53 @@ public :
     }
 
     void
-    diagonal_mesh(std::ostream & _out, size_type const bbox) const
+    diagonal_grid(std::ostream & _out, size_type const bbox) const
     {
-        _out << 4 * (bbox * (bbox + 1) / 2) << '\n';
-        bool even = true;
+        size_type const N = (1 + 4 * (bbox * (bbox + 1) / 2));
+        _out << N << '\n';
+        _out << "0 0\n";
+        size_type i = 1;
         for (size_type x = 1; x <= bbox; ++x) {
-            for (size_type y = (even ? 0 : 1); y <= bbox; y += 2) {
+            for (size_type y = x % 2; y <= bbox; y += 2) {
                 _out << x << ' ' << y << '\n';
                 _out << y << " -" << x << '\n';
                 _out << '-' << x << " -" << y << '\n';
                 _out << '-' << y << ' ' << x << '\n';
+                i += 4;
             }
-            even = !even;
         }
+        assert(N == i);
+    }
+
+    void
+    hexagonal_grid(std::ostream & _out, size_type const size) const
+    {
+        size_type const N = 2 * (size * (size + 1) - (size % 2));
+        _out << N << '\n';
+        using std::sqrt;
+        value_type const step = sqrt(value_type(3));
+        size_type i = 0;
+        for (size_type x = 1; x <= size; ++x) {
+            value_type const xx = x * step;
+            if ((x % 2) == 0) {
+                value_type const yy = 3 * (x - 1);
+                _out << "0 " << yy << '\n';
+                _out << "0 -" << yy << '\n';
+            } else {
+                _out << xx << " 0\n";
+                _out << '-' << xx << " 0\n";
+            }
+            i += 2;
+            for (size_type y = 1 + (x % 2); y <= size; y += 2) {
+                size_type const yy = 3 * y;
+                _out << xx << ' ' << yy << '\n';
+                _out << xx << " -" << yy << '\n';
+                _out << '-' << xx << ' ' << yy << '\n';
+                _out << '-' << xx << " -" << yy << '\n';
+                i += 4;
+            }
+        }
+        assert(i == N);
     }
 
     struct ipoint { size_type x, y; };
@@ -169,9 +203,9 @@ public :
     quadrant(std::ostream & _out, size_type const max, ipoint const (& q)[nsqr])
     {
         if (0 == max) {
-            _out << nsqr * 2 * 4 << '\n';
+            _out << (nsqr * 2 * 4) << '\n';
         } else {
-            _out << (nsqr * 2 * 4) + 4 << '\n';
+            _out << ((nsqr * 2 * 4) + 4) << '\n';
             _out << "0 " << max << '\n';
             _out << "0 -" << max << '\n';
             _out << max << " 0\n";
@@ -246,7 +280,7 @@ public :
     void operator () ()
     {
         log_ << "N = " << sites_.size() << '\n';
-#if 1
+#if 0
         using pproxy = std::vector< site >;
         pproxy pproxy_;
         pproxy_.reserve(sites_.size());
@@ -333,11 +367,11 @@ public :
             _gnuplot << "set size square;\n"
                         "set key left;\n"
                         "unset colorbox;\n";
+            _gnuplot << "set xrange [" << pmin.x << ':' << pmax.x << "];\n";
+            _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
             if (draw_circles) {
                 _gnuplot << "set size ratio -1;\n";
             }
-            _gnuplot << "set xrange [" << pmin.x << ':' << pmax.x << "];\n";
-            _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
         }
         _gnuplot << "plot";
         _gnuplot << " '-' with points title 'sites # " << sites_.size() << "'";
@@ -513,7 +547,7 @@ int main()
                "-3 4\n"
                "-4 -3\n"
                "-4 3\n";
-#elif 1
+#else
         // very good test!
         in_ << "4\n"
                "1 2\n"
@@ -549,7 +583,7 @@ int main()
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #endif
 #elif 1
-        // Rectangle mesh, diagonal mesh or points uniformely distributed into a circle or square:
+        // Rectangle grid, diagonal grid or points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
 #if 0
@@ -561,9 +595,10 @@ int main()
             voronoi_.seed(seed);
             //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
-        //voronoi_.rectangle_mesh(in_, 10);
-        voronoi_.diagonal_mesh(in_, 20);
-        //voronoi_.uniform_circle(in_, value_type(10000), 100000);
+        //voronoi_.rectangle_grid(in_, 10);
+        //voronoi_.diagonal_grid(in_, 20);
+        voronoi_.hexagonal_grid(in_, 20);
+        //voronoi_.uniform_circle(in_, value_type(10000), 10000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 #endif
         //log_ << in_.str() << '\n';
@@ -589,7 +624,7 @@ int main()
     log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
     log_ << "edges # " << sweepline_.edges_.size() << '\n';
     std::ostream & gnuplot_ = std::cout;
-#if 0
+#if 1
     gnuplot_ << voronoi_ << std::endl;
 #else
     { // clone

@@ -331,27 +331,26 @@ private :
                 point const & b,
                 point const & c)
     {
-        value_type A = b.x - a.x;
-        value_type B = b.y - a.y;
-        value_type C = c.x - b.x;
-        value_type D = c.y - b.y;
-        value_type G = B * C - A * D;
-        if (!(eps * eps < G)) {
-            // 1.) G is negative: non-concave triple of points => circumcircle don't cross the sweep line
-            // 2.) G is small: collinear points => edges never cross
+        value_type A = a.x * a.x + a.y * a.y;
+        value_type B = b.x * b.x + b.y * b.y;
+        value_type C = c.x * c.x + c.y * c.y;
+        value_type dax = a.x - c.x;
+        value_type day = a.y - c.y;
+        value_type dbx = b.x - c.x;
+        value_type dby = b.y - c.y;
+        value_type x = (A - C) * dby - (B - C) * day;
+        value_type y = dax * (B - C) - dbx * (A - C);
+        value_type alpha = dax * dby - day * dbx;
+        if (!(eps * eps < -alpha)) {
             return {};
         }
-        value_type M = A * (a.x + b.x) + B * (a.y + b.y);
-        value_type N = C * (b.x + c.x) + D * (b.y + c.y);
-        G += G;
-        // circumcenter:
-        value_type y = (C * M - A * N) / G;
-        assert(!miss(y, a, b));
-        assert(!miss(y, b, c));
-        value_type x = (B * N - D * M) / G;
-        using std::hypot;
-        //value_type R = circumradius(hypot(A, B), hypot(C, D), hypot(a.x - c.x, a.y - c.y));
-        value_type R = hypot(b.x - x, b.y - y);
+        value_type beta = a.x * (b.y * C - c.y * B) - b.x * (a.y * C - c.y * A) + c.x * (a.y * B - b.y * A);
+        beta /= alpha;
+        alpha += alpha;
+        x /= alpha;
+        y /= alpha;
+        using std::sqrt;
+        value_type R = sqrt(beta + x * x + y * y);
         return {{{x, y}, R}};
     }
 
@@ -430,23 +429,27 @@ private :
                 }
             } else {
                 if (ev == noev) {
+                    assert(ll.second == noev);
+                    assert(rr.second == noev);
                     bool inserted = false;
-                    std::tie(ev, inserted) = events_.insert({std::move(*v), {}});
+                    std::tie(ev, inserted) = events_.insert({std::move(*v), {l, r}});
                     assert(inserted);
+                    ll.second = rr.second = ev;
+                } else {
+                    bundle & bundle_ = ev->second;
+                    auto const set_event = [&] (pevent & pev, pendpoint const lr)
+                    {
+                        if (pev == noev) {
+                            pev = ev;
+                            bundle_.push_back(lr);
+                        } else {
+                            assert(pev == ev);
+                            assert(std::find(std::cbegin(bundle_), std::cend(bundle_), lr) != std::cend(bundle_));
+                        }
+                    };
+                    set_event(ll.second, l);
+                    set_event(rr.second, r);
                 }
-                bundle & bundle_ = ev->second;
-                auto const set_event = [&] (pevent & pev, pendpoint const lr)
-                {
-                    if (pev == noev) {
-                        pev = ev;
-                        bundle_.push_back(lr);
-                    } else {
-                        assert(pev == ev);
-                        assert(std::find(std::cbegin(bundle_), std::cend(bundle_), lr) != std::cend(bundle_));
-                    }
-                };
-                set_event(ll.second, l);
-                set_event(rr.second, r);
             }
         }
     }
