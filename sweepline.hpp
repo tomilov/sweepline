@@ -12,76 +12,12 @@
 #include <list>
 #include <map>
 #include <experimental/optional>
-#ifndef DEBUG
+#ifdef DEBUG
 #include <iostream>
 #endif
 
 #include <cassert>
 #include <cmath>
-
-#define STORAGE_SIZE 20000000
-
-static char storage_[STORAGE_SIZE];
-static std::size_t cursor_ = 0;
-
-template< typename type >
-struct arena_allocator
-{
-
-    using value_type = type;
-
-    arena_allocator() = default;
-
-    ~arena_allocator()
-    {
-        std::clog << cursor_ << ' ' << __PRETTY_FUNCTION__ << std::endl;
-    }
-
-    template< typename rhs >
-    constexpr
-    arena_allocator(arena_allocator< rhs > const &) noexcept
-    { ; }
-
-    value_type *
-    allocate(std::size_t n) const;
-
-    void
-    deallocate(value_type * p, std::size_t n) const;
-
-};
-
-template< typename lhs, typename rhs >
-constexpr
-bool
-operator == (arena_allocator< lhs > const & /*_lhs*/, arena_allocator< rhs > const & /*_rhs*/) noexcept
-{
-    return true;
-}
-
-template< typename lhs, typename rhs >
-constexpr
-bool
-operator != (arena_allocator< lhs > const & _lhs, arena_allocator< rhs > const & _rhs) noexcept
-{
-    return !(_lhs == _rhs);
-}
-
-template< typename type >
-auto
-arena_allocator< type >::allocate(std::size_t n) const
--> value_type *
-{
-    assert(n < STORAGE_SIZE);
-    assert(n < STORAGE_SIZE - cursor_);
-    std::size_t const base_ = cursor_;
-    cursor_ += n * sizeof(type);
-    return reinterpret_cast< value_type * >(storage_ + base_);
-}
-
-template< typename type >
-void
-arena_allocator< type >::deallocate(value_type *, std::size_t) const
-{ ; }
 
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
@@ -104,17 +40,27 @@ struct sweepline
     }
 
     static
+    bool
+    less(value_type const & _eps,
+         value_type const & l,
+         value_type const & r)
+    {
+        using std::hypot;
+        return l + _eps * hypot(l, r) < r;
+    }
+
+    static
     bool // imprecise comparator: lexicographically compare with tolerance
     less(value_type const & _eps,
          value_type const & lx, value_type const & ly,
          value_type const & rx, value_type const & ry)
     {
-        if (lx + _eps < rx) {
+        if (less(_eps, lx, rx)) {
             return true;
-        } else if (rx + _eps < lx) {
+        } else if (less(_eps, rx, lx)) {
             return false;
         } else {
-            if (ly + _eps < ry) {
+            if (less(_eps, ly, ry)) {
                 return true;
             } else {
                 return false;
@@ -150,7 +96,7 @@ struct sweepline
 
     };
 
-    using vertices = std::list< vertex, arena_allocator< vertex > >;
+    using vertices = std::list< vertex >;
     using pvertex = typename vertices::iterator;
 
     struct edge // ((b, e), (l, r)) is CCW
@@ -161,7 +107,7 @@ struct sweepline
 
     };
 
-    using edges = std::deque< edge, arena_allocator< edge > >;
+    using edges = std::deque< edge >;
     using pedge = typename edges::iterator;
 
     // Voronoi diagram:
@@ -204,18 +150,18 @@ private :
                   value_type directrix) const
         {
             {
-                bool const rdegenerated = !(r.x + eps_ < directrix);
-                if (!(l.x + eps_ < directrix)) {
-                    assert(!(directrix + eps_ < l.x));
-                    if (rdegenerated) {
-                        assert(!(directrix + eps_ < r.x));
-                        assert((l.y + eps_ < r.y) || (r.y + eps_ < l.y)); // l != r
+                bool const degenerated = !less(eps_, r.x, directrix);
+                if (!less(eps_, l.x, directrix)) {
+                    assert(!less(eps_, directrix, l.x));
+                    if (degenerated) {
+                        assert(!less(eps_, directrix, r.x));
+                        assert(less(eps_, l.y, r.y) || less(eps_, r.y, l.y)); // l != r
                         return (l.y + r.y) / value_type(2);
                     } else {
                         return l.y;
                     }
-                } else if (rdegenerated) {
-                    assert(!(directrix + eps_ < r.x));
+                } else if (degenerated) {
+                    assert(!less(eps_, directrix, r.x));
                     return r.y;
                 }
             }
@@ -228,7 +174,7 @@ private :
             value_type lc = (l.x * l.x + l.y * l.y - directrix) / ld;
             value_type rc = (r.x * r.x + r.y * r.y - directrix) / rd;
             value_type c = rc - lc;
-            if ((l.x + eps_ < r.x) || (r.x + eps_ < l.x)) {
+            if (less(eps_, l.x, r.x) || less(eps_, r.x, l.x)) {
                 value_type a = (ld - rd) / (ld * rd);
                 a += a;
                 value_type D = b * b - (a + a) * c;
@@ -277,22 +223,22 @@ private :
 
         bool operator () (vertex const & l, endpoint const & r) const
         {
-            return l.y() + eps_ < intersect(r, l.x());
+            return less(eps_, l.y(), intersect(r, l.x()));
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
         {
-            return intersect(l, r.x()) + eps_ < r.y();
+            return less(eps_, intersect(l, r.x()), r.y());
         }
 
         bool operator () (point const & l, endpoint const & r) const
         {
-            return l.y + eps_ < intersect(r, l.x);
+            return less(eps_, l.y, intersect(r, l.x));
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
-            return intersect(l, r.x) + eps_ < r.y;
+            return less(eps_, intersect(l, r.x), r.y);
         }
 
     };
@@ -313,7 +259,7 @@ private :
 
     };
 
-    using rays = std::list< pendpoint, arena_allocator< pendpoint > >;
+    using rays = std::list< pendpoint >;
     using pray = typename rays::iterator;
 
     using bundle = std::pair< pray, pray >;
@@ -357,21 +303,10 @@ private :
         assert(endpoints_.empty());
         pedge const e = add_edge(l, r, nov);
         pendpoint const le = insert_endpoint(noep, l, r, e);
-        if (l->x + eps < r->x)  {
+        if (less(eps, l->x, r->x))  {
             pendpoint const re = insert_endpoint(noep, r, l, e);
             assert(std::next(le) == re);
         }
-    }
-
-    value_type
-    circumradius(value_type const a,
-                 value_type const b,
-                 value_type const c) const
-    {
-        value_type const V = (a + b - c) * (a + c - b) * (b + c - a);
-        assert(eps * eps * eps < V + V); // triangle inequality
-        using std::sqrt;
-        return (a * b * c) / sqrt(V * (a + b + c));
     }
 
     std::experimental::optional< vertex >
@@ -387,7 +322,7 @@ private :
         value_type x = (A - C) * cb.y - (B - C) * ca.y;
         value_type y = ca.x * (B - C) - cb.x * (A - C);
         value_type alpha = ca.x * cb.y - ca.y * cb.x;
-        if (!(eps * eps < -alpha)) {
+        if (!((A + B + C) * eps < -alpha)) {
             return {};
         }
         value_type beta = a.x * (b.y * C - c.y * B) - b.x * (a.y * C - c.y * A) + c.x * (a.y * B - b.y * A);
@@ -478,9 +413,13 @@ private :
     {
         assert(ev != noev);
         bundle const & b = ev->second;
+        assert(b.first != b.second);
         pray const r = std::next(b.second);
         for (auto l = b.first; l != r; ++l) {
             pendpoint const ep = *l;
+            if (ep->second != ev) {
+                throw nullptr;
+            }
             assert(ep->second == ev);
             ep->second = noev;
         }
@@ -502,10 +441,10 @@ private :
                 if (pev != noev) {
                     if (pev != ev) {
                         value_type const & xx = pev->first.x();
-                        if (xx + eps < x) {
+                        if (less(eps, xx, x)) {
                             return true;
                         }
-                        assert(x + eps < xx);
+                        assert(less(eps, x, xx));
                         disable_event(pev);
                     }
                 }
@@ -562,11 +501,11 @@ private :
         {
             if (ev != noev) {
                 if (std::next(l) == r) {
-                    assert(s->x + eps < ev->first.x());
+                    assert(less(eps, s->x, ev->first.x()));
                     disable_event(ev);
                     ev = noev;
                 } else {
-                    assert(!(s->x + eps < ev->first.x()));
+                    assert(!less(eps, s->x, ev->first.x()));
                     return ev->first;
                 }
             }
@@ -604,18 +543,21 @@ private :
         if (lr.first == lr.second) {
             if (lr.first == noep) {
                 lr.first = std::prev(noep);
-                site const l = lr.first->first.r;
-                pedge const e = add_edge(l, s, nov);
-                lr.second = insert_endpoint(noep, l, s, e);
-                if (l->x + eps < s->x)  {
-                    pendpoint const ep = insert_endpoint(noep, s, l, e);
-                    assert(std::next(lr.second) == ep);
+                site const c = lr.first->first.r;
+                pedge const e = add_edge(c, s, nov);
+                lr.second = insert_endpoint(noep, c, s, e);
+                if (less(eps, c->x, s->x))  {
+                    pendpoint const r = insert_endpoint(noep, s, c, e);
+                    assert(std::next(lr.second) == r);
+                } else {
+                    asm volatile ("nop;");
                 }
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
-                site const r = lr.second->first.l;
-                pedge const e = add_edge(s, r, nov);
-                insert_endpoint(lr.second, r, s, e);
-                lr.first = insert_endpoint(lr.second, s, r, e);
+                site const c = lr.second->first.l;
+                pedge const e = add_edge(s, c, nov);
+                pendpoint const l = insert_endpoint(lr.second, c, s, e);
+                lr.first = insert_endpoint(lr.second, s, c, e);
+                assert(std::next(l) == lr.first);
             } else { // insert in the middle of the beachline (hottest branch in general case)
                 --lr.first;
                 site const c = lr.first->first.r;

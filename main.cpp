@@ -305,10 +305,20 @@ public :
         return _in;
     }
 
+    void
+    swap_xy()
+    {
+        for (point_type & point_ : sites_) {
+            using std::swap;
+            swap(point_.x, point_.y);
+        }
+    }
+
     sweepline_type sweepline_{eps};
 
     void operator () ()
     {
+        assert((std::set< point_type, point_less >{std::cbegin(sites_), std::cend(sites_), point_less{eps}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
 #if 0
         using pproxy = std::vector< site >;
@@ -672,21 +682,22 @@ int main()
         }
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
-        //voronoi_.hexagonal_grid(in_, 20); voronoi_.draw_circles = true;
-        //voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
-        voronoi_.uniform_circle(in_, value_type(10000), 100000);
+        //voronoi_.hexagonal_grid(in_, 200); //voronoi_.draw_circles = true;
+        voronoi_.triangular_grid(in_, 2); //voronoi_.draw_circles = true;
+        //voronoi_.uniform_circle(in_, value_type(10000), 100000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 # endif
-        //log_ << in_.str() << '\n';
+        log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
+        voronoi_.swap_xy();
     }
     {
         using std::chrono::duration_cast;
         using std::chrono::microseconds;
         using std::chrono::steady_clock;
         auto const start = steady_clock::now();
-        voronoi_();
+        try { voronoi_(); } catch (std::nullptr_t) { ; }
         log_ << "begin sweepline\n";
         log_ << "sweepline time = "
              << duration_cast< microseconds >(steady_clock::now() - start).count()
