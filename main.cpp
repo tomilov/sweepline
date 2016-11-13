@@ -151,7 +151,7 @@ public :
     void
     diagonal_grid(std::ostream & _out, size_type const bbox) const
     {
-        size_type const N = (1 + 4 * (bbox * (bbox + 1) / 2));
+        size_type const N = (1 + 2 * bbox * (bbox + 1));
         _out << N << '\n';
         _out << "0 0\n";
         size_type i = 1;
@@ -555,6 +555,47 @@ int main()
         voronoi_.draw_circles = true;
         voronoi_.draw_indices = true;
 #  if 0
+        in_ << "0\n";
+#  elif 0
+        in_ << "1\n"
+               "0 0\n";
+#  elif 0
+        in_ << "2\n"
+               "0 0\n"
+               "1 0\n";
+#  elif 0
+        in_ << "2\n"
+               "0 0\n"
+               "0 1\n";
+#  elif 0
+        in_ << "5\n"
+               "0 0\n"
+               "0 1\n"
+               "0 2\n"
+               "0 3\n"
+               "0 4\n";
+#  elif 0
+        in_ << "5\n"
+               "0 0\n"
+               "1 0\n"
+               "2 0\n"
+               "3 0\n"
+               "4 0\n";
+#  elif 0
+        in_ << "5\n"
+               "0 0\n"
+               "1 1\n"
+               "2 2\n"
+               "3 3\n"
+               "4 4\n";
+#  elif 0
+        in_ << "5\n"
+               "0 -0\n"
+               "1 -1\n"
+               "2 -2\n"
+               "3 -3\n"
+               "4 -4\n";
+#  elif 0
         in_ << "3\n"
                "0 0\n"
                "1 -1\n"
@@ -632,8 +673,8 @@ int main()
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
         //voronoi_.hexagonal_grid(in_, 20); voronoi_.draw_circles = true;
-        voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
-        //voronoi_.uniform_circle(in_, value_type(10000), 100000);
+        //voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
+        voronoi_.uniform_circle(in_, value_type(10000), 100000);
         //voronoi_.uniform_square(in_, value_type(10000), 100000);
 # endif
         //log_ << in_.str() << '\n';

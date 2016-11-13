@@ -12,12 +12,76 @@
 #include <list>
 #include <map>
 #include <experimental/optional>
-#ifdef DEBUG
+#ifndef DEBUG
 #include <iostream>
 #endif
 
 #include <cassert>
 #include <cmath>
+
+#define STORAGE_SIZE 20000000
+
+static char storage_[STORAGE_SIZE];
+static std::size_t cursor_ = 0;
+
+template< typename type >
+struct arena_allocator
+{
+
+    using value_type = type;
+
+    arena_allocator() = default;
+
+    ~arena_allocator()
+    {
+        std::clog << cursor_ << ' ' << __PRETTY_FUNCTION__ << std::endl;
+    }
+
+    template< typename rhs >
+    constexpr
+    arena_allocator(arena_allocator< rhs > const &) noexcept
+    { ; }
+
+    value_type *
+    allocate(std::size_t n) const;
+
+    void
+    deallocate(value_type * p, std::size_t n) const;
+
+};
+
+template< typename lhs, typename rhs >
+constexpr
+bool
+operator == (arena_allocator< lhs > const & /*_lhs*/, arena_allocator< rhs > const & /*_rhs*/) noexcept
+{
+    return true;
+}
+
+template< typename lhs, typename rhs >
+constexpr
+bool
+operator != (arena_allocator< lhs > const & _lhs, arena_allocator< rhs > const & _rhs) noexcept
+{
+    return !(_lhs == _rhs);
+}
+
+template< typename type >
+auto
+arena_allocator< type >::allocate(std::size_t n) const
+-> value_type *
+{
+    assert(n < STORAGE_SIZE);
+    assert(n < STORAGE_SIZE - cursor_);
+    std::size_t const base_ = cursor_;
+    cursor_ += n * sizeof(type);
+    return reinterpret_cast< value_type * >(storage_ + base_);
+}
+
+template< typename type >
+void
+arena_allocator< type >::deallocate(value_type *, std::size_t) const
+{ ; }
 
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
@@ -86,7 +150,7 @@ struct sweepline
 
     };
 
-    using vertices = std::list< vertex >;
+    using vertices = std::list< vertex, arena_allocator< vertex > >;
     using pvertex = typename vertices::iterator;
 
     struct edge // ((b, e), (l, r)) is CCW
@@ -97,7 +161,7 @@ struct sweepline
 
     };
 
-    using edges = std::deque< edge >;
+    using edges = std::deque< edge, arena_allocator< edge > >;
     using pedge = typename edges::iterator;
 
     // Voronoi diagram:
@@ -249,7 +313,7 @@ private :
 
     };
 
-    using rays = std::list< pendpoint >;
+    using rays = std::list< pendpoint, arena_allocator< pendpoint > >;
     using pray = typename rays::iterator;
 
     using bundle = std::pair< pray, pray >;
