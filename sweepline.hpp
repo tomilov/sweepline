@@ -19,6 +19,8 @@
 #include <cassert>
 #include <cmath>
 
+#include <x86intrin.h>
+
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
           typename value_type = decltype(std::declval< point >().x) >
@@ -318,8 +320,10 @@ private :
         value_type const C = c.x * c.x + c.y * c.y;
         point const ca = {a.x - c.x, a.y - c.y};
         point const cb = {b.x - c.x, b.y - c.y};
-        value_type x = (A - C) * cb.y - (B - C) * ca.y;
-        value_type y = ca.x * (B - C) - cb.x * (A - C);
+        value_type const CA = A - C;
+        value_type const CB = B - C;
+        value_type x = CA * cb.y - CB * ca.y;
+        value_type y = ca.x * CB - cb.x * CA;
         value_type alpha = ca.x * cb.y - ca.y * cb.x;
         if (!(eps < -alpha)) {
             return {};
