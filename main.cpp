@@ -2,7 +2,6 @@
 
 #include <utility>
 #include <limits>
-#include <chrono>
 #include <iterator>
 #include <algorithm>
 #include <random>
@@ -16,6 +15,7 @@
 
 #include <cassert>
 #include <cmath>
+
 
 template< typename point_type, typename value_type = decltype(std::declval< point_type >().x) >
 struct voronoi
@@ -63,7 +63,7 @@ public :
     }
 
     void
-    uniform_circle(std::ostream & _out, value_type const radius, size_type const N)
+    ball(std::ostream & _out, value_type const radius, size_type const N)
     {
         std::set< point_type, point_less > points_{point_less{delta}};
         _out << N << '\n';
@@ -98,12 +98,12 @@ public :
     }
 
     void
-    uniform_square(std::ostream & _out, value_type const bbox, size_type const N)
+    square(std::ostream & _out, value_type const bbox, size_type const N)
     {
         std::set< point_type, point_less > points_{point_less{delta}};
         _out << N << '\n';
         constexpr size_type M = 1000; // number of attempts
-        for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
+        for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed square
             size_type m = 0;
             do {
                 point_type p{zero_to_one_(rng), zero_to_one_(rng)};
@@ -269,7 +269,7 @@ public :
     using points = std::vector< point_type >;
     using site = typename points::const_iterator;
 
-    using sweepline_type = sweepline< site >;
+    using sweepline_type = sweepline< site, point_type, value_type >;
 
 private :
 
@@ -532,12 +532,52 @@ public :
 
 };
 
-#include <chrono>
+#include <iterator>
+#include <algorithm>
+#include <limits>
+#include <vector>
 #include <iomanip>
+#include <ostream>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <random>
+#include <chrono>
+#include <typeinfo>
+#include <memory>
+#include <mutex>
 
 #include <cstdlib>
+
+#include <cxxabi.h>
+
+#define RED(str) __extension__ "\e[1;31m" str "\e[0m"
+
+namespace
+{
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+std::mutex m;
+std::unique_ptr< char, decltype(std::free) & > demangled_name{nullptr, std::free};
+std::size_t length = 0;
+#pragma clang diagnostic pop
+
+}
+
+inline
+std::string
+get_demangled_name(char const * const symbol) noexcept
+{
+    if (!symbol) {
+        return "<null>";
+    }
+    std::lock_guard< std::mutex > lock(m);
+    int status = -4;
+    demangled_name.reset(abi::__cxa_demangle(symbol, demangled_name.release(), &length, &status));
+    return ((status == 0) ? demangled_name.get() : symbol);
+}
 
 using value_type = double;
 
@@ -553,8 +593,7 @@ int main()
     using voronoi_type = voronoi< point >;
     std::ostream & log_ = std::clog;
     voronoi_type voronoi_{log_};
-    // input:
-    {
+    { // input
 #if 0
         std::istream & in_ = std::cin;
 #else
@@ -683,65 +722,74 @@ int main()
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
         //voronoi_.hexagonal_grid(in_, 200); //voronoi_.draw_circles = true;
-        voronoi_.triangular_grid(in_, 2); //voronoi_.draw_circles = true;
-        //voronoi_.uniform_circle(in_, value_type(10000), 100000);
-        //voronoi_.uniform_square(in_, value_type(10000), 100000);
+        //voronoi_.triangular_grid(in_, 2); //voronoi_.draw_circles = true;
+        voronoi_.ball(in_, value_type(10000), 100000);
+        //voronoi_.square(in_, value_type(10000), 100000);
 # endif
-        log_ << in_.str() << '\n';
+        //log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
         voronoi_.swap_xy();
     }
-    {
+    { // run
         using std::chrono::duration_cast;
         using std::chrono::microseconds;
         using std::chrono::steady_clock;
         auto const start = steady_clock::now();
-        try { voronoi_(); } catch (std::nullptr_t) { ; }
+        try {
+            voronoi_();
+            for (std::size_t i = 0; i < 0; ++i) {
+                voronoi_.sweepline_.clear();
+                voronoi_();
+            }
+        } catch (...) {
+            log_ <<  RED("Exception catched!") "\n";
+            if (std::type_info * et = abi::__cxa_current_exception_type()) {
+                log_ << "exception type: " << get_demangled_name(et->name()) << '\n';
+            } else {
+                log_ << "unknown exception\n";
+            }
+        }
         log_ << "begin sweepline\n";
         log_ << "sweepline time = "
              << duration_cast< microseconds >(steady_clock::now() - start).count()
              << "us\n";
     }
-    // output:
-    // setup:
-    //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
-    //voronoi_.draw_indices = false;
-    using sweepline_type = typename voronoi_type::sweepline_type;
-    sweepline_type const & sweepline_ = voronoi_.sweepline_;
-    log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
-    log_ << "edges # " << sweepline_.edges_.size() << '\n';
-    std::ostream & gnuplot_ = std::cout;
+    { // output
+        //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
+        //voronoi_.draw_indices = false;
+        using sweepline_type = typename voronoi_type::sweepline_type;
+        sweepline_type const & sweepline_ = voronoi_.sweepline_;
+        log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
+        log_ << "edges # " << sweepline_.edges_.size() << '\n';
+        std::ostream & gnuplot_ = std::cout;
 #if 0
-    { // clone
-        // source
-        // destination
-        using vertices = std::vector< typename sweepline_type::vertex >;
-        using pvertex = typename vertices::const_iterator;
-        using site = typename voronoi_type::site;
-        // transformation function:
-        vertices const vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
-        pvertex const nov = std::cend(vertices_);
-        // cloning
-        auto const vclone = [&] (typename sweepline_type::pvertex const v) -> pvertex
-        {
-            return std::prev(nov, std::distance(v, sweepline_.nov));
-        };
-        struct edge { site l, r; pvertex b, e; };
-        auto const eclone = [&] (typename sweepline_type::edge const & _edge) -> edge
-        {
-            return {_edge.l, _edge.r, vclone(_edge.b), vclone(_edge.e)};
-        };
-        std::vector< edge > edges_;
-        edges_.reserve(sweepline_.edges_.size());
-        std::transform(std::cbegin(sweepline_.edges_), std::cend(sweepline_.edges_),
-                       std::back_inserter(edges_),
-                       eclone);
-        voronoi_.output(gnuplot_, vertices_, edges_);
-        gnuplot_ << std::endl;
-    }
+        { // clone
+            using vertices = std::vector< typename sweepline_type::vertex >;
+            using pvertex = typename vertices::const_iterator;
+            using site = typename voronoi_type::site;
+            vertices const vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
+            pvertex const nov = std::cend(vertices_);
+            auto const vclone = [&] (typename sweepline_type::pvertex const v) -> pvertex
+            {
+                return std::prev(nov, std::distance(v, sweepline_.nov));
+            };
+            struct edge { site l, r; pvertex b, e; };
+            auto const eclone = [&] (typename sweepline_type::edge const & _edge) -> edge
+            {
+                return {_edge.l, _edge.r, vclone(_edge.b), vclone(_edge.e)};
+            };
+            std::vector< edge > edges_;
+            edges_.reserve(sweepline_.edges_.size());
+            std::transform(std::cbegin(sweepline_.edges_), std::cend(sweepline_.edges_),
+                           std::back_inserter(edges_),
+                           eclone);
+            voronoi_.output(gnuplot_, vertices_, edges_);
+            gnuplot_ << std::endl;
+        }
 #else
-    gnuplot_ << voronoi_ << std::endl;
+        gnuplot_ << voronoi_ << std::endl;
 #endif
+    }
     return EXIT_SUCCESS;
 }
