@@ -581,7 +581,7 @@ get_demangled_name(char const * const symbol) noexcept
 
 using value_type = double;
 
-struct point
+struct alignas(__m128d) point
 {
 
     value_type x, y;
@@ -722,8 +722,8 @@ int main()
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
         //voronoi_.hexagonal_grid(in_, 200); //voronoi_.draw_circles = true;
-        voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
-        //voronoi_.ball(in_, value_type(10000), 100000);
+        //voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
+        voronoi_.ball(in_, value_type(10000), 100000);
         //voronoi_.square(in_, value_type(10000), 100000);
 # endif
         //log_ << in_.str() << '\n';
