@@ -450,10 +450,10 @@ private :
         pray const r = std::next(b.second);
         for (auto l = b.first; l != r; ++l) {
             pendpoint const ep = *l;
-            if (ep->second.ev != ev) {
+            if (ep->second != ev) {
                 throw nullptr;
             }
-            assert(ep->second.ev == ev);
+            assert(ep->second == ev);
             ep->second = noev;
         }
         remove_event(ev, b);
@@ -489,8 +489,8 @@ private :
                 }
             } else {
                 if (ev == noev) {
-                    assert(ll.second.ev == noev);
-                    assert(rr.second.ev == noev);
+                    assert(ll.second == noev);
+                    assert(rr.second == noev);
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(*v), add_bundle(l, r)});
                     assert(inserted);
@@ -549,7 +549,7 @@ private :
         };
         pvertex const v = vertices_.insert(nov, create_vertex());
         do {
-            assert(l->second.ev == ev);
+            assert(l->second == ev);
             trunc_edge(*l->first.e, v);
             endpoints_.erase(l++);
         } while (l != r);
@@ -665,7 +665,7 @@ private :
             if (std::exchange(s, l->first.r) != l->first.l) {
                 return false;
             }
-            if (l->second.ev != ev) {
+            if (l->second != ev) {
                 return false;
             }
         } while (l != r);
@@ -712,7 +712,7 @@ private :
             if ((e.b != nov) && (e.e != nov)) {
                 return false;
             }
-            if (ep.second.ev != noev) {
+            if (ep.second != noev) {
                 return false;
             }
         }

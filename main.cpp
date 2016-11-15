@@ -739,7 +739,7 @@ int main()
         auto const start = steady_clock::now();
         try {
             voronoi_();
-            for (std::size_t i = 0; i < x; ++i) {
+            for (std::size_t i = 0; i < 0; ++i) {
                 voronoi_.sweepline_.clear();
                 voronoi_();
             }
