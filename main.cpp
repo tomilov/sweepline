@@ -285,7 +285,8 @@ private :
         }
         sites_.reserve(N);
         for (size_type n = 0; n < N; ++n) {
-            point_type & point_ = sites_.emplace_back();
+            sites_.emplace_back();
+            point_type & point_ = sites_.back();
             if (!(_in >> point_.x)) {
                 assert(false);
             }
@@ -738,7 +739,7 @@ int main()
         auto const start = steady_clock::now();
         try {
             voronoi_();
-            for (std::size_t i = 0; i < 0; ++i) {
+            for (std::size_t i = 0; i < x; ++i) {
                 voronoi_.sweepline_.clear();
                 voronoi_();
             }

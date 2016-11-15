@@ -244,7 +244,7 @@ private :
 
     };
 
-    class event;
+    struct event;
     using endpoints = std::map< endpoint, event, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
@@ -268,12 +268,10 @@ private :
     using events = std::map< vertex, bundle const, event_less >;
     using pevent = typename events::iterator;
 
-    class event
+    struct event
     {
 
         pevent ev;
-
-    public :
 
         event(pevent const _ev) : ev(_ev) { ; }
 
@@ -313,7 +311,7 @@ private :
     std::experimental::optional< vertex >
     make_vertex(point const & a,
                 point const & b,
-                point const & c)
+                point const & c) const
     {
 #if 1
         value_type const A = a.x * a.x + a.y * a.y;
@@ -329,12 +327,13 @@ private :
         if (!(eps < -alpha)) {
             return {};
         }
-        value_type beta = a.x * (b.y * C - c.y * B) - b.x * (a.y * C - c.y * A) + c.x * (a.y * B - b.y * A);
+        value_type beta = a.x * (b.y * C - c.y * B) + b.x * (c.y * A - a.y * C) + c.x * (a.y * B - b.y * A);
         beta /= alpha;
         alpha += alpha;
         x /= alpha;
         y /= alpha;
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
+        assert(eps * eps < beta + x * x + y * y);
         value_type const R = sqrt(beta + x * x + y * y);
         return {{{x, y}, R}};
 #else
@@ -451,10 +450,10 @@ private :
         pray const r = std::next(b.second);
         for (auto l = b.first; l != r; ++l) {
             pendpoint const ep = *l;
-            if (ep->second != ev) {
+            if (ep->second.ev != ev) {
                 throw nullptr;
             }
-            assert(ep->second == ev);
+            assert(ep->second.ev == ev);
             ep->second = noev;
         }
         remove_event(ev, b);
@@ -490,8 +489,8 @@ private :
                 }
             } else {
                 if (ev == noev) {
-                    assert(ll.second == noev);
-                    assert(rr.second == noev);
+                    assert(ll.second.ev == noev);
+                    assert(rr.second.ev == noev);
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(*v), add_bundle(l, r)});
                     assert(inserted);
@@ -550,7 +549,7 @@ private :
         };
         pvertex const v = vertices_.insert(nov, create_vertex());
         do {
-            assert(l->second == ev);
+            assert(l->second.ev == ev);
             trunc_edge(*l->first.e, v);
             endpoints_.erase(l++);
         } while (l != r);
@@ -583,8 +582,6 @@ private :
                 if (less(c->x, eps, s->x))  {
                     pendpoint const r = insert_endpoint(noep, s, c, e);
                     assert(std::next(lr.second) == r);
-                } else {
-                    asm volatile ("nop;");
                 }
             } else if (lr.first == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 site const c = lr.second->first.l;
@@ -643,7 +640,7 @@ private :
         if (std::next(l) == r) {
             assert(std::next(*l) == *r);
             return {*l, *r};
-        } else { // [l; r] can be sorted right here if needed in some application
+        } else { // [l; r] can be sorted (to be stored with associate vertex) right here if needed in some application
             auto const angle_less = [&] (pendpoint const ll, pendpoint const rr) -> bool
             {
                 endpoint const & lll = ll->first;
@@ -668,7 +665,7 @@ private :
             if (std::exchange(s, l->first.r) != l->first.l) {
                 return false;
             }
-            if (l->second != ev) {
+            if (l->second.ev != ev) {
                 return false;
             }
         } while (l != r);
@@ -715,7 +712,7 @@ private :
             if ((e.b != nov) && (e.e != nov)) {
                 return false;
             }
-            if (ep.second != noev) {
+            if (ep.second.ev != noev) {
                 return false;
             }
         }
@@ -730,6 +727,7 @@ public :
     {
         assert(vertices_.empty());
         assert(edges_.empty());
+        assert(rev == noray);
         assert(std::is_sorted(l, r, point_less{eps}));
         if (l == r) {
             return;
@@ -754,11 +752,10 @@ public :
             auto & event_ = *ev;
             finish_cells(ev, event_.first, event_.second);
         }
-        assert(check_last_endpoints());
         assert(rev == std::begin(rays_));
+        assert(check_last_endpoints());
         endpoints_.clear();
-        rays_.clear();
-        rev = noray;
+        rev = noray; // to be reusable
     }
 
     void clear()
