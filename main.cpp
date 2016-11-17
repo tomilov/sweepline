@@ -315,6 +315,15 @@ public :
         }
     }
 
+    void
+    shift_xy(value_type const & dx, value_type const & dy)
+    {
+        for (point_type & point_ : sites_) {
+            point_.x += dx;
+            point_.y += dy;
+        }
+    }
+
     sweepline_type sweepline_{eps};
 
     void operator () ()
@@ -421,6 +430,8 @@ public :
         }
         if (draw_circles && !_vertices.empty()) {
             _gnuplot << ", '' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
+            _gnuplot << ", '' with labels offset character 0, character 1 notitle linecolor palette";
+            _gnuplot << ", '' with point notitle pointtype 6 linecolor palette";
         }
         if (!_edges.empty()) {
             _gnuplot << ", '' with lines title 'edges # " << _edges.size() <<  "'";
@@ -447,6 +458,18 @@ public :
             size_type i = 0;
             for (auto const & vertex_ : _vertices) {
                 _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
+            }
+            _gnuplot << "e\n";
+            i = 0;
+            for (auto const & vertex_ : _vertices) {
+                _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << i << ' ' << i << '\n';
+                ++i;
+            }
+            _gnuplot << "e\n";
+            i = 0;
+            for (auto const & vertex_ : _vertices) {
+                _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << i << ' ' << i << '\n';
+                ++i;
             }
             _gnuplot << "e\n";
         }
@@ -723,14 +746,15 @@ int main()
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
         //voronoi_.hexagonal_grid(in_, 200); //voronoi_.draw_circles = true;
-        //voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
-        voronoi_.ball(in_, value_type(10000), 100000);
+        voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
+        //voronoi_.ball(in_, value_type(10000), 100000);
         //voronoi_.square(in_, value_type(10000), 100000);
 # endif
         //log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
         voronoi_.swap_xy();
+        //voronoi_.shift_xy(value_type(0), value_type(10));
     }
     { // run
         using std::chrono::duration_cast;

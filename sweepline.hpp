@@ -313,7 +313,6 @@ private :
                 point const & b,
                 point const & c) const
     {
-#if 1
         value_type const A = a.x * a.x + a.y * a.y;
         value_type const B = b.x * b.x + b.y * b.y;
         value_type const C = c.x * c.x + c.y * c.y;
@@ -332,40 +331,10 @@ private :
         alpha += alpha;
         x /= alpha;
         y /= alpha;
-        using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
         assert(eps * eps < beta + x * x + y * y);
+        using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
         value_type const R = sqrt(beta + x * x + y * y);
         return {{{x, y}, R}};
-#else
-        __m256d a_ = _mm256_broadcast_pd((__m128d *)&a);
-        __m256d b_ = _mm256_broadcast_pd((__m128d *)&b);
-        __m256d c_ = _mm256_broadcast_pd((__m128d *)&c);
-        __m256d A = _mm256_mul_pd(a_, a_);
-        A = _mm256_hadd_pd(A, A);
-        __m256d B = _mm256_mul_pd(b_, b_);
-        B = _mm256_hadd_pd(B, B);
-        __m256d C = _mm256_mul_pd(c_, c_);
-        C = _mm256_hadd_pd(C, C);
-        __m256d byayaxbx = _mm256_permute_pd(_mm256_shuffle_pd(_mm256_sub_pd(a_, c_), _mm256_sub_pd(b_, c_), 0b0011), 0b1001);
-        __m256d ABBA = _mm256_permute_pd(_mm256_sub_pd(_mm256_shuffle_pd(A, B, 0), C), 0b0110);
-        __m256d xxyy = _mm256_mul_pd(byayaxbx, ABBA);
-        xxyy = _mm256_hsub_pd(xxyy, xxyy);
-        __m256d xyxy = _mm256_shuffle_pd(xxyy, _mm256_permute2f128_pd(xxyy, xxyy, 0x01), 0);
-        __m256d alpha = _mm256_mul_pd(byayaxbx, _mm256_permute2f128_pd(byayaxbx, byayaxbx, 0x01));
-        alpha = _mm256_hsub_pd(alpha, alpha);
-        if (!(alpha[0] < -eps)) {
-            return {};
-        }
-        __m256d tmp1 = _mm256_mul_pd(_mm256_permute_pd(a_, 0b1001), _mm256_permute2f128_pd(c_, _mm256_permute_pd(b_, 0b01), 0x20));
-        __m256d tmp2 = _mm256_mul_pd(b_, _mm256_permute_pd(c_, 0b01));
-        __m256d bacc = _mm256_permute_pd(_mm256_hsub_pd(_mm256_mul_pd(tmp1, _mm256_permute2f128_pd(B, C, 0x20)), _mm256_mul_pd(tmp2, A)), 0b0010);
-        bacc = _mm256_div_pd(bacc, alpha);
-        xyxy = _mm256_div_pd(xyxy, _mm256_add_pd(alpha, alpha));
-        __m256d beta = _mm256_hadd_pd(bacc, _mm256_mul_pd(xyxy, xyxy));
-        beta = _mm256_hadd_pd(beta, beta);
-        beta = _mm256_sqrt_pd(_mm256_add_pd(_mm256_permute2f128_pd(bacc, bacc, 0x01), beta));
-        return {{{xyxy[0], xyxy[1]}, beta[0]}};
-#endif
     }
 
     void
@@ -468,6 +437,9 @@ private :
         assert(ll.first.r == rr.first.l);
         if (auto v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r)) {
             auto ev = events_.find(*v);
+            if (ev == noev) {
+                asm volatile ("nop;");
+            }
             value_type const & x = v->x();
             auto const deselect_event = [&] (pevent const pev) -> bool
             {
@@ -538,13 +510,20 @@ private :
                     disable_event(ev);
                     ev = noev;
                 } else {
+                    if (less(s->x, eps, ev->first.x())) {
+                        throw nullptr;
+                    }
                     assert(!less(s->x, eps, ev->first.x()));
                     return ev->first;
                 }
             }
+            if (!(std::next(l) == r)) {
+                throw nullptr;
+            }
             assert(std::next(l) == r);
             auto v = make_vertex(*s, *lf, *rf);
             assert(!!v);
+            assert(events_.find(*v) == noev);
             return std::move(*v);
         };
         pvertex const v = vertices_.insert(nov, create_vertex());
