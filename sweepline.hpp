@@ -144,7 +144,6 @@ private :
     {
 
         value_type const & eps_;
-        value_type const one = value_type(1);
 
         value_type
         intersect(point const & l,
@@ -157,8 +156,8 @@ private :
                     assert(!less(directrix, eps_, l.x));
                     if (degenerated) {
                         assert(!less(directrix, eps_, r.x));
-                        assert(less(l.y, eps_, r.y) || less(r.y, eps_, l.y)); // l != r
-                        return (l.y + r.y) / (one + one);
+                        assert(less(l.y, eps_, r.y)); // l != r
+                        return (l.y + r.y) / value_type(2);
                     } else {
                         return l.y;
                     }
@@ -168,23 +167,18 @@ private :
                 }
             }
             if (less(l.x, eps_, r.x) || less(r.x, eps_, l.x)) {
-                value_type ld = l.x - directrix;
-                value_type rd = r.x - directrix;
-                auto const combine = [ld, rd] (value_type const & ll, value_type const & rr) -> value_type
-                {
-                    return (rr * ld - ll * rd) / (ld * (rd + rd));
-                };
-                value_type const a = combine(one, one);
-                value_type const b = combine(l.y, r.y); // -b
-                directrix *= directrix;
-                value_type const c = combine((l.x * l.x + l.y * l.y - directrix), (r.x * r.x + r.y * r.y - directrix));
+                value_type const a = l.x - r.x;
+                value_type const ld = l.x - directrix;
+                value_type const rd = r.x - directrix;
+                value_type const b = r.y * ld - l.y * rd; // -b
+                value_type const c = (rd * r.x + r.y * r.y) * ld - (ld * l.x + l.y * l.y) * rd;
                 value_type const D = b * b - a * c;
                 assert(!(D < value_type(0)));
                 using std::sqrt;
                 return (b + sqrt(D)) / a;
             } else { // a ~= 0
                 assert(less(l.y, eps_, r.y));
-                return (l.y + r.y) / (one + one);
+                return (l.y + r.y) / value_type(2);
             }
         }
 
