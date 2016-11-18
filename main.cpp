@@ -16,7 +16,6 @@
 #include <cassert>
 #include <cmath>
 
-
 template< typename point_type, typename value_type = decltype(std::declval< point_type >().x) >
 struct voronoi
 {
@@ -430,8 +429,6 @@ public :
         }
         if (draw_circles && !_vertices.empty()) {
             _gnuplot << ", '' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
-            _gnuplot << ", '' with labels offset character 0, character 1 notitle linecolor palette";
-            _gnuplot << ", '' with point notitle pointtype 6 linecolor palette";
         }
         if (!_edges.empty()) {
             _gnuplot << ", '' with lines title 'edges # " << _edges.size() <<  "'";
@@ -458,18 +455,6 @@ public :
             size_type i = 0;
             for (auto const & vertex_ : _vertices) {
                 _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
-            }
-            _gnuplot << "e\n";
-            i = 0;
-            for (auto const & vertex_ : _vertices) {
-                _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << i << ' ' << i << '\n';
-                ++i;
-            }
-            _gnuplot << "e\n";
-            i = 0;
-            for (auto const & vertex_ : _vertices) {
-                _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << i << ' ' << i << '\n';
-                ++i;
             }
             _gnuplot << "e\n";
         }
@@ -573,6 +558,7 @@ public :
 
 #include <cstdlib>
 
+#include <x86intrin.h>
 #include <cxxabi.h>
 
 #define RED(str) __extension__ "\e[1;31m" str "\e[0m"
@@ -622,7 +608,7 @@ int main()
         std::istream & in_ = std::cin;
 #else
         std::stringstream in_;
-        in_ >> std::scientific;
+        in_ >> std::hexfloat;
         in_.precision(std::numeric_limits< value_type >::digits10 + 2);
 # if 0
         voronoi_.draw_circles = true;
@@ -747,7 +733,7 @@ int main()
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
         //voronoi_.hexagonal_grid(in_, 20); //voronoi_.draw_circles = true;
         //voronoi_.triangular_grid(in_, 200); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
-        voronoi_.ball(in_, value_type(10000), 100000);
+        voronoi_.ball(in_, value_type(10000), 15); voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
         //voronoi_.square(in_, value_type(10000), 100000);
 # endif
         //log_ << in_.str() << '\n';
