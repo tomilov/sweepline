@@ -30,7 +30,7 @@ struct sweepline
     static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
                   "point format error");
 
-    value_type const & eps; // Absolute coordinate error. Points, which closed rectangle neighbourhood of size `eps` intersects, are indistinguishable
+    value_type const & eps;
 
     sweepline(value_type const && _eps) = delete;
 
@@ -69,7 +69,7 @@ struct sweepline
         }
     }
 
-    struct vertex // denote circumscribed circle
+    struct vertex // circumscribed circle
     {
 
         point c; // circumcenter
@@ -131,19 +131,20 @@ private :
 
     static
     value_type
-    intersect(point const & p,
+    intersect(point const & focus,
               value_type const & y,
               value_type const & directrix)
     {
-        assert(!(directrix/* + eps*/ < p.x));
-        value_type d = p.x - directrix;
-        return (y * (y - (p.y + p.y)) + (p.x * p.x + p.y * p.y - directrix * directrix)) / (d + d);
+        assert(!(directrix/* + eps*/ < focus.x));
+        value_type d = focus.x - directrix;
+        return (y * (y - (focus.y + focus.y)) + (focus.x * focus.x + focus.y * focus.y - directrix * directrix)) / (d + d);
     }
 
     struct endpoint_less
     {
 
         value_type const & eps_;
+        value_type const one = value_type(1);
 
         value_type
         intersect(point const & l,
@@ -157,7 +158,7 @@ private :
                     if (degenerated) {
                         assert(!less(directrix, eps_, r.x));
                         assert(less(l.y, eps_, r.y) || less(r.y, eps_, l.y)); // l != r
-                        return (l.y + r.y) / value_type(2);
+                        return (l.y + r.y) / (one + one);
                     } else {
                         return l.y;
                     }
@@ -166,24 +167,24 @@ private :
                     return r.y;
                 }
             }
-            value_type ld = l.x - directrix;
-            value_type rd = r.x - directrix;
-            value_type b = r.y / rd - l.y / ld; // -b
-            ld += ld;
-            rd += rd;
-            directrix *= directrix;
-            value_type lc = (l.x * l.x + l.y * l.y - directrix) / ld;
-            value_type rc = (r.x * r.x + r.y * r.y - directrix) / rd;
-            value_type c = rc - lc;
             if (less(l.x, eps_, r.x) || less(r.x, eps_, l.x)) {
-                value_type a = (ld - rd) / (ld * rd);
-                a += a;
-                value_type D = b * b - (a + a) * c;
+                value_type ld = l.x - directrix;
+                value_type rd = r.x - directrix;
+                auto const combine = [ld, rd] (value_type const & ll, value_type const & rr) -> value_type
+                {
+                    return (rr * ld - ll * rd) / (ld * (rd + rd));
+                };
+                value_type const a = combine(one, one);
+                value_type const b = combine(l.y, r.y); // -b
+                directrix *= directrix;
+                value_type const c = combine((l.x * l.x + l.y * l.y - directrix), (r.x * r.x + r.y * r.y - directrix));
+                value_type const D = b * b - a * c;
                 assert(!(D < value_type(0)));
                 using std::sqrt;
                 return (b + sqrt(D)) / a;
             } else { // a ~= 0
-                return c / b; // -c / b
+                assert(less(l.y, eps_, r.y));
+                return (l.y + r.y) / (one + one);
             }
         }
 
@@ -216,7 +217,7 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            point_less point_less_{eps_};
+            point_less const point_less_{eps_};
             return point_less_(std::max(*l.l, *l.r, point_less_), std::max(*r.l, *r.r, point_less_));
         }
 
@@ -419,9 +420,6 @@ private :
         pray const r = std::next(b.second);
         for (auto l = b.first; l != r; ++l) {
             pendpoint const ep = *l;
-            if (ep->second != ev) {
-                throw nullptr;
-            }
             assert(ep->second == ev);
             ep->second = noev;
         }
@@ -437,9 +435,6 @@ private :
         assert(ll.first.r == rr.first.l);
         if (auto v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r)) {
             auto ev = events_.find(*v);
-            if (ev == noev) {
-                asm volatile ("nop;");
-            }
             value_type const & x = v->x();
             auto const deselect_event = [&] (pevent const pev) -> bool
             {
@@ -510,15 +505,9 @@ private :
                     disable_event(ev);
                     ev = noev;
                 } else {
-                    if (less(s->x, eps, ev->first.x())) {
-                        throw nullptr;
-                    }
                     assert(!less(s->x, eps, ev->first.x()));
                     return ev->first;
                 }
-            }
-            if (!(std::next(l) == r)) {
-                throw nullptr;
             }
             assert(std::next(l) == r);
             auto v = make_vertex(*s, *lf, *rf);
@@ -552,6 +541,23 @@ private :
     begin_cell(site const s)
     {
         auto lr = endpoints_.equal_range(*s);
+        { // workaround for libc++ bug https://llvm.org/bugs/show_bug.cgi?id=30959
+            auto const ll = std::begin(endpoints_);
+            while (lr.first != ll) {
+                --lr.first;
+                if (endpoint_less{eps}(lr.first->first, *s)) {
+                    ++lr.first;
+                    break;
+                }
+            }
+            if (lr.second != noep) {
+                while (!endpoint_less{eps}(*s, lr.second->first)) {
+                    if (++lr.second == noep) {
+                        break;
+                    }
+                }
+            }
+        }
         if (lr.first == lr.second) {
             if (lr.first == noep) {
                 lr.first = std::prev(noep);
@@ -582,23 +588,6 @@ private :
             }
             check_event(lr.first, lr.second);
         } else { // one endpoint or many arc collapsing right here, event (equivalent to the current site p) coming on the next step
-            { // workaround for libc++ bug https://llvm.org/bugs/show_bug.cgi?id=30959
-                auto const ll = std::begin(endpoints_);
-                while (lr.first != ll) {
-                    --lr.first;
-                    if (endpoint_less{eps}(lr.first->first, *s)) {
-                        ++lr.first;
-                        break;
-                    }
-                }
-                if (lr.second != noep) {
-                    while (!endpoint_less{eps}(*s, lr.second->first)) {
-                        if (++lr.second == noep) {
-                            break;
-                        }
-                    }
-                }
-            }
             finish_endpoints(lr.first, lr.second, lr.first->second, s);
         }
     }
@@ -613,7 +602,7 @@ private :
 
     static
     std::pair< pendpoint, pendpoint >
-    boundaries(pray const l, pray const r)
+    endpoint_range(pray const l, pray const r)
     {
         assert(0 < std::distance(l, r));
         if (std::next(l) == r) {
@@ -656,7 +645,7 @@ private :
                  vertex const & _vertex,
                  bundle const & b)
     {
-        auto lr = boundaries(b.first, b.second);
+        auto lr = endpoint_range(b.first, b.second);
         assert(check_endpoint_range(ev, lr.first, lr.second));
         pvertex const v = vertices_.insert(nov, _vertex);
         remove_event(ev, b);
@@ -704,10 +693,10 @@ public :
     void
     operator () (iterator l, iterator const r)
     {
+        assert(std::is_sorted(l, r, point_less{eps}));
         assert(vertices_.empty());
         assert(edges_.empty());
-        assert(rev == noray);
-        assert(std::is_sorted(l, r, point_less{eps}));
+        assert(rev == std::begin(rays_));
         if (l == r) {
             return;
         }
@@ -734,14 +723,12 @@ public :
         assert(rev == std::begin(rays_));
         assert(check_last_endpoints());
         endpoints_.clear();
-        rev = noray; // to be reusable
     }
 
     void clear()
     {
         assert(endpoints_.empty());
         assert(events_.empty());
-        assert(rays_.empty());
         vertices_.clear();
         edges_.clear();
     }

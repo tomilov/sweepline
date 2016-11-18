@@ -209,7 +209,7 @@ public :
         for (size_type x = 1; x <= size; ++x) {
             size_type const xx = 3 * x;
             {
-                value_type const yy = step * (3 * x - 1 - (x % 2));
+                value_type const yy = step * (xx - 1 - (x % 2));
                 _out << "0 " << yy << '\n';
                 _out << "0 -" << yy << '\n';
             }
@@ -745,16 +745,16 @@ int main()
         }
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
-        //voronoi_.hexagonal_grid(in_, 200); //voronoi_.draw_circles = true;
-        voronoi_.triangular_grid(in_, 3); //voronoi_.draw_circles = true;
-        //voronoi_.ball(in_, value_type(10000), 100000);
+        //voronoi_.hexagonal_grid(in_, 20); //voronoi_.draw_circles = true;
+        //voronoi_.triangular_grid(in_, 200); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        voronoi_.ball(in_, value_type(10000), 100000);
         //voronoi_.square(in_, value_type(10000), 100000);
 # endif
         //log_ << in_.str() << '\n';
 #endif
         in_ >> voronoi_;
-        voronoi_.swap_xy();
-        //voronoi_.shift_xy(value_type(0), value_type(10));
+        //voronoi_.swap_xy();
+        //voronoi_.shift_xy(value_type(10000), value_type(10000));
     }
     { // run
         using std::chrono::duration_cast;
@@ -762,8 +762,7 @@ int main()
         using std::chrono::steady_clock;
         auto const start = steady_clock::now();
         try {
-            voronoi_();
-            for (std::size_t i = 0; i < 0; ++i) {
+            for (std::size_t i = 0; i < 1; ++i) {
                 voronoi_.sweepline_.clear();
                 voronoi_();
             }
