@@ -288,19 +288,19 @@ private :
                 point const & b,
                 point const & c) const
     {
-        value_type const A = a.x * a.x + a.y * a.y;
-        value_type const B = b.x * b.x + b.y * b.y;
-        value_type const C = c.x * c.x + c.y * c.y;
         point const ca = {a.x - c.x, a.y - c.y};
         point const cb = {b.x - c.x, b.y - c.y};
-        value_type const CA = A - C;
-        value_type const CB = B - C;
-        value_type x = CA * cb.y - CB * ca.y;
-        value_type y = ca.x * CB - cb.x * CA;
         value_type alpha = ca.x * cb.y - ca.y * cb.x;
         if (!(eps < -alpha)) {
             return {};
         }
+        value_type const A = a.x * a.x + a.y * a.y;
+        value_type const B = b.x * b.x + b.y * b.y;
+        value_type const C = c.x * c.x + c.y * c.y;
+        value_type const CA = A - C;
+        value_type const CB = B - C;
+        value_type x = CA * cb.y - CB * ca.y;
+        value_type y = ca.x * CB - cb.x * CA;
         value_type beta = a.x * (b.y * C - c.y * B) + b.x * (c.y * A - a.y * C) + c.x * (a.y * B - b.y * A);
         beta /= alpha;
         alpha += alpha;
