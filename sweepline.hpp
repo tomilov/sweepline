@@ -217,7 +217,7 @@ private :
             value_type const ld = l.x - directrix;
             value_type const rd = r.x - directrix;
             value_type const b = r.y * ld - l.y * rd; // -b
-            value_type const c = (rd * r.x + r.y * r.y) * ld - (ld * l.x + l.y * l.y) * rd;
+            value_type const c = r.y * r.y * ld - l.y * l.y * rd - ld * rd * a;
             value_type const D = b * b - a * c;
             assert(!(D < value_type(0)));
             using std::sqrt;

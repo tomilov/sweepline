@@ -608,8 +608,11 @@ int main()
         std::istream & in_ = std::cin;
 #else
         std::stringstream in_;
+# if 1
         in_ >> std::hexfloat;
-        in_.precision(std::numeric_limits< value_type >::digits10 + 2);
+# else
+        in_.precision(std::numeric_limits< value_type >::digits10 + 1);
+# endif
 # if 0
         voronoi_.draw_circles = true;
         voronoi_.draw_indices = true;
@@ -746,6 +749,7 @@ int main()
         using std::chrono::duration_cast;
         using std::chrono::microseconds;
         using std::chrono::steady_clock;
+        log_ << "begin sweepline\n";
         auto const start = steady_clock::now();
         try {
             for (std::size_t i = 0; i < 1; ++i) {
@@ -760,7 +764,6 @@ int main()
                 log_ << "unknown exception\n";
             }
         }
-        log_ << "begin sweepline\n";
         log_ << "sweepline time = "
              << duration_cast< microseconds >(steady_clock::now() - start).count()
              << "us\n";
