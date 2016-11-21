@@ -235,7 +235,7 @@ private :
     using endpoints = std::map< endpoint, event, endpoint_less >;
     using pendpoint = typename endpoints::iterator;
 
-    struct event_less
+    struct vertex_less
     {
 
         value_type const & eps_;
@@ -252,7 +252,7 @@ private :
 
     using bundle = std::pair< pray const, pray const >;
 
-    using events = std::map< vertex, bundle const, event_less >;
+    using events = std::map< vertex, bundle const, vertex_less >;
     using pevent = typename events::iterator;
 
     struct event
@@ -274,7 +274,7 @@ private :
     pray const noray = std::end(rays_);
     pray rev = noray; // revocation boundary
 
-    events events_{event_less{eps}};
+    events events_{vertex_less{eps}};
     pevent const noev = std::end(events_);
 
     pedge
@@ -566,7 +566,7 @@ private :
         if (std::next(l) == r) {
             assert(std::next(*l) == *r);
             return {*l, *r};
-        } else { // [l; r] can be sorted (to be stored with associate vertex) right here if needed in some application
+        } else {
             auto const angle_less = [&] (pendpoint const ll, pendpoint const rr) -> bool
             {
                 endpoint const & lll = ll->first;
@@ -607,6 +607,7 @@ private :
                  std::experimental::optional< site const > const _site = {})
     {
         auto lr = endpoint_range(b.first, b.second);
+        // All the edges from [*lr.first; *r.second]->first.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.first, lr.second));
         pvertex const v = vertices_.insert(nov, _vertex);
         remove_event(ev, b);
@@ -708,6 +709,7 @@ public :
             auto & event_ = *ev;
             finish_cells(ev, event_.first, event_.second);
         }
+        assert(std::is_sorted(std::begin(vertices_), nov, vertex_less{eps}));
         assert(rev == std::begin(rays_));
         assert(check_last_endpoints());
         endpoints_.clear();
