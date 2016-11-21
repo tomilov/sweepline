@@ -80,24 +80,9 @@ struct sweepline
         } else if (less(rx, _eps, lx)) {
             return false;
         } else {
-            if (less(ly, _eps, ry)) {
-                return true;
-            } else {
-                return false;
-            }
+            return less(ly, _eps, ry);
         }
     }
-
-    struct vertex // circumscribed circle
-    {
-
-        point c; // circumcenter
-        value_type R; // circumradius
-
-        value_type x() const { return c.x + R; }
-        value_type const & y() const { return c.y; }
-
-    };
 
     struct point_less
     {
@@ -113,6 +98,17 @@ struct sweepline
         {
             return operator () (*l, *r);
         }
+
+    };
+
+    struct vertex // circumscribed circle
+    {
+
+        point c; // circumcenter
+        value_type R; // circumradius
+
+        value_type x() const { return c.x + R; }
+        value_type const & y() const { return c.y; }
 
     };
 
@@ -529,7 +525,7 @@ private :
             if (endpoint_less{eps}(*s, r->first)) {
                 break;
             }
-            assert(l->second.ev == r->second.ev);
+            assert(l->second.ev == r->second.ev); // problems with precision detected
             ++r;
         }
         if (l == r) {
@@ -563,9 +559,10 @@ private :
             check_event(l, r);
         } else {
             assert(std::next(l) == r); // problems with precision detected
-            if (l->second != nev) {
-                assert(less(s->x, eps, l->second.ev->first.x()));
-                disable_event(l->second);
+            pevent const ev = l->second;
+            if (ev != nev) {
+                assert(less(s->x, eps, ev->first.x()));
+                disable_event(ev);
             }
             finish_endpoints(l, r, s);
         }
@@ -579,6 +576,13 @@ private :
         return atan2(r.x - l.x, r.y - l.y);
     }
 
+    static
+    value_type
+    angle(endpoint const & ep)
+    {
+        return angle(*ep.l, *ep.r);
+    }
+
     std::pair< pendpoint, pendpoint >
     endpoint_range(pray const l, pray const r) const
     {
@@ -590,9 +594,7 @@ private :
         } else {
             auto const angle_less = [&] (pendpoint const ll, pendpoint const rr) -> bool
             {
-                endpoint const & lll = ll->first;
-                endpoint const & rrr = rr->first;
-                return angle(*lll.l, *lll.r) < angle(*rrr.l, *rrr.r);
+                return angle(ll->first) < angle(rr->first);
             };
             auto const lr = std::minmax_element(l, std::next(r), angle_less);
             return {*lr.first, *lr.second};
@@ -708,20 +710,20 @@ public :
         }
         make_first_edge(l, ++l);
         while (++l != r) {
-            bool continue_ = false;
+            bool next_ = false;
             while (!events_.empty()) {
                 pevent const ev = std::begin(events_);
                 auto & event_ = *ev;
                 if (!prior(event_.first, *l)) {
                     if (!prior(*l, event_.first)) {
                         finish_cells(ev, event_.first, event_.second, l);
-                        continue_ = true;
+                        next_ = true;
                     }
                     break;
                 }
                 finish_cells(ev, event_.first, event_.second);
             }
-            if (!continue_) {
+            if (!next_) {
                 begin_cell(l);
             }
         }
