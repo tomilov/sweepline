@@ -493,10 +493,10 @@ public :
             }
         };
         if (!_edges.empty()) {
-            auto const nov = std::end(_vertices);
+            auto const nv = std::end(_vertices);
             for (auto const & edge_ : _edges) {
-                bool const beg = (edge_.b != nov);
-                bool const end = (edge_.e != nov);
+                bool const beg = (edge_.b != nv);
+                bool const end = (edge_.e != nv);
                 point_type const & l = *edge_.l;
                 point_type const & r = *edge_.r;
                 if (beg != end) {
@@ -720,8 +720,8 @@ int main()
         // Rectangle grid, diagonal grid or points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
-#  if 0
-            seed_type const seed = 855215359;
+#  if 1
+            seed_type const seed = 1138192913;
 #  else
             std::random_device D;
             auto const seed = static_cast< seed_type >(D());
@@ -774,15 +774,15 @@ int main()
         log_ << "edges # " << sweepline_.edges_.size() << '\n';
         std::ostream & gnuplot_ = std::cout;
 #if 0
-        { // clone
+        { // clone (O(|vertices| * |edges|))
             using vertices = std::vector< typename sweepline_type::vertex >;
             using pvertex = typename vertices::const_iterator;
             using site = typename voronoi_type::site;
             vertices const vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
-            pvertex const nov = std::cend(vertices_);
+            pvertex const nv = std::cend(vertices_);
             auto const vclone = [&] (typename sweepline_type::pvertex const v) -> pvertex
             {
-                return std::prev(nov, std::distance(v, sweepline_.nov));
+                return std::prev(nv, std::distance(v, sweepline_.nv));
             };
             struct edge { site l, r; pvertex b, e; };
             auto const eclone = [&] (typename sweepline_type::edge const & _edge) -> edge
