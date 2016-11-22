@@ -60,20 +60,18 @@ struct sweepline
         assert(!(eps < value_type(0)));
     }
 
-    static
-    bool // imprecise comparator
-    less(value_type const & l,
-         value_type const & _eps,
-         value_type const & r)
+    static // imprecise comparator
+    bool less(value_type const & l,
+              value_type const & _eps,
+              value_type const & r)
     {
         return l + _eps < r;
     }
 
-    static
-    bool // lexicographically compare with tolerance
-    less(value_type const & lx, value_type const & ly,
-         value_type const & _eps,
-         value_type const & rx, value_type const & ry)
+    static // lexicographically compare with tolerance
+    bool less(value_type const & lx, value_type const & ly,
+              value_type const & _eps,
+              value_type const & rx, value_type const & ry)
     {
         if (less(lx, _eps, rx)) {
             return true;
@@ -328,8 +326,7 @@ private :
         return {{{x, y}, sqrt(beta + x * x + y * y)}};
     }
 
-    void
-    trunc_edge(edge & e, pvertex const v) const
+    void trunc_edge(edge & e, pvertex const v) const
     {
         assert(v != nv);
         if (e.b == nv) {
@@ -362,8 +359,7 @@ private :
         }
     }
 
-    void
-    add_ray(pray const rr, pendpoint const l)
+    void add_ray(pray const rr, pendpoint const l)
     {
         assert(rr != nray);
         if (nray == rev) {
@@ -391,8 +387,7 @@ private :
         }
     }
 
-    void
-    remove_event(pevent const ev, bundle const & b)
+    void remove_event(pevent const ev, bundle const & b)
     {
         rays_.splice(nray, rays_, b.first, std::next(b.second));
         if (rev == nray) {
@@ -401,8 +396,7 @@ private :
         events_.erase(ev);
     }
 
-    void
-    disable_event(pevent const ev)
+    void disable_event(pevent const ev)
     {
         assert(ev != nev);
         bundle const & b = ev->second;
@@ -416,8 +410,7 @@ private :
         remove_event(ev, b);
     }
 
-    void
-    check_event(pendpoint const l, pendpoint const r)
+    void check_event(pendpoint const l, pendpoint const r)
     {
         assert(std::next(l) == r);
         auto & ll = *l;
@@ -479,8 +472,7 @@ private :
         return endpoints_.insert(ep, {{l, r, e}, nev});
     }
 
-    void
-    make_first_edge(site const l, site const r)
+    void make_first_edge(site const l, site const r)
     {
         assert(endpoints_.empty());
         pedge const e = add_edge(l, r, nv);
@@ -491,10 +483,9 @@ private :
         }
     }
 
-    void
-    finish_endpoints(pendpoint l,
-                     pendpoint const r,
-                     site const s)
+    void finish_endpoints(pendpoint l,
+                          pendpoint const r,
+                          site const s)
     {
         endpoint const & endpoint_ = l->first;
         auto vertex_ = make_vertex(*s, *endpoint_.l, *endpoint_.r);
@@ -516,8 +507,7 @@ private :
         }
     }
 
-    void
-    begin_cell(site const s)
+    void begin_cell(site const s)
     {
         pendpoint l = endpoints_.lower_bound(*s);
         pendpoint r = l;
@@ -601,8 +591,7 @@ private :
         }
     }
 
-    bool
-    check_endpoint_range(pevent const ev, pendpoint l, pendpoint const r) const
+    bool check_endpoint_range(pevent const ev, pendpoint l, pendpoint const r) const
     {
         if (r == nep) {
             return false;
@@ -623,11 +612,10 @@ private :
         return true;
     }
 
-    void
-    finish_cells(pevent const ev,
-                 vertex const & _vertex,
-                 bundle const & b,
-                 std::experimental::optional< site const > const _site = {})
+    void finish_cells(pevent const ev,
+                      vertex const & _vertex,
+                      bundle const & b,
+                      std::experimental::optional< site const > const _site = {})
     {
         auto lr = endpoint_range(b.first, b.second);
         // All the edges from [*lr.first; *r.second]->first.e can be stored near the associate vertex if needed
@@ -666,20 +654,17 @@ private :
         }
     }
 
-    bool
-    prior(vertex const & l, point const & r) const
+    bool prior(vertex const & l, point const & r) const
     {
         return less(l.x(), l.y(), eps, r.x, r.y);
     }
 
-    bool
-    prior(point const & l, vertex const & r) const
+    bool prior(point const & l, vertex const & r) const
     {
         return less(l.x, l.y, eps, r.x(), r.y());
     }
 
-    bool
-    check_last_endpoints() const
+    bool check_last_endpoints() const
     {
         for (auto const & ep : endpoints_) {
             edge const & e = *ep.first.e;
@@ -696,8 +681,7 @@ private :
 public :
 
     template< typename iterator >
-    void
-    operator () (iterator l, iterator const r)
+    void operator () (iterator l, iterator const r)
     {
         assert(std::is_sorted(l, r, point_less{eps}));
         assert(vertices_.empty());
