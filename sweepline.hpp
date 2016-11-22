@@ -49,55 +49,14 @@ struct sweepline
     static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
                   "point format error");
 
-    value_type const & eps;
-
     sweepline(value_type const && _eps) = delete;
 
     explicit
     sweepline(value_type const & _eps)
-        : eps(_eps)
+        : less_{_eps}
     {
-        assert(!(eps < value_type(0)));
+        assert(!(_eps < value_type(0)));
     }
-
-    static // imprecise comparator
-    bool less(value_type const & l,
-              value_type const & _eps,
-              value_type const & r)
-    {
-        return l + _eps < r;
-    }
-
-    static // lexicographically compare with tolerance
-    bool less(value_type const & lx, value_type const & ly,
-              value_type const & _eps,
-              value_type const & rx, value_type const & ry)
-    {
-        if (less(lx, _eps, rx)) {
-            return true;
-        } else if (less(rx, _eps, lx)) {
-            return false;
-        } else {
-            return less(ly, _eps, ry);
-        }
-    }
-
-    struct point_less
-    {
-
-        value_type const & eps_;
-
-        bool operator () (point const & l, point const & r) const
-        {
-            return less(l.x, l.y, eps_, r.x, r.y);
-        }
-
-        bool operator () (site const l, site const r) const
-        {
-            return operator () (*l, *r);
-        }
-
-    };
 
     struct vertex // circumscribed circle
     {
@@ -142,33 +101,46 @@ private :
 
     };
 
-    static
-    value_type
-    intersect(point const & focus,
-              value_type const & y,
-              value_type const & directrix)
-    {
-        assert(!(directrix/* + eps*/ < focus.x));
-        value_type d = focus.x - directrix;
-        return (y * (y - (focus.y + focus.y)) + (focus.x * focus.x + focus.y * focus.y - directrix * directrix)) / (d + d);
-    }
-
-    struct endpoint_less
+    struct less
     {
 
-        value_type const & eps_;
+        value_type const & eps;
+
+        bool operator () (value_type const & l,
+                          value_type const & r) const
+        {
+            return l + eps < r;
+        }
+
+        bool operator () (value_type const & lx, value_type const & ly,
+                          value_type const & rx, value_type const & ry) const
+        {
+            if (operator () (lx, rx)) {
+                return true;
+            } else if (operator () (rx, lx)) {
+                return false;
+            } else {
+                return operator () (ly, ry);
+            }
+        }
+
+        bool operator () (point const & l, point const & r) const
+        {
+            return operator () (l.x, l.y, r.x, r.y);
+        }
+
+        bool operator () (vertex const & l, vertex const & r) const
+        {
+            return operator () (l.x(), l.y(), r.x(), r.y());
+        }
 
         // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
         // endpoints removed strictly before violation of this invariant to prevent its occurrence
-        bool operator () (endpoint const & l, endpoint const & r) const
+        bool operator () (endpoint const & l, endpoint const & r) const // UB
         {
             /*if (&l == &r) {
                 return false;
             }*/
-            // All the next code up to "}" is (striclty saying) undefined behaviour,
-            // but it works for all modern standard libraries and (I sure)
-            // more stricter then current local (insertion by hint) guarantees
-            // for comp() should be the part of the Standard
             if (l.l == r.l) {
                 return true;
             }
@@ -181,8 +153,7 @@ private :
             if (l.l == r.r) {
                 return false;
             }
-            point_less const point_less_{eps_};
-            return point_less_(std::max(*l.l, *l.r, point_less_), std::max(*r.l, *r.r, point_less_));
+            return operator () (std::max(*l.l, *l.r, *this), std::max(*r.l, *r.r, *this));
         }
 
         using is_transparent = void;
@@ -192,19 +163,19 @@ private :
                   point const & r,
                   value_type const & directrix) const
         {
-            if (less(r.x, eps_, l.x)) {
-                if (!less(l.x, eps_, directrix)) {
-                    assert(!less(directrix, eps_, l.x));
+            if (operator () (r.x, l.x)) {
+                if (!operator () (l.x, directrix)) {
+                    assert(!operator () (directrix, l.x));
                     return l.y;
                 }
-            } else if (less(l.x, eps_, r.x)) {
-                if (!less(r.x, eps_, directrix)) {
-                    assert(!less(directrix, eps_, r.x));
+            } else if (operator () (l.x, r.x)) {
+                if (!operator () (r.x, directrix)) {
+                    assert(!operator () (directrix, r.x));
                     return r.y;
                 }
             } else { // a ~= 0
-                assert(!less(directrix, eps_, l.x));
-                assert(!less(directrix, eps_, r.x));
+                assert(!operator () (directrix, l.x));
+                assert(!operator () (directrix, r.x));
                 return (l.y + r.y) / value_type(2);
             }
             value_type const a = l.x - r.x;
@@ -226,48 +197,36 @@ private :
 
         bool operator () (vertex const & l, endpoint const & r) const
         {
-            return less(l.y(), eps_, intersect(r, l.x()));
+            return operator () (l.y(), intersect(r, l.x()));
         }
 
         bool operator () (endpoint const & l, vertex const & r) const
         {
-            return less(intersect(l, r.x()), eps_, r.y());
+            return operator () (intersect(l, r.x()), r.y());
         }
 
         bool operator () (point const & l, endpoint const & r) const
         {
-            return less(l.y, eps_, intersect(r, l.x));
+            return operator () (l.y, intersect(r, l.x));
         }
 
         bool operator () (endpoint const & l, point const & r) const
         {
-            return less(intersect(l, r.x), eps_, r.y);
+            return operator () (intersect(l, r.x), r.y);
         }
 
-    };
+    } const less_;
 
     struct event;
-    using endpoints = std::map< endpoint, event, endpoint_less >;
+    using endpoints = std::map< endpoint, event, less >;
     using pendpoint = typename endpoints::iterator;
-
-    struct vertex_less
-    {
-
-        value_type const & eps_;
-
-        bool operator () (vertex const & l, vertex const & r) const
-        {
-            return less(l.x(), l.y(), eps_, r.x(), r.y());
-        }
-
-    };
 
     using rays = std::list< pendpoint >;
     using pray = typename rays::iterator;
 
     using bundle = std::pair< pray const, pray const >;
 
-    using events = std::map< vertex, bundle const, vertex_less >;
+    using events = std::map< vertex, bundle const, less >;
     using pevent = typename events::iterator;
 
     struct event
@@ -282,14 +241,14 @@ private :
 
     };
 
-    endpoints endpoints_{endpoint_less{eps}};
+    endpoints endpoints_{less_};
     pendpoint const nep = std::end(endpoints_);
 
     rays rays_;
     pray const nray = std::end(rays_);
     pray rev = nray; // revocation boundary
 
-    events events_{vertex_less{eps}};
+    events events_{less_};
     pevent const nev = std::end(events_);
 
     pedge
@@ -306,7 +265,7 @@ private :
         point const ca = {a.x - c.x, a.y - c.y};
         point const cb = {b.x - c.x, b.y - c.y};
         value_type alpha = ca.x * cb.y - ca.y * cb.x;
-        if (!(eps < -alpha)) {
+        if (!(less_.eps < -alpha)) {
             return {};
         }
         value_type const A = a.x * a.x + a.y * a.y;
@@ -321,7 +280,7 @@ private :
         alpha += alpha;
         x /= alpha;
         y /= alpha;
-        assert(eps * eps < beta + x * x + y * y);
+        assert(less_.eps * less_.eps < beta + x * x + y * y);
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
         return {{{x, y}, sqrt(beta + x * x + y * y)}};
     }
@@ -401,6 +360,7 @@ private :
         assert(ev != nev);
         bundle const & b = ev->second;
         assert(b.first != b.second);
+        assert(nray != b.second);
         pray const r = std::next(b.second);
         for (auto l = b.first; l != r; ++l) {
             pendpoint const ep = *l;
@@ -417,17 +377,18 @@ private :
         auto & rr = *r;
         assert(ll.first.r == rr.first.l);
         if (auto v = make_vertex(*ll.first.l, *ll.first.r, *rr.first.r)) {
-            pevent ev = events_.find(*v);
-            value_type const & x = v->x();
+            vertex & vertex_ = *v;
+            pevent ev = events_.find(vertex_);
+            value_type const & x = vertex_.x();
             auto const deselect_event = [&] (pevent const _ev) -> bool
             {
                 if (_ev != nev) {
                     if (_ev != ev) {
                         value_type const & xx = _ev->first.x();
-                        if (less(xx, eps, x)) {
+                        if (less_(xx, x)) {
                             return true;
                         }
-                        assert(less(x, eps, xx));
+                        assert(less_(x, xx)); // not equiv
                         disable_event(_ev);
                     }
                 }
@@ -442,7 +403,7 @@ private :
                     assert(ll.second == nev);
                     assert(rr.second == nev);
                     bool inserted = false;
-                    std::tie(ev, inserted) = events_.insert({std::move(*v), add_bundle(l, r)});
+                    std::tie(ev, inserted) = events_.insert({std::move(vertex_), add_bundle(l, r)});
                     assert(inserted);
                     ll.second = rr.second = ev;
                 } else {
@@ -477,7 +438,7 @@ private :
         assert(endpoints_.empty());
         pedge const e = add_edge(l, r, nv);
         pendpoint const ll = insert_endpoint(nep, l, r, e);
-        if (less(l->x, eps, r->x))  {
+        if (less_(l->x, r->x))  {
             pendpoint const rr = insert_endpoint(nep, r, l, e);
             assert(std::next(ll) == rr);
         }
@@ -507,15 +468,15 @@ private :
         }
     }
 
-    void begin_cell(site const s)
+    void begin_cell(site const s, point const & _site)
     {
-        pendpoint l = endpoints_.lower_bound(*s);
+        pendpoint l = endpoints_.lower_bound(_site);
         pendpoint r = l;
         while (r != nep) {
-            if (endpoint_less{eps}(*s, r->first)) {
+            if (less_(_site, r->first)) {
                 break;
             }
-            assert(l->second.ev == r->second.ev); // problems with precision detected
+            assert(l->second.ev == r->second.ev); // if fires, then problems with precision detected
             ++r;
         }
         if (l == r) {
@@ -524,7 +485,7 @@ private :
                 site const c = l->first.r;
                 pedge const e = add_edge(c, s, nv);
                 r = insert_endpoint(nep, c, s, e);
-                if (less(c->x, eps, s->x))  {
+                if (less_(c->x, _site.x))  {
                     pendpoint const rr = insert_endpoint(nep, s, c, e);
                     assert(std::next(r) == rr);
                 }
@@ -548,10 +509,10 @@ private :
             }
             check_event(l, r);
         } else {
-            assert(std::next(l) == r); // problems with precision detected
+            assert(std::next(l) == r); // if fires, then problems with precision detected
             pevent const ev = l->second;
             if (ev != nev) {
-                assert(less(s->x, eps, ev->first.x()));
+                assert(less_(_site.x, ev->first.x()));
                 disable_event(ev);
             }
             finish_endpoints(l, r, s);
@@ -582,7 +543,7 @@ private :
             assert(std::next(*l) == *r);
             return {*l, *r};
         } else {
-            auto const angle_less = [&] (pendpoint const ll, pendpoint const rr) -> bool
+            auto const angle_less = [] (pendpoint const ll, pendpoint const rr) -> bool
             {
                 return angle(ll->first) < angle(rr->first);
             };
@@ -613,9 +574,8 @@ private :
     }
 
     void finish_cells(pevent const ev,
-                      vertex const & _vertex,
-                      bundle const & b,
-                      std::experimental::optional< site const > const _site = {})
+                      vertex const & _vertex, bundle const & b,
+                      site const s, site const ns)
     {
         auto lr = endpoint_range(b.first, b.second);
         // All the edges from [*lr.first; *r.second]->first.e can be stored near the associate vertex if needed
@@ -629,8 +589,16 @@ private :
             trunc_edge(*lr.first->first.e, v);
             endpoints_.erase(lr.first++);
         } while (lr.first != lr.second);
-        if (_site) {
-            site const s = *_site;
+        if (s == ns) {
+            pedge const e = add_edge(l, r, v);
+            lr.first = insert_endpoint(lr.second, l, r, e);
+            if (lr.first != std::begin(endpoints_)) {
+                check_event(std::prev(lr.first), lr.first);
+            }
+            if (lr.second != nep) {
+                check_event(lr.first, lr.second);
+            }
+        } else {
             pedge const le = add_edge(l, s, v);
             pedge const re = add_edge(s, r, v);
             pendpoint const ep = insert_endpoint(lr.second, s, r, re);
@@ -642,26 +610,7 @@ private :
             if (lr.second != nep) {
                 check_event(ep, lr.second);
             }
-        } else {
-            pedge const e = add_edge(l, r, v);
-            lr.first = insert_endpoint(lr.second, l, r, e);
-            if (lr.first != std::begin(endpoints_)) {
-                check_event(std::prev(lr.first), lr.first);
-            }
-            if (lr.second != nep) {
-                check_event(lr.first, lr.second);
-            }
         }
-    }
-
-    bool prior(vertex const & l, point const & r) const
-    {
-        return less(l.x(), l.y(), eps, r.x, r.y);
-    }
-
-    bool prior(point const & l, vertex const & r) const
-    {
-        return less(l.x, l.y, eps, r.x(), r.y());
     }
 
     bool check_last_endpoints() const
@@ -683,7 +632,7 @@ public :
     template< typename iterator >
     void operator () (iterator l, iterator const r)
     {
-        assert(std::is_sorted(l, r, point_less{eps}));
+        assert(std::is_sorted(l, r, less_));
         assert(vertices_.empty());
         assert(edges_.empty());
         if (l == r) {
@@ -694,29 +643,38 @@ public :
         }
         make_first_edge(l, ++l);
         while (++l != r) {
-            bool next_ = false;
+            bool next = false;
             while (!events_.empty()) {
                 pevent const ev = std::begin(events_);
                 auto & event_ = *ev;
-                if (!prior(event_.first, *l)) {
-                    if (!prior(*l, event_.first)) {
-                        finish_cells(ev, event_.first, event_.second, l);
-                        next_ = true;
+                {
+                    point const & site_ = *l;
+                    value_type const & x = event_.first.x();
+                    if (less_(site_.x, x)) {
+                        break;
+                    } else if (!less_(x, site_.x)) {
+                        value_type const & y = event_.first.y();
+                        if (less_(site_.y, y)) {
+                            break;
+                        } else if (!less_(y, site_.y)) {
+                            finish_cells(ev, event_.first, event_.second, l, r);
+                            next = true;
+                            break;
+                        }
                     }
-                    break;
                 }
-                finish_cells(ev, event_.first, event_.second);
+                finish_cells(ev, event_.first, event_.second, l, l);
             }
-            if (!next_) {
-                begin_cell(l);
+            if (!next) {
+                begin_cell(l, *l);
             }
         }
         while (!events_.empty()) {
             pevent const ev = std::begin(events_);
             auto & event_ = *ev;
-            finish_cells(ev, event_.first, event_.second);
+            finish_cells(ev, event_.first, event_.second, r, r);
         }
-        assert(std::is_sorted(std::begin(vertices_), nv, vertex_less{eps}));
+        assert(std::is_sorted(std::begin(vertices_), nv, less_)); // bigger then usual roundoff errors may lead to fire, though not mutters much
         assert(rev == std::begin(rays_));
         assert(check_last_endpoints());
         endpoints_.clear();

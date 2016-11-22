@@ -61,15 +61,40 @@ public :
         rng.seed(seed);
     }
 
-    using points = std::vector< point >;
-    using site = typename points::const_iterator;
+    struct less
+    {
 
-    using sweepline_type = sweepline< site, point, value_type >;
+        value_type const & eps;
+
+        bool operator () (value_type const & l,
+                          value_type const & r) const
+        {
+            return l + eps < r;
+        }
+
+        bool operator () (value_type const & lx, value_type const & ly,
+                          value_type const & rx, value_type const & ry) const
+        {
+            if (operator () (lx, rx)) {
+                return true;
+            } else if (operator () (rx, lx)) {
+                return false;
+            } else {
+                return operator () (ly, ry);
+            }
+        }
+
+        bool operator () (point const & l, point const & r) const
+        {
+            return operator () (l.x, l.y, r.x, r.y);
+        }
+
+    };
 
     void
     ball(std::ostream & _out, value_type const radius, size_type const N)
     {
-        std::set< point, typename sweepline_type::point_less > points_{typename sweepline_type::point_less{delta}};
+        std::set< point, less > points_{less{delta}};
         _out << N << '\n';
         value_type const twosqreps = eps * (eps + eps);
         constexpr size_type M = 1000; // number of attempts
@@ -104,7 +129,7 @@ public :
     void
     square(std::ostream & _out, value_type const bbox, size_type const N)
     {
-        std::set< point, typename sweepline_type::point_less > points_{typename sweepline_type::point_less{delta}};
+        std::set< point, less > points_{less{delta}};
         _out << N << '\n';
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed square
@@ -174,15 +199,15 @@ public :
     void
     hexagonal_grid(std::ostream & _out, size_type const size) const
     {
-        size_type const N = 2 * (size * (size + 1) - (size % 2));
+        size_type const N = (size + size) * (size + 1);
         _out << N << '\n';
         using std::sqrt;
         value_type const step = sqrt(value_type(3));
         size_type i = 0;
         for (size_type x = 1; x <= size; ++x) {
-            value_type const xx = x * step;
+            value_type const xx = value_type(x) * step;
             if ((x % 2) == 0) {
-                value_type const yy = 3 * (x - 1);
+                value_type const yy = value_type(3 * (x - 1));
                 _out << "0 " << yy << '\n';
                 _out << "0 -" << yy << '\n';
             } else {
@@ -199,13 +224,19 @@ public :
                 i += 4;
             }
         }
+        if ((size % 2) != 0) {
+            value_type const yy = value_type(3 * size);
+            _out << "0 " << yy << '\n';
+            _out << "0 -" << yy << '\n';
+            i += 2;
+        }
         assert(i == N);
     }
 
     void
     triangular_grid(std::ostream & _out, size_type const size) const
     {
-        size_type const N = 2 * (1 + size + size) * size;
+        size_type const N = (1 + size + size) * (size + size);
         _out << N << '\n';
         using std::sqrt;
         value_type const step = sqrt(value_type(3));
@@ -213,13 +244,13 @@ public :
         for (size_type x = 1; x <= size; ++x) {
             size_type const xx = 3 * x;
             {
-                value_type const yy = step * (xx - 1 - (x % 2));
+                value_type const yy = value_type(step) * (xx - 1 - (x % 2));
                 _out << "0 " << yy << '\n';
                 _out << "0 -" << yy << '\n';
             }
             i += 2;
             for (size_type y = 1; y <= size; ++y) {
-                value_type const yy = step * (3 * y - 1 - ((y + x) % 2));
+                value_type const yy = step * value_type(3 * y - 1 - ((y + x) % 2));
                 _out << xx << ' ' << yy << '\n';
                 _out << xx << " -" << yy << '\n';
                 _out << '-' << xx << ' ' << yy << '\n';
@@ -269,6 +300,11 @@ public :
         qprint(false, true,  false);
         qprint(false, false, false);
     }
+
+    using points = std::vector< point >;
+    using site = typename points::const_iterator;
+
+    using sweepline_type = sweepline< site, point, value_type >;
 
 private :
 
@@ -340,9 +376,12 @@ public :
 
     void operator () ()
     {
-        assert((std::set< point, typename sweepline_type::point_less >{std::cbegin(sites_), std::cend(sites_), typename sweepline_type::point_less{eps}}.size() == sites_.size()));
+        assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), {eps}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
 #if 0
+        std::sort(std::begin(sites_), std::end(sites_), point_less{});
+        sweepline_(std::cbegin(sites_), std::cend(sites_));
+#else
         using pproxy = std::vector< site >;
         pproxy pproxy_;
         pproxy_.reserve(sites_.size());
@@ -371,9 +410,6 @@ public :
 
         };
         sweepline_(point_proxy{std::cbegin(pproxy_)}, point_proxy{std::cend(pproxy_)});
-#else
-        std::sort(std::begin(sites_), std::end(sites_), point_less{});
-        sweepline_(std::cbegin(sites_), std::cend(sites_));
 #endif
     }
 
@@ -643,6 +679,14 @@ int main()
                "0 0\n"
                "0 1\n";
 #  elif 0
+        in_ << "2\n"
+               "0 0\n"
+               "1 1\n";
+#  elif 0
+        in_ << "2\n"
+               "0 0\n"
+               "1 -1\n";
+#  elif 0
         in_ << "5\n"
                "0 0\n"
                "0 1\n"
@@ -732,12 +776,12 @@ int main()
                                       {2805, 4760}, {2880, 4715}, {3124, 4557}, {3315, 4420}, {3468, 4301},
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #  endif
-# elif 1
+# else
         // Rectangle grid, diagonal grid or points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
-#  if 1
-            seed_type const seed = 1138192913;
+#  if 0
+            seed_type const seed = 2911579113;
 #  else
             std::random_device D;
             auto const seed = static_cast< seed_type >(D());
@@ -747,8 +791,8 @@ int main()
         }
         //voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
         //voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
-        //voronoi_.hexagonal_grid(in_, 20); //voronoi_.draw_circles = true;
-        //voronoi_.triangular_grid(in_, 20); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        //voronoi_.hexagonal_grid(in_, 20); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        //voronoi_.triangular_grid(in_, 21); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
         voronoi_.ball(in_, value_type(10000), 100000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
         //voronoi_.square(in_, value_type(10000), 100000);
 # endif
