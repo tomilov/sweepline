@@ -16,7 +16,7 @@
 #include <cassert>
 #include <cmath>
 
-template< typename point_type, typename value_type = decltype(std::declval< point_type >().x) >
+template< typename point, typename value_type = decltype(std::declval< point >().x) >
 struct voronoi
 {
 
@@ -61,17 +61,22 @@ public :
         rng.seed(seed);
     }
 
+    using points = std::vector< point >;
+    using site = typename points::const_iterator;
+
+    using sweepline_type = sweepline< site, point, value_type >;
+
     void
     ball(std::ostream & _out, value_type const radius, size_type const N)
     {
-        std::set< point_type, point_less > points_{point_less{delta}};
+        std::set< point, typename sweepline_type::point_less > points_{typename sweepline_type::point_less{delta}};
         _out << N << '\n';
         value_type const twosqreps = eps * (eps + eps);
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
             size_type m = 0;
             do {
-                point_type p{normal_(rng), normal_(rng)};
+                point p{normal_(rng), normal_(rng)};
                 value_type norm = p.x * p.x + p.y * p.y;
                 if (twosqreps < norm) {
                     using std::sqrt;
@@ -91,7 +96,7 @@ public :
                 break;
             }
         }
-        for (point_type const & point_ : points_) {
+        for (point const & point_ : points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
     }
@@ -99,13 +104,13 @@ public :
     void
     square(std::ostream & _out, value_type const bbox, size_type const N)
     {
-        std::set< point_type, point_less > points_{point_less{delta}};
+        std::set< point, typename sweepline_type::point_less > points_{typename sweepline_type::point_less{delta}};
         _out << N << '\n';
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed square
             size_type m = 0;
             do {
-                point_type p{zero_to_one_(rng), zero_to_one_(rng)};
+                point p{zero_to_one_(rng), zero_to_one_(rng)};
                 p.x += p.x;
                 p.y += p.y;
                 p.x -= one;
@@ -122,7 +127,7 @@ public :
                 break;
             }
         }
-        for (point_type const & point_ : points_) {
+        for (point const & point_ : points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
     }
@@ -265,14 +270,7 @@ public :
         qprint(false, false, false);
     }
 
-    using points = std::vector< point_type >;
-    using site = typename points::const_iterator;
-
-    using sweepline_type = sweepline< site, point_type, value_type >;
-
 private :
-
-    using point_less = typename sweepline_type::point_less;
 
     points sites_;
 
@@ -285,7 +283,7 @@ private :
         sites_.reserve(N);
         for (size_type n = 0; n < N; ++n) {
             sites_.emplace_back();
-            point_type & point_ = sites_.back();
+            point & point_ = sites_.back();
             if (!(_in >> point_.x)) {
                 assert(false);
             }
@@ -308,7 +306,7 @@ public :
     void
     swap_xy()
     {
-        for (point_type & point_ : sites_) {
+        for (point & point_ : sites_) {
             using std::swap;
             swap(point_.x, point_.y);
         }
@@ -317,7 +315,7 @@ public :
     void
     shift_xy(value_type const & dx, value_type const & dy)
     {
-        for (point_type & point_ : sites_) {
+        for (point & point_ : sites_) {
             point_.x += dx;
             point_.y += dy;
         }
@@ -325,9 +323,24 @@ public :
 
     sweepline_type sweepline_{eps};
 
+    struct point_less
+    {
+
+        bool operator () (point const & l, point const & r) const
+        {
+            return std::tie(l.x, l.y) < std::tie(r.x, r.y);
+        }
+
+        bool operator () (site const l, site const r) const
+        {
+            return operator () (*l, *r);
+        }
+
+    };
+
     void operator () ()
     {
-        assert((std::set< point_type, point_less >{std::cbegin(sites_), std::cend(sites_), point_less{eps}}.size() == sites_.size()));
+        assert((std::set< point, typename sweepline_type::point_less >{std::cbegin(sites_), std::cend(sites_), typename sweepline_type::point_less{eps}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
 #if 0
         using pproxy = std::vector< site >;
@@ -337,10 +350,10 @@ public :
         for (auto p = std::cbegin(sites_); p != send; ++p) {
             pproxy_.push_back(p);
         }
-        std::sort(std::begin(pproxy_), std::end(pproxy_), point_less{eps});
+        std::sort(std::begin(pproxy_), std::end(pproxy_), point_less{});
         using ppoint = typename pproxy::const_iterator;
         struct point_proxy
-                : std::iterator< std::forward_iterator_tag, point_type const >
+                : std::iterator< std::forward_iterator_tag, point const >
         {
 
             ppoint p;
@@ -351,7 +364,7 @@ public :
             point_proxy & operator ++ () { ++p; return *this; }
             point_proxy operator ++ (int) { auto pp = p; operator ++ (); return {pp}; }
 
-            point_type const & operator * () const { return **p; }
+            point const & operator * () const { return **p; }
 
             bool operator == (point_proxy const & rhs) const { return (p == rhs.p); }
             bool operator != (point_proxy const & rhs) const { return !operator == (rhs); }
@@ -359,7 +372,7 @@ public :
         };
         sweepline_(point_proxy{std::cbegin(pproxy_)}, point_proxy{std::cend(pproxy_)});
 #else
-        std::sort(std::begin(sites_), std::end(sites_), point_less{eps});
+        std::sort(std::begin(sites_), std::end(sites_), point_less{});
         sweepline_(std::cbegin(sites_), std::cend(sites_));
 #endif
     }
@@ -376,9 +389,9 @@ public :
             return;
         }
         // pmin, pmax denotes bounding box
-        point_type vmin = sites_.front();
-        point_type vmax = vmin;
-        auto const pminmax = [&] (point_type const & p)
+        point vmin = sites_.front();
+        point vmax = vmin;
+        auto const pminmax = [&] (point const & p)
         {
             if (p.x < vmin.x) {
                 vmin.x = p.x;
@@ -411,8 +424,8 @@ public :
             vmin.y -= delta;
             vmax.y += delta;
         }
-        point_type pmin = vmin;
-        point_type pmax = vmax;
+        point pmin = vmin;
+        point pmax = vmax;
         std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
         {
             _gnuplot << "set size square;\n"
@@ -439,14 +452,14 @@ public :
             _gnuplot << p.x << ' ' << p.y << '\n';
         };
         {
-            for (point_type const & point_ : sites_) {
+            for (point const & point_ : sites_) {
                 pout(point_);
             }
             _gnuplot << "e\n";
         }
         if (draw_indices) {
             size_type i = 0;
-            for (point_type const & point_ : sites_) {
+            for (point const & point_ : sites_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
             }
             _gnuplot << "e\n";
@@ -458,12 +471,12 @@ public :
             }
             _gnuplot << "e\n";
         }
-        auto const trunc_edge = [&] (point_type const & l, point_type const & r, point_type const & p) -> point_type
+        auto const trunc_edge = [&] (point const & l, point const & r, point const & p) -> point
         {
             value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
             value_type const dy = l.x - r.x;
-            auto const px = [&] (value_type const & y) -> point_type { return {(p.x + (y - p.y) * dx / dy), y}; };
-            auto const py = [&] (value_type const & x) -> point_type
+            auto const px = [&] (value_type const & y) -> point { return {(p.x + (y - p.y) * dx / dy), y}; };
+            auto const py = [&] (value_type const & x) -> point
             {
                 value_type const y = p.y + (x - p.x) * dy / dx;
                 if (+eps < dy) {
@@ -497,10 +510,10 @@ public :
             for (auto const & edge_ : _edges) {
                 bool const beg = (edge_.b != nv);
                 bool const end = (edge_.e != nv);
-                point_type const & l = *edge_.l;
-                point_type const & r = *edge_.r;
+                point const & l = *edge_.l;
+                point const & r = *edge_.r;
                 if (beg != end) {
-                    point_type const & p = (beg ? edge_.b : edge_.e)->c;
+                    point const & p = (beg ? edge_.b : edge_.e)->c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge((beg ? l : r), (end ? l : r), p));
@@ -511,7 +524,7 @@ public :
                     pout(edge_.e->c);
                     _gnuplot << "\n";
                 } else {
-                    point_type const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
+                    point const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
                     pout(trunc_edge(l, r, p));
                     pout(trunc_edge(r, l, p));
                 }
