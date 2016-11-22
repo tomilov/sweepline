@@ -250,12 +250,6 @@ private :
     events events_{less_};
     pevent const nev = std::end(events_);
 
-    pedge
-    add_edge(site const l, site const r, pvertex const v)
-    {
-        return edges_.insert(std::cend(edges_), {l, r, v, nv});
-    }
-
     std::experimental::optional< vertex >
     make_vertex(point const & a,
                 point const & b,
@@ -282,39 +276,6 @@ private :
         assert(less_.eps * less_.eps < beta + x * x + y * y);
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
         return {{{x, y}, sqrt(beta + x * x + y * y)}};
-    }
-
-    void trunc_edge(edge & e, pvertex const v) const
-    {
-        assert(v != nv);
-        if (e.b == nv) {
-            if (e.e == nv) { // orientate:
-                point const & l = *e.l;
-                point const & r = *e.r;
-                point const & c = v->c;
-                if (r.x < l.x) {
-                    if (c.y < l.y) {
-                        e.b = v;
-                        return;
-                    }
-                } else if (l.x < r.x) {
-                    if (r.y < c.y) {
-                        e.b = v;
-                        return;
-                    }
-                } else {
-                    assert(!(r.y < l.y));
-                }
-                e.e = v;
-            } else {
-                assert(e.e != v);
-                e.b = v;
-            }
-        } else {
-            assert(e.b != v);
-            assert(e.e == nv);
-            e.e = v;
-        }
     }
 
     void add_ray(pray const rr, pendpoint const l)
@@ -421,6 +382,45 @@ private :
                     set_event(rr.second, r);
                 }
             }
+        }
+    }
+
+    pedge
+    add_edge(site const l, site const r, pvertex const v)
+    {
+        return edges_.insert(std::cend(edges_), {l, r, v, nv});
+    }
+
+    void trunc_edge(edge & e, pvertex const v) const
+    {
+        assert(v != nv);
+        if (e.b == nv) {
+            if (e.e == nv) { // orientate:
+                point const & l = *e.l;
+                point const & r = *e.r;
+                point const & c = v->c;
+                if (r.x < l.x) {
+                    if (c.y < l.y) {
+                        e.b = v;
+                        return;
+                    }
+                } else if (l.x < r.x) {
+                    if (r.y < c.y) {
+                        e.b = v;
+                        return;
+                    }
+                } else {
+                    assert(!(r.y < l.y));
+                }
+                e.e = v;
+            } else {
+                assert(e.e != v);
+                e.b = v;
+            }
+        } else {
+            assert(e.b != v);
+            assert(e.e == nv);
+            e.e = v;
         }
     }
 
@@ -566,23 +566,22 @@ private :
 
     void finish_cells(pevent const ev,
                       vertex const & _vertex, bundle const & b,
-                      site const s, site const ns)
+                      site const l, site const r)
     {
         auto lr = endpoint_range(b.first, b.second);
         // All the edges from [*lr.first; *r.second]->first.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.first, lr.second));
         pvertex const v = vertices_.insert(nv, _vertex);
         remove_event(ev, b);
-        site const l = lr.first->first.l;
-        site const r = lr.second->first.r;
+        site const ll = lr.first->first.l;
+        site const rr = lr.second->first.r;
         ++lr.second;
         do {
             trunc_edge(*lr.first->first.e, v);
             endpoints_.erase(lr.first++);
         } while (lr.first != lr.second);
-        if (s == ns) {
-            pedge const e = add_edge(l, r, v);
-            lr.first = insert_endpoint(lr.second, l, r, e);
+        if (l == r) {
+            lr.first = insert_endpoint(lr.second, ll, rr, add_edge(ll, rr, v));
             if (lr.first != std::begin(endpoints_)) {
                 check_event(std::prev(lr.first), lr.first);
             }
@@ -590,10 +589,8 @@ private :
                 check_event(lr.first, lr.second);
             }
         } else {
-            pedge const le = add_edge(l, s, v);
-            pedge const re = add_edge(s, r, v);
-            pendpoint const ep = insert_endpoint(lr.second, s, r, re);
-            lr.first = insert_endpoint(ep, l, s, le);
+            pendpoint const ep = insert_endpoint(lr.second, l, rr, add_edge(l, rr, v));
+            lr.first = insert_endpoint(ep, ll, l, add_edge(ll, l, v));
             assert(std::next(lr.first) == ep);
             if (lr.first != std::begin(endpoints_)) {
                 check_event(std::prev(lr.first), lr.first);
