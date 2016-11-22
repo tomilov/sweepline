@@ -159,8 +159,7 @@ private :
         using is_transparent = void;
 
         value_type
-        intersect(point const & l,
-                  point const & r,
+        intersect(point const & l, point const & r,
                   value_type const & directrix) const
         {
             if (operator () (r.x, l.x)) {
@@ -444,30 +443,6 @@ private :
         }
     }
 
-    void finish_endpoints(pendpoint l,
-                          pendpoint const r,
-                          site const s)
-    {
-        endpoint const & endpoint_ = l->first;
-        auto vertex_ = make_vertex(*s, *endpoint_.l, *endpoint_.r);
-        assert(!!vertex_);
-        assert(events_.find(*vertex_) == nev);
-        pvertex const v = vertices_.insert(nv, std::move(*vertex_));
-        trunc_edge(*endpoint_.e, v);
-        pedge const ll = add_edge(endpoint_.l, s, v);
-        pedge const rr = add_edge(s, endpoint_.r, v);
-        pendpoint const ep = insert_endpoint(r, s, endpoint_.r, rr);
-        assert(std::next(ep) == r);
-        endpoints_.erase(std::exchange(l, insert_endpoint(ep, endpoint_.l, s, ll)));
-        assert(std::next(l) == ep);
-        if (l != std::begin(endpoints_)) {
-            check_event(std::prev(l), l);
-        }
-        if (r != nep) {
-            check_event(ep, r);
-        }
-    }
-
     void begin_cell(site const s, point const & _site)
     {
         pendpoint l = endpoints_.lower_bound(_site);
@@ -476,7 +451,7 @@ private :
             if (less_(_site, r->first)) {
                 break;
             }
-            assert(l->second.ev == r->second.ev); // if fires, then problems with precision detected
+            assert(l->second.ev == r->second.ev); // if fires, then there is problem with precision
             ++r;
         }
         if (l == r) {
@@ -509,13 +484,29 @@ private :
             }
             check_event(l, r);
         } else {
-            assert(std::next(l) == r); // if fires, then problems with precision detected
-            pevent const ev = l->second;
-            if (ev != nev) {
-                assert(less_(_site.x, ev->first.x()));
-                disable_event(ev);
+            assert(std::next(l) == r); // if fires, then there is problem with p
+            auto const & endpoint_ = *l;
+            if (endpoint_.second != nev) {
+                assert(less_(_site.x, endpoint_.second.ev->first.x()));
+                disable_event(endpoint_.second);
             }
-            finish_endpoints(l, r, s);
+            auto vertex_ = make_vertex(_site, *endpoint_.first.l, *endpoint_.first.r);
+            assert(!!vertex_);
+            assert(events_.find(*vertex_) == nev);
+            pvertex const v = vertices_.insert(nv, std::move(*vertex_));
+            trunc_edge(*endpoint_.first.e, v);
+            pedge const le = add_edge(endpoint_.first.l, s, v);
+            pedge const re = add_edge(s, endpoint_.first.r, v);
+            pendpoint const ep = insert_endpoint(r, s, endpoint_.first.r, re);
+            assert(std::next(ep) == r);
+            endpoints_.erase(std::exchange(l, insert_endpoint(ep, endpoint_.first.l, s, le)));
+            assert(std::next(l) == ep);
+            if (l != std::begin(endpoints_)) {
+                check_event(std::prev(l), l);
+            }
+            if (r != nep) {
+                check_event(ep, r);
+            }
         }
     }
 
@@ -643,12 +634,12 @@ public :
         }
         make_first_edge(l, ++l);
         while (++l != r) {
+            point const & site_ = *l;
             bool next = false;
             while (!events_.empty()) {
                 pevent const ev = std::begin(events_);
-                auto & event_ = *ev;
+                auto const & event_ = *ev;
                 {
-                    point const & site_ = *l;
                     value_type const & x = event_.first.x();
                     if (less_(site_.x, x)) {
                         break;
@@ -666,12 +657,12 @@ public :
                 finish_cells(ev, event_.first, event_.second, l, l);
             }
             if (!next) {
-                begin_cell(l, *l);
+                begin_cell(l, site_);
             }
         }
         while (!events_.empty()) {
             pevent const ev = std::begin(events_);
-            auto & event_ = *ev;
+            auto const & event_ = *ev;
             finish_cells(ev, event_.first, event_.second, r, r);
         }
         assert(std::is_sorted(std::begin(vertices_), nv, less_)); // bigger then usual roundoff errors may lead to fire, though not mutters much
