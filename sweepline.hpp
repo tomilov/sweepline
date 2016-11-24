@@ -46,6 +46,9 @@ template< typename site,
 struct sweepline
 {
 
+    static_assert(std::is_base_of< std::forward_iterator_tag, typename std::iterator_traits< site >::iterator_category >::value,
+               "multipass guarantee required");
+
     static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
                   "point format error");
 
