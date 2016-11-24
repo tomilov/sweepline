@@ -197,16 +197,6 @@ private :
             return intersect(*ep.l, *ep.r, directrix);
         }
 
-        bool operator () (vertex const & l, endpoint const & r) const
-        {
-            return operator () (l.y(), intersect(r, l.x()));
-        }
-
-        bool operator () (endpoint const & l, vertex const & r) const
-        {
-            return operator () (intersect(l, r.x()), r.y());
-        }
-
         bool operator () (point const & l, endpoint const & r) const
         {
             return operator () (l.y, intersect(r, l.x));
