@@ -47,10 +47,13 @@ struct sweepline
 {
 
     static_assert(std::is_base_of< std::forward_iterator_tag, typename std::iterator_traits< site >::iterator_category >::value,
-               "multipass guarantee required");
+                  "multipass guarantee required");
 
     static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
                   "point format error");
+
+    sweepline(sweepline const &) = delete;
+    sweepline & operator = (sweepline const &) = delete;
 
     sweepline(value_type const && _eps) = delete;
 
@@ -87,7 +90,7 @@ struct sweepline
     using pedge = typename edges::iterator;
 
     // Voronoi diagram:
-    // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator of std::list is not preserved during this operations
+    // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator of std::list is not preserved during these operations
     // {
     vertices vertices_;
     pvertex const nv = std::end(vertices_); // inf
@@ -477,7 +480,7 @@ private :
             }
             check_event(l, r);
         } else {
-            assert(std::next(l) == r); // if fires, then there is problem with p
+            assert(std::next(l) == r); // if fires, then there is problem with precision
             auto const & endpoint_ = *l;
             if (endpoint_.second != nev) {
                 assert(less_(_site.x, endpoint_.second.ev->first.x()));
