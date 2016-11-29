@@ -43,8 +43,9 @@ endif()
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
 
 include_directories(".")
+include_directories("/home/user/rb_tree")
 
-add_executable("sweepline" "main.cpp" "sweepline.hpp")
+add_executable("sweepline" "main.cpp" "sweepline.hpp" "/home/user/rb_tree/rb_tree.hpp")
 
 set_target_properties("sweepline" PROPERTIES
     CXX_STANDARD 14
