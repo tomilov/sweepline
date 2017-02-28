@@ -464,6 +464,7 @@ public :
         point pmax = vmax;
         std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
         {
+            // export GNUTERM=wxt
             _gnuplot << "set size square;\n"
                         "set key left;\n"
                         "unset colorbox;\n";
@@ -471,41 +472,32 @@ public :
             _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
             _gnuplot << "set size ratio -1;\n";
         }
-        _gnuplot << "plot";
-        _gnuplot << " '-' with points title 'sites # " << sites_.size() << "'";
-        if (draw_indices) {
-            _gnuplot << ", '' with labels offset character 0, character 1 notitle";
-        }
-        if (draw_circles && !_vertices.empty()) {
-            _gnuplot << ", '' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
-        }
-        if (!_edges.empty()) {
-            _gnuplot << ", '' with lines title 'edges # " << _edges.size() <<  "'";
-        }
-        _gnuplot << ";\n";
         auto const pout = [&] (auto const & p)
         {
             _gnuplot << p.x << ' ' << p.y << '\n';
         };
         {
+            _gnuplot << "$sites << EOI\n";
             for (point const & point_ : sites_) {
                 pout(point_);
             }
-            _gnuplot << "e\n";
+            _gnuplot << "EOI\n";
         }
         if (draw_indices) {
+            _gnuplot << "$indices << EOI\n";
             size_type i = 0;
             for (point const & point_ : sites_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
             }
-            _gnuplot << "e\n";
+            _gnuplot << "EOI\n";
         }
         if (draw_circles && !_vertices.empty()) {
+            _gnuplot << "$circles << EOI\n";
             size_type i = 0;
             for (auto const & vertex_ : _vertices) {
                 _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
             }
-            _gnuplot << "e\n";
+            _gnuplot << "EOI\n";
         }
         auto const trunc_edge = [&] (point const & l, point const & r, point const & p) -> point
         {
@@ -542,6 +534,7 @@ public :
             }
         };
         if (!_edges.empty()) {
+            _gnuplot << "$edges << EOI\n";
             auto const nv = std::end(_vertices);
             for (auto const & edge_ : _edges) {
                 bool const beg = (edge_.b != nv);
@@ -553,21 +546,31 @@ public :
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge((beg ? l : r), (end ? l : r), p));
-                        _gnuplot << "\n";
                     }
                 } else if (beg && end) {
                     pout(edge_.b->c);
                     pout(edge_.e->c);
-                    _gnuplot << "\n";
                 } else {
                     point const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
                     pout(trunc_edge(l, r, p));
                     pout(trunc_edge(r, l, p));
                 }
-                _gnuplot << "\n"; // separate lines (sic! it is incredible, but output for chained lines works fine!!!)
+                _gnuplot << "\n"; // separate lines
             }
-            _gnuplot << "e\n";
+            _gnuplot << "EOI\n";
         }
+        _gnuplot << "plot";
+        _gnuplot << " '$sites' with points title 'sites # " << sites_.size() << "'";
+        if (draw_indices) {
+            _gnuplot << ", '$indices' with labels offset character 0, character 1 notitle";
+        }
+        if (draw_circles && !_vertices.empty()) {
+            _gnuplot << ", '$circles' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
+        }
+        if (!_edges.empty()) {
+            _gnuplot << ", '$edges' with lines title 'edges # " << _edges.size() <<  "'";
+        }
+        _gnuplot << ";\n";
     }
 
 private :
@@ -597,6 +600,7 @@ public :
 #include <iomanip>
 #include <ostream>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <random>
@@ -832,7 +836,8 @@ int main()
         sweepline_type const & sweepline_ = voronoi_.sweepline_;
         log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
         log_ << "edges # " << sweepline_.edges_.size() << '\n';
-        std::ostream & gnuplot_ = std::cout;
+        std::ofstream f("sweepline.plt");
+        std::ostream & gnuplot_ = f;//std::cout;
 #if 0
         { // clone (O(|vertices| * |edges|))
             using vertices = std::vector< typename sweepline_type::vertex >;
@@ -860,6 +865,7 @@ int main()
 #else
         gnuplot_ << voronoi_ << std::endl;
 #endif
+        std::system("gnuplot -p sweepline.plt");
     }
     return EXIT_SUCCESS;
 }

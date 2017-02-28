@@ -427,7 +427,7 @@ private :
                     site const l, site const r,
                     pedge const e)
     {
-        return endpoints_.insert(ep, {{l, r, e}, nev});
+        return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
 
     void make_first_edge(site const l, site const r)
