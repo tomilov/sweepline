@@ -390,6 +390,7 @@ public :
             pproxy_.push_back(p);
         }
         std::sort(std::begin(pproxy_), std::end(pproxy_), point_less{});
+        pproxy_.push_back(send);
         using ppoint = typename pproxy::const_iterator;
         struct point_proxy
                 : std::iterator< std::forward_iterator_tag, point const >
@@ -409,7 +410,7 @@ public :
             bool operator != (point_proxy const & rhs) const { return !operator == (rhs); }
 
         };
-        sweepline_(point_proxy{std::cbegin(pproxy_)}, point_proxy{std::cend(pproxy_)});
+        sweepline_(point_proxy{std::cbegin(pproxy_)}, point_proxy{std::prev(std::cend(pproxy_))});
 #endif
     }
 
