@@ -21,6 +21,8 @@
  */
 #pragma once
 
+#include "rb_tree.hpp"
+
 #include <type_traits>
 #include <utility>
 #include <tuple>
@@ -213,7 +215,7 @@ private :
     } const less_;
 
     struct event;
-    using endpoints = std::map< endpoint, event, less >;
+    using endpoints = rb_tree::map< endpoint, event, less >;
     using pendpoint = typename endpoints::iterator;
 
     using rays = std::list< pendpoint >;
@@ -425,7 +427,7 @@ private :
                     site const l, site const r,
                     pedge const e)
     {
-        return endpoints_.insert(ep, {{l, r, e}, nev});
+        return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
 
     void make_first_edge(site const l, site const r)
