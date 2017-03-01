@@ -10,6 +10,53 @@
 namespace rb_tree
 {
 
+template< typename K, typename V >
+struct pair
+{
+
+    K k;
+    V v;
+
+};
+
+template< typename compare >
+class adapt_compare
+{
+
+    compare c;
+
+    template< typename K, typename V >
+    static
+    K const & key(pair< K const, V > const & v)
+    {
+        return v.k;
+    }
+
+    template< typename K >
+    static
+    K const & key(K const & k)
+    {
+        return k;
+    }
+
+public :
+
+    adapt_compare(compare const & comp)
+        : c(comp)
+    { ; }
+
+    adapt_compare(compare && comp)
+        : c(std::move(comp))
+    { ; }
+
+    template< typename L, typename R >
+    bool operator () (L const & l, R const & r) const
+    {
+        return c(key(l), key(r));
+    }
+
+};
+
 enum class color : bool { red = false, black = true };
 
 struct node_base;
@@ -64,11 +111,7 @@ decrement(base_pointer x) noexcept
     if ((x->c == color::red) && (x->p->p == x)) {
         x = x->r;
     } else if (x->l) {
-        base_pointer y = x->l;
-        while (y->r) {
-            y = y->r;
-        }
-        x = y;
+        x = maximum(x->l);
     } else {
         base_pointer y = x->p;
         while (x == y->l) {
@@ -79,19 +122,6 @@ decrement(base_pointer x) noexcept
     }
     return x;
 }
-
-template< typename type >
-struct node : node_base
-{
-
-    using value_type = type;
-
-    std::aligned_storage_t< sizeof(type), alignof(type) > storage;
-
-    type * pointer() noexcept { return reinterpret_cast< type * >(static_cast< void * >(&storage)); }
-    type const * pointer() const noexcept { return reinterpret_cast< type const * >(static_cast< void const * >(&storage)); }
-
-};
 
 inline
 void rotate_left(base_pointer const x, base_pointer & root) noexcept
@@ -135,8 +165,7 @@ void rotate_right(base_pointer const x, base_pointer & root) noexcept
 
 inline
 void insert_and_rebalance(bool const insert_left,
-                          base_pointer x,
-                          base_pointer const p,
+                          base_pointer x, base_pointer const p,
                           node_base & h) noexcept
 {
     base_pointer & root = h.p;
@@ -199,8 +228,7 @@ void insert_and_rebalance(bool const insert_left,
 
 inline
 base_pointer
-rebalance_for_erase(base_pointer const z,
-                    node_base & h) noexcept
+rebalance_for_erase(base_pointer const z, node_base & h) noexcept
 {
     base_pointer & root = h.p;
     base_pointer & leftmost = h.l;
@@ -210,10 +238,7 @@ rebalance_for_erase(base_pointer const z,
     base_pointer xp = nullptr;
     if (y->l) {
         if (y->r) {
-            y = y->r;
-            while (y->l) {
-                y = y->l;
-            }
+            y = minimum(y->r);
             x = y->r;
         } else {
             x = y->l;
@@ -340,6 +365,31 @@ rebalance_for_erase(base_pointer const z,
 }
 
 template< typename type >
+struct node
+        : node_base
+{
+
+    using value_type = type;
+
+    union storage_type
+    {
+
+        storage_type() noexcept { ; }
+        ~storage_type() noexcept { ; }
+
+        type value;
+
+    } storage;
+
+    type * pointer() noexcept { return &storage.value; }
+    type const * pointer() const noexcept { return &storage.value; }
+
+};
+
+template< typename type >
+using node_type_t = std::conditional_t< std::is_const_v< type >, node< std::remove_const_t< type > > const, node< type > >;
+
+template< typename type >
 struct tree_iterator
 {
 
@@ -350,7 +400,7 @@ struct tree_iterator
     using iterator_category = std::bidirectional_iterator_tag;
     using difference_type = std::ptrdiff_t;
 
-    using node_type = node< value_type >;
+    using node_type = node_type_t< value_type >;
     using node_pointer = node_type *;
 
     base_pointer p = nullptr;
@@ -402,50 +452,29 @@ private :
         return ::new (allocator_traits::allocate(a, 1)) node_type;
     }
 
-    void put_node(node_pointer const p) noexcept
+    void put_node(node_pointer const n) noexcept
     {
-        // p->~node_type(); // on pool_free()
-        p->r = std::exchange(pool, p);
+        n->r = std::exchange(pool, n);
     }
 
-    void pool_free() noexcept
+    template< typename... types >
+    node_pointer
+    create_node(types &&... values)
     {
-        while (pool) {
-            base_pointer const p = pool->r;
-            pool->~node_type();
-            allocator_traits::deallocate(a, std::exchange(pool, node_pointer(p)), 1);
-        }
-    }
-
-    template< typename ...Args >
-    void construct_node(node_pointer const n, Args && ...args)
-    {
+        node_pointer const n = get_node();
         try {
-            allocator_traits::construct(a, n->pointer(), std::forward< Args >(args)...);
+            allocator_traits::construct(a, n->pointer(), std::forward< types >(values)...);
+            return n;
         } catch (...) {
             put_node(n);
             throw;
         }
     }
 
-    template< typename... Args >
-    node_pointer
-    create_node(Args &&... args)
+    void drop_node(node_pointer const n) noexcept
     {
-        node_pointer const t = get_node();
-        construct_node(t, std::forward< Args >(args)...);
-        return t;
-    }
-
-    void destroy_node(node_pointer const p) noexcept
-    {
-        allocator_traits::destroy(a, p->pointer());
-    }
-
-    void drop_node(node_pointer const p) noexcept
-    {
-        destroy_node(p);
-        put_node(p);
+        allocator_traits::destroy(a, n->pointer());
+        put_node(n);
     }
 
     node_base h;
@@ -466,27 +495,43 @@ public :
 
     tree() = default;
 
-    tree(compare_type const & _c,
-         allocator_type const & _a)
-        : c(_c)
-        , a(node_allocator_type(_a))
+    tree(compare_type const & comp, allocator_type const & alloc)
+        : c(comp)
+        , a(alloc)
     { ; }
 
-    tree(compare_type const & _c,
-         allocator_type && _a = allocator_type())
-        : c(_c)
-        , a(node_allocator_type(std::move(_a)))
+    tree(compare_type const & comp, allocator_type && alloc = allocator_type{})
+        : c(comp)
+        , a(std::move(alloc))
     { ; }
 
     size_type size() const { return s; }
 
-    bool empty() const { return (0 == size()); }
+    bool empty() const { return (0 == s); }
 
     void reserve(size_type n)
     {
-        while (size() < n) {
+        node_pointer p = pool;
+        while (s < n) {
+            if (p) {
+                p = p->r;
+            } else {
+                break;
+            }
+            --n;
+        }
+        while (s < n) {
             put_node(get_node());
             --n;
+        }
+    }
+
+    void shrink_to_fit() noexcept
+    {
+        while (pool) {
+            base_pointer const p = pool->r;
+            pool->~node_type();
+            allocator_traits::deallocate(a, std::exchange(pool, node_pointer(p)), 1);
         }
     }
 
@@ -498,7 +543,7 @@ public :
         h.l = &h;
         h.r = &h;
         s = 0;
-        pool_free();
+        shrink_to_fit();
     }
 
     ~tree() noexcept
@@ -507,28 +552,32 @@ public :
     }
 
     using iterator = tree_iterator< value_type >;
+    using const_iterator = tree_iterator< value_type const >;
 
-    iterator begin() const { return {h.l}; }
-    iterator end() const { return {base_pointer(&h)}; }
+    iterator begin() { return {h.l}; }
+    iterator end() { return {base_pointer(&h)}; }
+
+    const_iterator begin() const { return {h.l}; }
+    const_iterator end() const { return {base_pointer(&h)}; }
 
     iterator
-    erase(iterator const p)
+    erase(iterator const x)
     {
-        iterator const r = std::next(p);
-        drop_node(node_pointer(rebalance_for_erase(p.p, h)));
+        iterator const r = std::next(x);
+        drop_node(node_pointer(rebalance_for_erase(x.p, h)));
         --s;
         return r;
     }
 
 private :
 
-    static value_type const & value(base_pointer const p) { return *node_pointer(p)->pointer(); }
+    static value_type const & value(base_pointer const n) { return *node_pointer(n)->pointer(); }
 
-    std::pair< base_pointer, base_pointer >
-    get_insert_unique_pos(value_type const & v)
+    pair< base_pointer, base_pointer >
+    get_insert_unique_pos(value_type const & v) const
     {
         base_pointer x = h.p;
-        base_pointer y = &h;
+        base_pointer y = base_pointer(&h);
         bool comp = true;
         while (x) {
             y = x;
@@ -550,44 +599,44 @@ private :
     }
 
     template< typename K >
-    std::pair< base_pointer, base_pointer >
-    get_insert_hint_unique_pos(base_pointer const hint, K const & v)
+    pair< base_pointer, base_pointer >
+    get_insert_hint_unique_pos(base_pointer const hint, K const & k) const
     {
         if (hint == &h) {
-            if (!empty() && c(value(h.r), v)) {
+            if (!empty() && c(value(h.r), k)) {
                 return {nullptr, h.r};
             } else {
-                return get_insert_unique_pos(v);
+                return get_insert_unique_pos(k);
             }
-        } else if (c(v, value(hint))) {
+        } else if (c(k, value(hint))) {
             if (hint == h.l) {
                 return {hint, hint};
             } else {
                 base_pointer const before = decrement(hint);
-                if (c(value(before), v)) {
+                if (c(value(before), k)) {
                     if (before->r) {
                         return {hint, hint};
                     } else {
                         return {nullptr, before};
                     }
                 } else {
-                    return get_insert_unique_pos(v);
+                    return get_insert_unique_pos(k);
                 }
             }
-        } else if (c(value(hint), v)) {
+        } else if (c(value(hint), k)) {
             base_pointer after = hint;
             if (hint == h.r) {
                 return {nullptr, hint};
             } else {
                 after = increment(after);
-                if (c(v, value(after))) {
+                if (c(k, value(after))) {
                     if (hint->r) {
                         return {after, after};
                     } else {
                         return {nullptr, hint};
                     }
                 } else {
-                    return get_insert_unique_pos(v);
+                    return get_insert_unique_pos(k);
                 }
             }
         } else {
@@ -597,11 +646,11 @@ private :
 
     template< typename K >
     base_pointer
-    insert_unique(base_pointer const l, base_pointer const r, K && v)
+    insert_unique(base_pointer const l, base_pointer const r, K && k)
     {
         if (r) {
-            bool const insert_left = (l || (r == &h) || /*c(v, value(r))*/ !c(value(r), v));
-            node_pointer const z = create_node(std::forward< K >(v));
+            bool const insert_left = (l || (r == &h) || /*c(k, value(r))*/ !c(value(r), k));
+            node_pointer const z = create_node(std::forward< K >(k));
             insert_and_rebalance(insert_left, z, r, h);
             ++s;
             return z;
@@ -609,12 +658,12 @@ private :
         return l;
     }
 
-    std::pair< base_pointer, base_pointer >
-    get_insert_hint_unique_pos(base_pointer const hint)
+    pair< base_pointer, base_pointer >
+    get_insert_hint_unique_pos(base_pointer const hint) const
     {
         if (hint == &h) {
             if (empty()) {
-                return {nullptr, &h};
+                return {nullptr, base_pointer(&h)};
             } else {
                 return {nullptr, h.r};
             }
@@ -632,75 +681,71 @@ private :
         }
     }
 
+    template< typename K >
     base_pointer
-    insert_unique(base_pointer const l, base_pointer const r, node_pointer const z)
+    force_insert_unique(base_pointer const l, base_pointer const r, K && k)
     {
         bool const insert_left = (l || (r == &h));
-        insert_and_rebalance(insert_left, z, r, h);
+        node_pointer const n = create_node(std::forward< K >(k));
+        insert_and_rebalance(insert_left, n, r, h);
         ++s;
-        return z;
+        return n;
     }
 
 public :
 
-    template< typename K >
+    template< typename K = value_type >
     iterator
-    insert(K && v)
+    insert(K && k)
     {
-        std::pair< base_pointer, base_pointer > const lr = get_insert_unique_pos(v);
-        return {insert_unique(lr.first, lr.second, std::forward< K >(v))};
+        pair< base_pointer, base_pointer > const lr = get_insert_unique_pos(k);
+        return {insert_unique(lr.k, lr.v, std::forward< K >(k))};
     }
 
     template< typename K = value_type >
     iterator
-    insert(iterator const hint, K && v)
+    insert(iterator const hint, K && k)
     {
-        std::pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p, v);
-        return {insert_unique(lr.first, lr.second, std::forward< K >(v))};
+        pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p, k);
+        return {insert_unique(lr.k, lr.v, std::forward< K >(k))};
     }
 
     template< typename K = value_type >
     iterator
-    force_insert(iterator const hint, K && v)
+    force_insert(iterator const hint, K && k)
     {
-        std::pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p);
-        return {insert_unique(lr.first, lr.second, create_node(std::forward< K >(v)))};
+        pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p);
+        return {force_insert_unique(lr.k, lr.v, std::forward< K >(k))};
     }
 
     template< typename K >
     iterator
-    lower_bound(K && k)
+    lower_bound(K && k) const
     {
-        base_pointer x = h.p;
-        base_pointer y = &h;
-        while (x) {
-            if (c(value(x), k)) {
-                x = x->r;
+        base_pointer l = h.p;
+        base_pointer r = base_pointer(&h);
+        while (l) {
+            if (c(value(l), k)) {
+                l = l->r;
             } else {
-                y = x;
-                x = x->l;
+                r = l;
+                l = l->l;
             }
         }
-        return {y};
+        return {r};
     }
 
 };
 
-template< typename first_type, typename second_type >
-struct pair
-{
+template< typename key_type,
+          typename compare = std::less< key_type >,
+          typename allocator_type = std::allocator< key_type > >
+using set = tree< key_type, compare, allocator_type >;
 
-    first_type first;
-    second_type second;
-
-    operator first_type const & () const
-    {
-        return first;
-    }
-
-};
-
-template< typename key_type, typename value_type, typename key_compare_type = std::less< key_type > >
-using map = tree< pair< key_type, value_type >, key_compare_type >;
+template< typename key_type,
+          typename mapped_type,
+          typename compare = std::less< key_type >,
+          typename allocator_type = std::allocator< pair< key_type const, mapped_type > > >
+using map = tree< typename allocator_type::value_type, adapt_compare< compare >, allocator_type >;
 
 }
