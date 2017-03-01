@@ -402,7 +402,7 @@ public :
             operator site const & () const { return *p; }
 
             point_proxy & operator ++ () { ++p; return *this; }
-            point_proxy operator ++ (int) { auto pp = p; operator ++ (); return {pp}; }
+            point_proxy operator ++ (int) { return {p++}; }
 
             point const & operator * () const { return **p; }
 
@@ -473,19 +473,8 @@ public :
             _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
             _gnuplot << "set size ratio -1;\n";
         }
-        auto const pout = [&] (auto const & p)
-        {
-            _gnuplot << p.x << ' ' << p.y << '\n';
-        };
         {
             _gnuplot << "$sites << EOI\n";
-            for (point const & point_ : sites_) {
-                pout(point_);
-            }
-            _gnuplot << "EOI\n";
-        }
-        if (draw_indices) {
-            _gnuplot << "$indices << EOI\n";
             size_type i = 0;
             for (point const & point_ : sites_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
@@ -535,6 +524,10 @@ public :
             }
         };
         if (!_edges.empty()) {
+            auto const pout = [&] (auto const & p)
+            {
+                _gnuplot << p.x << ' ' << p.y << '\n';
+            };
             _gnuplot << "$edges << EOI\n";
             auto const nv = std::end(_vertices);
             for (auto const & edge_ : _edges) {
@@ -563,7 +556,7 @@ public :
         _gnuplot << "plot";
         _gnuplot << " '$sites' with points title 'sites # " << sites_.size() << "'";
         if (draw_indices) {
-            _gnuplot << ", '$indices' with labels offset character 0, character 1 notitle";
+            _gnuplot << ", '$sites' with labels offset character 0, character 1 notitle";
         }
         if (draw_circles && !_vertices.empty()) {
             _gnuplot << ", '$circles' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";

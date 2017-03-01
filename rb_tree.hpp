@@ -411,7 +411,7 @@ private :
     void pool_free() noexcept
     {
         while (pool) {
-            auto const p = pool->r;
+            base_pointer const p = pool->r;
             pool->~node_type();
             allocator_traits::deallocate(a, std::exchange(pool, node_pointer(p)), 1);
         }
@@ -452,6 +452,16 @@ private :
 
     size_type s = 0;
 
+    void erase(base_pointer x)
+    {
+        while (x) {
+            erase(x->r);
+            base_pointer const y = x->l;
+            drop_node(node_pointer(x));
+            x = y;
+        }
+    }
+
 public :
 
     tree() = default;
@@ -472,21 +482,45 @@ public :
 
     bool empty() const { return (0 == size()); }
 
-    using iterator = tree_iterator< value_type >;
-
-    iterator begin() const { return {h.l}; }
-    iterator end() const { return {base_pointer(&h)}; }
-
-private :
-
-    void initialize()
+    void reserve(size_type n)
     {
+        while (size() < n) {
+            put_node(get_node());
+            --n;
+        }
+    }
+
+    void clear()
+    {
+        erase(h.p);
         h.c = color::red;
         h.p = nullptr;
         h.l = &h;
         h.r = &h;
         s = 0;
+        pool_free();
     }
+
+    ~tree() noexcept
+    {
+        clear();
+    }
+
+    using iterator = tree_iterator< value_type >;
+
+    iterator begin() const { return {h.l}; }
+    iterator end() const { return {base_pointer(&h)}; }
+
+    iterator
+    erase(iterator const p)
+    {
+        iterator const r = std::next(p);
+        drop_node(node_pointer(rebalance_for_erase(p.p, h)));
+        --s;
+        return r;
+    }
+
+private :
 
     static value_type const & value(base_pointer const p) { return *node_pointer(p)->pointer(); }
 
@@ -607,16 +641,6 @@ private :
         return z;
     }
 
-    void erase(base_pointer x)
-    {
-        while (x) {
-            erase(x->r);
-            base_pointer const y = x->l;
-            drop_node(node_pointer(x));
-            x = y;
-        }
-    }
-
 public :
 
     template< typename K >
@@ -641,30 +665,6 @@ public :
     {
         std::pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p);
         return {insert_unique(lr.first, lr.second, create_node(std::forward< K >(v)))};
-    }
-
-    iterator
-    erase(iterator const p)
-    {
-        iterator const r = std::next(p);
-        drop_node(node_pointer(rebalance_for_erase(p.p, h)));
-        --s;
-        return r;
-    }
-
-    void clear()
-    {
-        erase(h.p);
-        h.p = nullptr;
-        h.l = &h;
-        h.r = &h;
-        s = 0;
-        pool_free();
-    }
-
-    ~tree() noexcept
-    {
-        clear();
     }
 
     template< typename K >
