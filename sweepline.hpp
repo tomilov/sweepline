@@ -30,7 +30,6 @@
 #include <iterator>
 #include <algorithm>
 #include <numeric>
-#include <deque>
 #include <list>
 #include <experimental/optional>
 #ifdef DEBUG
@@ -86,7 +85,7 @@ struct sweepline
 
     };
 
-    using edges = std::deque< edge >;
+    using edges = std::list< edge >;
     using pedge = typename edges::iterator;
 
     // Voronoi diagram:
@@ -142,11 +141,9 @@ private :
 
         // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
         // endpoints removed strictly before violation of this invariant to prevent its occurrence
-        bool operator () (endpoint const & l, endpoint const & r) const // UB
+        bool operator () (endpoint const & l, endpoint const & r) const
         {
-            /*if (&l == &r) {
-                return false;
-            }*/
+            // this line is unreachable
             if (l.l == r.l) {
                 return true;
             }

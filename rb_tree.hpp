@@ -28,26 +28,27 @@ using base_pointer = node_base *;
 struct node_base
 {
 
-    base_pointer p = nullptr;
-    base_pointer l = this;
-    base_pointer r = this;
-    color c = color::red;
+    base_pointer p;
+    base_pointer l;
+    base_pointer r;
+    color c;
 
-#ifdef DEBUG
-    ~node_base()
-    {
-        p = nullptr;
-        l = nullptr;
-        r = nullptr;
-    }
-#endif
+    node_base() = default;
+
+    constexpr
+    node_base(void *)
+        : p(nullptr)
+        , l(this)
+        , r(this)
+        , c(color::red)
+    { ; }
 
 };
 
-inline base_pointer minimum(base_pointer x) noexcept { while (x->l) x = x->l; return x; }
-inline base_pointer maximum(base_pointer x) noexcept { while (x->r) x = x->r; return x; }
+constexpr base_pointer minimum(base_pointer x) noexcept { while (x->l) x = x->l; return x; }
+constexpr base_pointer maximum(base_pointer x) noexcept { while (x->r) x = x->r; return x; }
 
-inline
+constexpr
 base_pointer
 increment(base_pointer x) noexcept
 {
@@ -66,7 +67,7 @@ increment(base_pointer x) noexcept
     return x;
 }
 
-inline
+constexpr
 base_pointer
 decrement(base_pointer x) noexcept
 {
@@ -85,7 +86,7 @@ decrement(base_pointer x) noexcept
     return x;
 }
 
-inline
+constexpr
 void rotate_left(base_pointer const x, base_pointer & root) noexcept
 {
     base_pointer const y = x->r;
@@ -105,7 +106,7 @@ void rotate_left(base_pointer const x, base_pointer & root) noexcept
     x->p = y;
 }
 
-inline
+constexpr
 void rotate_right(base_pointer const x, base_pointer & root) noexcept
 {
     base_pointer const y = x->l;
@@ -125,7 +126,7 @@ void rotate_right(base_pointer const x, base_pointer & root) noexcept
     x->p = y;
 }
 
-inline
+constexpr
 void insert_and_rebalance(bool const insert_left,
                           base_pointer x, base_pointer const p,
                           node_base & h) noexcept
@@ -188,7 +189,7 @@ void insert_and_rebalance(bool const insert_left,
     root->c = color::black;
 }
 
-inline
+constexpr
 base_pointer
 rebalance_for_erase(base_pointer const z, node_base & h) noexcept
 {
@@ -334,6 +335,10 @@ struct node< type const >
         : node_base
 {
 
+    type const * pointer() const noexcept { return &storage.value; }
+
+protected :
+
     union storage_type
     {
 
@@ -343,8 +348,6 @@ struct node< type const >
         type value;
 
     } storage;
-
-    type const * pointer() const noexcept { return &storage.value; }
 
 };
 
@@ -384,6 +387,11 @@ struct tree_iterator
 
     bool operator == (tree_iterator const & it) const noexcept { return p == it.p; }
     bool operator != (tree_iterator const & it) const noexcept { return !operator == (it); }
+
+    operator tree_iterator< type const > () const
+    {
+        return {p};
+    }
 
 };
 
@@ -445,11 +453,11 @@ private :
         put_node(n);
     }
 
-    node_base h;
+    node_base h{{}};
 
     size_type s = 0;
 
-    void erase(base_pointer x)
+    void erase(base_pointer x) noexcept
     {
         while (x) {
             erase(x->r);
@@ -473,9 +481,9 @@ public :
         , a(std::move(alloc))
     { ; }
 
-    size_type size() const { return s; }
+    size_type size() const noexcept { return s; }
 
-    bool empty() const { return (0 == s); }
+    bool empty() const noexcept { return (0 == s); }
 
     void reserve(size_type n)
     {
@@ -503,7 +511,7 @@ public :
         }
     }
 
-    void clear()
+    void clear() noexcept
     {
         erase(h.p);
         h.c = color::red;
@@ -528,8 +536,11 @@ public :
     const_iterator begin() const { return {h.l}; }
     const_iterator end() const { return {base_pointer(&h)}; }
 
+    const_iterator cbegin() const { return {h.l}; }
+    const_iterator cend() const { return {base_pointer(&h)}; }
+
     iterator
-    erase(iterator const x)
+    erase(iterator const x) noexcept
     {
         iterator const r = std::next(x);
         drop_node(node_pointer(rebalance_for_erase(x.p, h)));
@@ -542,10 +553,10 @@ private :
     static value_type const & value(base_pointer const n) { return *node_pointer(n)->pointer(); }
 
     pair< base_pointer, base_pointer >
-    get_insert_unique_pos(value_type const & v) const
+    get_insert_unique_pos(value_type const & v)
     {
         base_pointer x = h.p;
-        base_pointer y = base_pointer(&h);
+        base_pointer y = &h;
         bool comp = true;
         while (x) {
             y = x;
@@ -612,26 +623,12 @@ private :
         }
     }
 
-    template< typename K >
-    base_pointer
-    insert_unique(base_pointer const l, base_pointer const r, K && k)
-    {
-        if (r) {
-            bool const insert_left = (l || (r == &h) || /*c(k, value(r))*/ !c(value(r), k));
-            node_pointer const z = create_node(std::forward< K >(k));
-            insert_and_rebalance(insert_left, z, r, h);
-            ++s;
-            return z;
-        }
-        return l;
-    }
-
     pair< base_pointer, base_pointer >
-    get_insert_hint_unique_pos(base_pointer const hint) const
+    get_insert_hint_unique_pos(base_pointer const hint)
     {
         if (hint == &h) {
             if (empty()) {
-                return {nullptr, base_pointer(&h)};
+                return {nullptr, &h};
             } else {
                 return {nullptr, h.r};
             }
@@ -647,6 +644,20 @@ private :
                 }
             }
         }
+    }
+
+    template< typename K >
+    base_pointer
+    insert_unique(base_pointer const l, base_pointer const r, K && k)
+    {
+        if (r) {
+            bool const insert_left = (l || (r == &h) || /*c(k, value(r))*/ !c(value(r), k));
+            node_pointer const z = create_node(std::forward< K >(k));
+            insert_and_rebalance(insert_left, z, r, h);
+            ++s;
+            return z;
+        }
+        return l;
     }
 
     template< typename K >
@@ -686,12 +697,12 @@ public :
         return {force_insert_unique(lr.k, lr.v, std::forward< K >(k))};
     }
 
-    template< typename K >
+    template< typename K = value_type >
     iterator
     lower_bound(K const & k)
     {
         base_pointer l = h.p;
-        base_pointer r = base_pointer(&h);
+        base_pointer r = &h;
         while (l) {
             if (c(value(l), k)) {
                 l = l->r;
@@ -703,7 +714,7 @@ public :
         return {r};
     }
 
-    template< typename K >
+    template< typename K = value_type >
     iterator
     find(K const & k)
     {
@@ -725,8 +736,6 @@ template< typename value_type, typename compare >
 class adapt_compare
 {
 
-    compare c;
-
     static
     auto const & key(value_type const & v)
     {
@@ -739,6 +748,8 @@ class adapt_compare
     {
         return v;
     }
+
+    compare c;
 
 public :
 

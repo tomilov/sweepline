@@ -96,7 +96,7 @@ public :
     {
         std::set< point, less > points_{less{delta}};
         _out << N << '\n';
-        value_type const twosqreps = eps * (eps + eps);
+        value_type const twosqreps = eps;
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
             size_type m = 0;
@@ -359,13 +359,10 @@ public :
 
     sweepline_type sweepline_{eps};
 
-    struct point_less
+    struct site_less
     {
 
-        bool operator () (point const & l, point const & r) const
-        {
-            return std::tie(l.x, l.y) < std::tie(r.x, r.y);
-        }
+        less const less_;
 
         bool operator () (site const l, site const r) const
         {
@@ -376,10 +373,10 @@ public :
 
     void operator () ()
     {
-        assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), {eps}}.size() == sites_.size()));
+        assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), less{delta}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
-#if 0
-        std::sort(std::begin(sites_), std::end(sites_), point_less{});
+#if 1
+        std::sort(std::begin(sites_), std::end(sites_), less{zero});
         sweepline_(std::cbegin(sites_), std::cend(sites_));
 #else
         using pproxy = std::vector< site >;
@@ -389,7 +386,7 @@ public :
         for (auto p = std::cbegin(sites_); p != send; ++p) {
             pproxy_.push_back(p);
         }
-        std::sort(std::begin(pproxy_), std::end(pproxy_), point_less{});
+        std::sort(std::begin(pproxy_), std::end(pproxy_), site_less{{zero}});
         pproxy_.push_back(send);
         using ppoint = typename pproxy::const_iterator;
         struct point_proxy
@@ -655,7 +652,7 @@ int main()
         std::istream & in_ = std::cin;
 #else
         std::stringstream in_;
-# if 1
+# ifdef _LIBCPP_VERSION
         in_ >> std::hexfloat;
 # else
         in_.precision(std::numeric_limits< value_type >::digits10 + 1);
@@ -684,6 +681,11 @@ int main()
         in_ << "2\n"
                "0 0\n"
                "1 -1\n";
+#  elif 0
+        in_ << "3\n"
+               "0 0\n"
+               "0 1\n"
+               "0 2\n";
 #  elif 0
         in_ << "5\n"
                "0 0\n"
