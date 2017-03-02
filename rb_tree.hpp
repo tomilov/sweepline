@@ -19,44 +19,6 @@ struct pair
 
 };
 
-template< typename compare >
-class adapt_compare
-{
-
-    compare c;
-
-    template< typename K, typename V >
-    static
-    K const & key(pair< K const, V > const & v)
-    {
-        return v.k;
-    }
-
-    template< typename K >
-    static
-    K const & key(K const & k)
-    {
-        return k;
-    }
-
-public :
-
-    adapt_compare(compare const & comp)
-        : c(comp)
-    { ; }
-
-    adapt_compare(compare && comp)
-        : c(std::move(comp))
-    { ; }
-
-    template< typename L, typename R >
-    bool operator () (L const & l, R const & r) const
-    {
-        return c(key(l), key(r));
-    }
-
-};
-
 enum class color : bool { red = false, black = true };
 
 struct node_base;
@@ -365,11 +327,12 @@ rebalance_for_erase(base_pointer const z, node_base & h) noexcept
 }
 
 template< typename type >
-struct node
+struct node;
+
+template< typename type >
+struct node< type const >
         : node_base
 {
-
-    using value_type = type;
 
     union storage_type
     {
@@ -381,13 +344,18 @@ struct node
 
     } storage;
 
-    type * pointer() noexcept { return &storage.value; }
     type const * pointer() const noexcept { return &storage.value; }
 
 };
 
 template< typename type >
-using node_type_t = std::conditional_t< std::is_const_v< type >, node< std::remove_const_t< type > > const, node< type > >;
+struct node
+        : node< type const >
+{
+
+    type * pointer() noexcept { return &node< type const >::storage.value; }
+
+};
 
 template< typename type >
 struct tree_iterator
@@ -400,7 +368,7 @@ struct tree_iterator
     using iterator_category = std::bidirectional_iterator_tag;
     using difference_type = std::ptrdiff_t;
 
-    using node_type = node_type_t< value_type >;
+    using node_type = node< value_type >;
     using node_pointer = node_type *;
 
     base_pointer p = nullptr;
@@ -516,12 +484,12 @@ public :
             if (p) {
                 p = p->r;
             } else {
-                break;
+                while (s < n) {
+                    put_node(get_node());
+                    --n;
+                }
+                return;
             }
-            --n;
-        }
-        while (s < n) {
-            put_node(get_node());
             --n;
         }
     }
@@ -753,10 +721,47 @@ template< typename key_type,
           typename allocator_type = std::allocator< key_type > >
 using set = tree< key_type, compare, allocator_type >;
 
+template< typename value_type, typename compare >
+class adapt_compare
+{
+
+    compare c;
+
+    static
+    auto const & key(value_type const & v)
+    {
+        return v.k;
+    }
+
+    template< typename type >
+    static
+    type const & key(type const & v)
+    {
+        return v;
+    }
+
+public :
+
+    adapt_compare(compare const & comp)
+        : c(comp)
+    { ; }
+
+    adapt_compare(compare && comp)
+        : c(std::move(comp))
+    { ; }
+
+    template< typename L, typename R >
+    bool operator () (L const & l, R const & r) const
+    {
+        return c(key(l), key(r));
+    }
+
+};
+
 template< typename key_type,
           typename mapped_type,
           typename compare = std::less< key_type >,
           typename allocator_type = std::allocator< pair< key_type const, mapped_type > > >
-using map = tree< typename allocator_type::value_type, adapt_compare< compare >, allocator_type >;
+using map = tree< typename allocator_type::value_type, adapt_compare< typename allocator_type::value_type, compare >, allocator_type >;
 
 }

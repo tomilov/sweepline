@@ -162,8 +162,6 @@ private :
             return operator () (std::max(*l.l, *l.r, *this), std::max(*r.l, *r.r, *this));
         }
 
-        using is_transparent = void;
-
         value_type
         intersect(point const & l, point const & r,
                   value_type const & directrix) const
@@ -219,7 +217,10 @@ private :
     using rays = std::list< pendpoint >;
     using pray = typename rays::iterator;
 
-    using bundle = std::pair< pray const, pray const >;
+    template< typename type >
+    struct range { type l, r; };
+
+    using bundle = range< pray const >;
 
     using events = rb_tree::map< vertex, bundle const, less >;
     using pevent = typename events::iterator;
@@ -304,9 +305,9 @@ private :
 
     void remove_event(pevent const ev, bundle const & b)
     {
-        rays_.splice(nray, rays_, b.first, std::next(b.second));
+        rays_.splice(nray, rays_, b.l, std::next(b.r));
         if (rev == nray) {
-            rev = b.first;
+            rev = b.l;
         }
         events_.erase(ev);
     }
@@ -315,10 +316,10 @@ private :
     {
         assert(ev != nev);
         bundle const & b = ev->v;
-        assert(b.first != b.second);
-        assert(nray != b.second);
-        pray const r = std::next(b.second);
-        for (auto l = b.first; l != r; ++l) {
+        assert(b.l != b.r);
+        assert(nray != b.r);
+        pray const r = std::next(b.r);
+        for (auto l = b.l; l != r; ++l) {
             pendpoint const ep = *l;
             assert(ep->v.ev == ev);
             ep->v = nev;
@@ -368,10 +369,10 @@ private :
                     {
                         if (_ev == nev) {
                             _ev = ev;
-                            add_ray(b.second, ep);
+                            add_ray(b.r, ep);
                         } else {
                             assert(_ev == ev);
-                            assert(std::find(b.first, std::next(b.second), ep) != std::next(b.second));
+                            assert(std::find(b.l, std::next(b.r), ep) != std::next(b.r));
                         }
                     };
                     set_event(ll.v, l);
@@ -521,7 +522,7 @@ private :
         return angle(*ep.l, *ep.r);
     }
 
-    std::pair< pendpoint, pendpoint >
+    range< pendpoint >
     endpoint_range(pray const l, pray const r) const
     {
         assert(r != nray);
@@ -564,35 +565,35 @@ private :
                       vertex const & _vertex, bundle const & b,
                       site const l, site const r)
     {
-        auto lr = endpoint_range(b.first, b.second);
-        // All the edges from [*lr.first; *r.second]->first.e can be stored near the associate vertex if needed
-        assert(check_endpoint_range(ev, lr.first, lr.second));
+        auto lr = endpoint_range(b.l, b.r);
+        // All the edges from [*lr.l; *lr.r]->first.e can be stored near the associate vertex if needed
+        assert(check_endpoint_range(ev, lr.l, lr.r));
         pvertex const v = vertices_.insert(nv, _vertex);
         remove_event(ev, b);
-        site const ll = lr.first->k.l;
-        site const rr = lr.second->k.r;
-        ++lr.second;
+        site const ll = lr.l->k.l;
+        site const rr = lr.r->k.r;
+        ++lr.r;
         do {
-            trunc_edge(*lr.first->k.e, v);
-            endpoints_.erase(lr.first++);
-        } while (lr.first != lr.second);
+            trunc_edge(*lr.l->k.e, v);
+            endpoints_.erase(lr.l++);
+        } while (lr.l != lr.r);
         if (l == r) {
-            lr.first = insert_endpoint(lr.second, ll, rr, add_edge(ll, rr, v));
-            if (lr.first != std::begin(endpoints_)) {
-                check_event(std::prev(lr.first), lr.first);
+            lr.l = insert_endpoint(lr.r, ll, rr, add_edge(ll, rr, v));
+            if (lr.l != std::begin(endpoints_)) {
+                check_event(std::prev(lr.l), lr.l);
             }
-            if (lr.second != nep) {
-                check_event(lr.first, lr.second);
+            if (lr.r != nep) {
+                check_event(lr.l, lr.r);
             }
         } else {
-            pendpoint const ep = insert_endpoint(lr.second, l, rr, add_edge(l, rr, v));
-            lr.first = insert_endpoint(ep, ll, l, add_edge(ll, l, v));
-            assert(std::next(lr.first) == ep);
-            if (lr.first != std::begin(endpoints_)) {
-                check_event(std::prev(lr.first), lr.first);
+            pendpoint const ep = insert_endpoint(lr.r, l, rr, add_edge(l, rr, v));
+            lr.l = insert_endpoint(ep, ll, l, add_edge(ll, l, v));
+            assert(std::next(lr.l) == ep);
+            if (lr.l != std::begin(endpoints_)) {
+                check_event(std::prev(lr.l), lr.l);
             }
-            if (lr.second != nep) {
-                check_event(ep, lr.second);
+            if (lr.r != nep) {
+                check_event(ep, lr.r);
             }
         }
     }
