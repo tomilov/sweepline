@@ -28,12 +28,10 @@
 #include <tuple>
 #include <functional>
 #include <iterator>
-#include <limits>
 #include <algorithm>
 #include <numeric>
 #include <deque>
 #include <list>
-#include <map>
 #include <experimental/optional>
 #ifdef DEBUG
 #include <iostream>
@@ -223,7 +221,7 @@ private :
 
     using bundle = std::pair< pray const, pray const >;
 
-    using events = std::map< vertex, bundle const, less >;
+    using events = rb_tree::map< vertex, bundle const, less >;
     using pevent = typename events::iterator;
 
     struct event
@@ -316,13 +314,13 @@ private :
     void disable_event(pevent const ev)
     {
         assert(ev != nev);
-        bundle const & b = ev->second;
+        bundle const & b = ev->v;
         assert(b.first != b.second);
         assert(nray != b.second);
         pray const r = std::next(b.second);
         for (auto l = b.first; l != r; ++l) {
             pendpoint const ep = *l;
-            assert(ep->v == ev);
+            assert(ep->v.ev == ev);
             ep->v = nev;
         }
         remove_event(ev, b);
@@ -342,7 +340,7 @@ private :
             {
                 if (_ev != nev) {
                     if (_ev != ev) {
-                        value_type const & xx = _ev->first.x();
+                        value_type const & xx = _ev->k.x();
                         if (less_(xx, x)) {
                             return true;
                         }
@@ -358,14 +356,14 @@ private :
                 }
             } else {
                 if (ev == nev) {
-                    assert(ll.v == nev);
-                    assert(rr.v == nev);
+                    assert(ll.v.ev == nev);
+                    assert(rr.v.ev == nev);
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(vertex_), add_bundle(l, r)});
                     assert(inserted);
                     ll.v = rr.v = ev;
                 } else {
-                    bundle const & b = ev->second;
+                    bundle const & b = ev->v;
                     auto const set_event = [&] (pevent & _ev, pendpoint const ep)
                     {
                         if (_ev == nev) {
@@ -484,8 +482,8 @@ private :
         } else {
             assert(std::next(l) == r); // if fires, then there is problem with precision
             auto const & endpoint_ = *l;
-            if (endpoint_.v != nev) {
-                assert(less_(_site.x, endpoint_.v.ev->first.x()));
+            if (endpoint_.v.ev != nev) {
+                assert(less_(_site.x, endpoint_.v.ev->k.x()));
                 disable_event(endpoint_.v);
             }
             auto vertex_ = make_vertex(_site, *endpoint_.k.l, *endpoint_.k.r);
@@ -555,7 +553,7 @@ private :
             if (std::exchange(s, l->k.r) != l->k.l) {
                 return false;
             }
-            if (l->v != ev) {
+            if (l->v.ev != ev) {
                 return false;
             }
         } while (l != r);
@@ -606,7 +604,7 @@ private :
             if ((e.b != nv) && (e.e != nv)) {
                 return false;
             }
-            if (ep.v != nev) {
+            if (ep.v.ev != nev) {
                 return false;
             }
         }
@@ -635,21 +633,21 @@ public :
                 pevent const ev = std::begin(events_);
                 auto const & event_ = *ev;
                 {
-                    value_type const & x = event_.first.x();
+                    value_type const & x = event_.k.x();
                     if (less_(site_.x, x)) {
                         break;
                     } else if (!less_(x, site_.x)) {
-                        value_type const & y = event_.first.y();
+                        value_type const & y = event_.k.y();
                         if (less_(site_.y, y)) {
                             break;
                         } else if (!less_(y, site_.y)) {
-                            finish_cells(ev, event_.first, event_.second, l, r);
+                            finish_cells(ev, event_.k, event_.v, l, r);
                             next = true;
                             break;
                         }
                     }
                 }
-                finish_cells(ev, event_.first, event_.second, l, l);
+                finish_cells(ev, event_.k, event_.v, l, l);
             }
             if (!next) {
                 begin_cell(l, site_);
@@ -658,7 +656,7 @@ public :
         while (!events_.empty()) {
             pevent const ev = std::begin(events_);
             auto const & event_ = *ev;
-            finish_cells(ev, event_.first, event_.second, r, r);
+            finish_cells(ev, event_.k, event_.v, r, r);
         }
         assert(std::is_sorted(std::begin(vertices_), nv, less_)); // bigger then usual roundoff errors may lead to fire, though not mutters much
         assert(rev == std::begin(rays_));

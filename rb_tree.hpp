@@ -695,11 +695,11 @@ private :
 public :
 
     template< typename K = value_type >
-    iterator
+    std::pair< iterator, bool >
     insert(K && k)
     {
         pair< base_pointer, base_pointer > const lr = get_insert_unique_pos(k);
-        return {insert_unique(lr.k, lr.v, std::forward< K >(k))};
+        return {{insert_unique(lr.k, lr.v, std::forward< K >(k))}, (lr.v != nullptr)};
     }
 
     template< typename K = value_type >
@@ -720,7 +720,7 @@ public :
 
     template< typename K >
     iterator
-    lower_bound(K && k) const
+    lower_bound(K const & k)
     {
         base_pointer l = h.p;
         base_pointer r = base_pointer(&h);
@@ -733,6 +733,17 @@ public :
             }
         }
         return {r};
+    }
+
+    template< typename K >
+    iterator
+    find(K const & k)
+    {
+        iterator const r = lower_bound(k);
+        if ((r != end()) && c(k, *r)) {
+            return end();
+        }
+        return r;
     }
 
 };
