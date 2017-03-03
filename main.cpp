@@ -33,6 +33,7 @@ struct voronoi
 
     value_type delta = value_type(0.001);
 
+    explicit
     voronoi(std::ostream & _log)
         : log_(_log)
     {

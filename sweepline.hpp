@@ -52,9 +52,6 @@ struct sweepline
     static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
                   "point format error");
 
-    sweepline(sweepline const &) = delete;
-    sweepline & operator = (sweepline const &) = delete;
-
     sweepline(value_type const && _eps) = delete;
 
     explicit

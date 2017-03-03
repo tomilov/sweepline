@@ -11,13 +11,7 @@ namespace rb_tree
 {
 
 template< typename K, typename V >
-struct pair
-{
-
-    K k;
-    V v;
-
-};
+struct pair { K k; V v; };
 
 enum class color : bool { red = false, black = true };
 
@@ -44,8 +38,8 @@ struct node_base
 
 };
 
-inline base_pointer minimum(base_pointer x) noexcept { while (x->l) x = x->l; return x; }
-inline base_pointer maximum(base_pointer x) noexcept { while (x->r) x = x->r; return x; }
+inline base_pointer minimum(base_pointer x) noexcept { while (x->l) { x = x->l; } return x; }
+inline base_pointer maximum(base_pointer x) noexcept { while (x->r) { x = x->r; } return x; }
 
 inline
 base_pointer
@@ -475,6 +469,7 @@ public :
         , a(alloc)
     { ; }
 
+    explicit
     tree(compare_type const & comp, allocator_type && alloc = allocator_type{})
         : c(comp)
         , a(std::move(alloc))
@@ -526,6 +521,11 @@ public :
         clear();
     }
 
+    tree(tree const &) = delete;
+    tree(tree &&) = delete;
+    void operator = (tree const &) = delete;
+    void operator = (tree &&) = delete;
+
     using iterator = tree_iterator< value_type >;
     using const_iterator = tree_iterator< value_type const >;
 
@@ -555,7 +555,7 @@ private :
     get_insert_unique_pos(value_type const & v) const
     {
         base_pointer x = h.p;
-        base_pointer y = base_pointer(&h);
+        auto y = base_pointer(&h);
         bool comp = true;
         while (x) {
             y = x;
@@ -754,10 +754,6 @@ public :
 
     adapt_compare(compare const & comp)
         : c(comp)
-    { ; }
-
-    adapt_compare(compare && comp)
-        : c(std::move(comp))
     { ; }
 
     template< typename L, typename R >
