@@ -453,7 +453,6 @@ public :
         point pmax = vmax;
         std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
         {
-            // export GNUTERM=wxt
             _gnuplot << "set size square;\n"
                         "set key left;\n"
                         "unset colorbox;\n";
@@ -601,13 +600,15 @@ public :
 namespace
 {
 
-#pragma clang diagnostic push
+#pragma GCC diagnostic push
+#ifdef __clang__
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
+#endif
 std::mutex m;
 std::unique_ptr< char, decltype(std::free) & > demangled_name{nullptr, std::free};
 std::size_t length = 0;
-#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 
 }
 
@@ -830,7 +831,8 @@ int main()
         sweepline_type const & sweepline_ = voronoi_.sweepline_;
         log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
         log_ << "edges # " << sweepline_.edges_.size() << '\n';
-        std::ofstream f("sweepline.plt");
+        std::string command_line_ = "sweepline.plt";
+        std::ofstream f(command_line_);
         std::ostream & gnuplot_ = f;//std::cout;
 #if 0
         { // clone (O(|vertices| * |edges|))
@@ -859,7 +861,16 @@ int main()
 #else
         gnuplot_ << voronoi_ << std::endl;
 #endif
-        std::system("gnuplot -p sweepline.plt");
+        command_line_.insert(0, "gnuplot -p ");
+#if 1
+        command_line_.insert(0, "GNUTERM=qt ");
+#elif 0
+        command_line_.insert(0, "GNUTERM=wxt ");
+#endif
+        if (std::system(command_line_.c_str()) != 0) {
+            log_ << "can't run \"" << command_line_ << "\" command\n";
+            return EXIT_FAILURE;
+        }
     }
     return EXIT_SUCCESS;
 }

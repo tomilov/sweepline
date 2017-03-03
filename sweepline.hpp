@@ -30,6 +30,7 @@
 #include <iterator>
 #include <algorithm>
 #include <numeric>
+#include <deque>
 #include <list>
 #include <experimental/optional>
 #ifdef DEBUG
@@ -85,8 +86,8 @@ struct sweepline
 
     };
 
-    using edges = std::list< edge >;
-    using pedge = typename edges::iterator;
+    using edges = std::deque< edge >;
+    using pedge = typename edges::size_type;
 
     // Voronoi diagram:
     // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator of std::list is not preserved during these operations
@@ -139,11 +140,16 @@ private :
             return operator () (l.x(), l.y(), r.x(), r.y());
         }
 
-        // during sweepline motion arcs shrinks and growz, but relative y-position of endpoints remains the same
-        // endpoints removed strictly before violation of this invariant to prevent its occurrence
+        // During sweepline motion arcs shrinks and growz, but relative y-order of endpoints remains the same.
+        // Endpoints removed strictly before a violation of this invariant to prevent its occurrence.
+
+        // The body of this function is unreachable.
+        // Gives correct results only when used against std::map from libc++, but doing so is UB.
+        //[[noreturn]]
         bool operator () (endpoint const & l, endpoint const & r) const
         {
-            // this line is unreachable
+            //__builtin_unreachable();
+            //throw this;
             if (l.l == r.l) {
                 return true;
             }
@@ -208,6 +214,7 @@ private :
     } const less_;
 
     struct event;
+
     using endpoints = rb_tree::map< endpoint, event, less >;
     using pendpoint = typename endpoints::iterator;
 
@@ -222,17 +229,7 @@ private :
     using events = rb_tree::map< vertex, bundle const, less >;
     using pevent = typename events::iterator;
 
-    struct event
-    {
-
-        pevent ev;
-
-        event(pevent const _ev) : ev(_ev) { ; }
-
-        operator pevent () const { return ev; }
-        operator pevent & () { return ev; }
-
-    };
+    struct event { pevent ev; };
 
     endpoints endpoints_{less_};
     pendpoint const nep = std::end(endpoints_);
@@ -319,7 +316,7 @@ private :
         for (auto l = b.l; l != r; ++l) {
             pendpoint const ep = *l;
             assert(ep->v.ev == ev);
-            ep->v = nev;
+            ep->v.ev = nev;
         }
         remove_event(ev, b);
     }
@@ -348,7 +345,7 @@ private :
                 }
                 return false;
             };
-            if (deselect_event(ll.v) || deselect_event(rr.v)) {
+            if (deselect_event(ll.v.ev) || deselect_event(rr.v.ev)) {
                 if (ev != nev) {
                     disable_event(ev);
                 }
@@ -359,7 +356,7 @@ private :
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(vertex_), add_bundle(l, r)});
                     assert(inserted);
-                    ll.v = rr.v = ev;
+                    ll.v.ev = rr.v.ev = ev;
                 } else {
                     bundle const & b = ev->v;
                     auto const set_event = [&] (pevent & _ev, pendpoint const ep)
@@ -372,8 +369,8 @@ private :
                             assert(std::find(b.l, std::next(b.r), ep) != std::next(b.r));
                         }
                     };
-                    set_event(ll.v, l);
-                    set_event(rr.v, r);
+                    set_event(ll.v.ev, l);
+                    set_event(rr.v.ev, r);
                 }
             }
         }
@@ -383,7 +380,9 @@ private :
     add_edge(site const l, site const r, pvertex const v)
     {
         assert(l != r);
-        return edges_.insert(std::cend(edges_), {l, r, v, nv});
+        pedge const e = edges_.size();
+        edges_.push_back({l, r, v, nv});
+        return e;
     }
 
     void trunc_edge(edge & e, pvertex const v) const
@@ -424,7 +423,7 @@ private :
                     site const l, site const r,
                     pedge const e)
     {
-        return endpoints_.force_insert(ep, {{l, r, e}, nev});
+        return endpoints_.force_insert(ep, {{l, r, e}, {nev}});
     }
 
     void make_first_edge(site const l, site const r)
@@ -483,13 +482,13 @@ private :
             auto const & endpoint_ = *l;
             if (endpoint_.v.ev != nev) {
                 assert(less_(_site.x, endpoint_.v.ev->k.x()));
-                disable_event(endpoint_.v);
+                disable_event(endpoint_.v.ev);
             }
             auto vertex_ = make_vertex(_site, *endpoint_.k.l, *endpoint_.k.r);
             assert(!!vertex_);
             assert(events_.find(*vertex_) == nev);
             pvertex const v = vertices_.insert(nv, std::move(*vertex_));
-            trunc_edge(*endpoint_.k.e, v);
+            trunc_edge(edges_[endpoint_.k.e], v);
             pedge const le = add_edge(endpoint_.k.l, s, v);
             pedge const re = add_edge(s, endpoint_.k.r, v);
             pendpoint const ep = insert_endpoint(r, s, endpoint_.k.r, re);
@@ -572,7 +571,7 @@ private :
         site const rr = lr.r->k.r;
         ++lr.r;
         do {
-            trunc_edge(*lr.l->k.e, v);
+            trunc_edge(edges_[lr.l->k.e], v);
             endpoints_.erase(lr.l++);
         } while (lr.l != lr.r);
         if (l == r) {
@@ -599,7 +598,7 @@ private :
     bool check_last_endpoints() const
     {
         for (auto const & ep : endpoints_) {
-            edge const & e = *ep.k.e;
+            edge const & e = edges_[ep.k.e];
             if ((e.b != nv) && (e.e != nv)) {
                 return false;
             }
@@ -657,7 +656,7 @@ public :
             auto const & event_ = *ev;
             finish_cells(ev, event_.k, event_.v, r, r);
         }
-        assert(std::is_sorted(std::begin(vertices_), nv, less_)); // bigger then usual roundoff errors may lead to fire, though not mutters much
+        assert(std::is_sorted(std::begin(vertices_), nv, less_)); // may be commented out, because bigger then usual roundoff errors may lead to firing, though not mutters much
         assert(rev == std::begin(rays_));
         assert(check_last_endpoints());
         endpoints_.clear();

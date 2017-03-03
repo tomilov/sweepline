@@ -35,7 +35,6 @@ struct node_base
 
     node_base() = default;
 
-    constexpr
     node_base(void *)
         : p(nullptr)
         , l(this)
@@ -45,10 +44,10 @@ struct node_base
 
 };
 
-constexpr base_pointer minimum(base_pointer x) noexcept { while (x->l) x = x->l; return x; }
-constexpr base_pointer maximum(base_pointer x) noexcept { while (x->r) x = x->r; return x; }
+inline base_pointer minimum(base_pointer x) noexcept { while (x->l) x = x->l; return x; }
+inline base_pointer maximum(base_pointer x) noexcept { while (x->r) x = x->r; return x; }
 
-constexpr
+inline
 base_pointer
 increment(base_pointer x) noexcept
 {
@@ -67,7 +66,7 @@ increment(base_pointer x) noexcept
     return x;
 }
 
-constexpr
+inline
 base_pointer
 decrement(base_pointer x) noexcept
 {
@@ -86,7 +85,7 @@ decrement(base_pointer x) noexcept
     return x;
 }
 
-constexpr
+inline
 void rotate_left(base_pointer const x, base_pointer & root) noexcept
 {
     base_pointer const y = x->r;
@@ -106,7 +105,7 @@ void rotate_left(base_pointer const x, base_pointer & root) noexcept
     x->p = y;
 }
 
-constexpr
+inline
 void rotate_right(base_pointer const x, base_pointer & root) noexcept
 {
     base_pointer const y = x->l;
@@ -126,7 +125,7 @@ void rotate_right(base_pointer const x, base_pointer & root) noexcept
     x->p = y;
 }
 
-constexpr
+inline
 void insert_and_rebalance(bool const insert_left,
                           base_pointer x, base_pointer const p,
                           node_base & h) noexcept
@@ -189,7 +188,7 @@ void insert_and_rebalance(bool const insert_left,
     root->c = color::black;
 }
 
-constexpr
+inline
 base_pointer
 rebalance_for_erase(base_pointer const z, node_base & h) noexcept
 {
@@ -447,10 +446,10 @@ private :
         }
     }
 
-    void drop_node(node_pointer const n) noexcept
+    void drop_node(base_pointer const n) noexcept
     {
-        allocator_traits::destroy(a, n->pointer());
-        put_node(n);
+        allocator_traits::destroy(a, node_pointer(n)->pointer());
+        put_node(node_pointer(n));
     }
 
     node_base h{{}};
@@ -462,7 +461,7 @@ private :
         while (x) {
             erase(x->r);
             base_pointer const y = x->l;
-            drop_node(node_pointer(x));
+            drop_node(x);
             x = y;
         }
     }
@@ -543,7 +542,7 @@ public :
     erase(iterator const x) noexcept
     {
         iterator const r = std::next(x);
-        drop_node(node_pointer(rebalance_for_erase(x.p, h)));
+        drop_node(rebalance_for_erase(x.p, h));
         --s;
         return r;
     }
@@ -553,10 +552,10 @@ private :
     static value_type const & value(base_pointer const n) { return *node_pointer(n)->pointer(); }
 
     pair< base_pointer, base_pointer >
-    get_insert_unique_pos(value_type const & v)
+    get_insert_unique_pos(value_type const & v) const
     {
         base_pointer x = h.p;
-        base_pointer y = &h;
+        base_pointer y = base_pointer(&h);
         bool comp = true;
         while (x) {
             y = x;
@@ -624,11 +623,11 @@ private :
     }
 
     pair< base_pointer, base_pointer >
-    get_insert_hint_unique_pos(base_pointer const hint)
+    get_insert_hint_unique_pos(base_pointer const hint) const
     {
         if (hint == &h) {
             if (empty()) {
-                return {nullptr, &h};
+                return {nullptr, base_pointer(&h)};
             } else {
                 return {nullptr, h.r};
             }
