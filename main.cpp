@@ -359,23 +359,11 @@ public :
 
     sweepline_type sweepline_{eps};
 
-    struct site_less
-    {
-
-        less const less_;
-
-        bool operator () (site const l, site const r) const
-        {
-            return operator () (*l, *r);
-        }
-
-    };
-
     void operator () ()
     {
         assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), less{delta}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
-#if 1
+#if 0
         std::sort(std::begin(sites_), std::end(sites_), less{zero});
         sweepline_(std::cbegin(sites_), std::cend(sites_));
 #else
@@ -386,7 +374,10 @@ public :
         for (auto p = std::cbegin(sites_); p != send; ++p) {
             pproxy_.push_back(p);
         }
-        std::sort(std::begin(pproxy_), std::end(pproxy_), site_less{{zero}});
+        std::sort(std::begin(pproxy_), std::end(pproxy_), [&] (site const l, site const r) -> bool
+        {
+            return less{eps}(*l, *r);
+        });
         pproxy_.push_back(send);
         using ppoint = typename pproxy::const_iterator;
         struct point_proxy
@@ -515,7 +506,7 @@ public :
                 } else if (dy < -eps) {
                     return {p.x, vmin.y};
                 } else {
-                    assert(false);
+                    assert(false); // seems there is GCC bug (something wrong with lambda capture)
                     return {p.x, p.y};
                 }
             }
