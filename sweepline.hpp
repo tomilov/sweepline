@@ -382,6 +382,7 @@ private :
     pedge
     add_edge(site const l, site const r, pvertex const v)
     {
+        assert(l != r);
         return edges_.insert(std::cend(edges_), {l, r, v, nv});
     }
 

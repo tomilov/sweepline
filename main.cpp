@@ -363,7 +363,7 @@ public :
     {
         assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), less{delta}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
-#if 0
+#if 1
         std::sort(std::begin(sites_), std::end(sites_), less{zero});
         sweepline_(std::cbegin(sites_), std::cend(sites_));
 #else
@@ -506,7 +506,7 @@ public :
                 } else if (dy < -eps) {
                     return {p.x, vmin.y};
                 } else {
-                    assert(false); // seems there is GCC bug (something wrong with lambda capture)
+                    assert(false);
                     return {p.x, p.y};
                 }
             }
