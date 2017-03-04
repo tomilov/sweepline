@@ -210,9 +210,9 @@ private :
 
     } const less_;
 
-    struct event;
+    struct pevent;
 
-    using endpoints = rb_tree::map< endpoint, event, less >;
+    using endpoints = rb_tree::map< endpoint, pevent, less >;
     using pendpoint = typename endpoints::iterator;
 
     using rays = std::list< pendpoint >;
@@ -224,9 +224,8 @@ private :
     using bundle = range< pray const >;
 
     using events = rb_tree::map< vertex, bundle const, less >;
-    using pevent = typename events::iterator;
 
-    struct event { pevent ev; };
+    struct pevent : events::iterator { pevent(typename events::iterator const it) : events::iterator(it) { ; } };
 
     endpoints endpoints_{less_};
     pendpoint const nep = std::end(endpoints_);
@@ -312,8 +311,8 @@ private :
         pray const r = std::next(b.r);
         for (auto l = b.l; l != r; ++l) {
             pendpoint const ep = *l;
-            assert(ep->v.ev == ev);
-            ep->v.ev = nev;
+            assert(ep->v == ev);
+            ep->v = nev;
         }
         remove_event(ev, b);
     }
@@ -342,18 +341,18 @@ private :
                 }
                 return false;
             };
-            if (deselect_event(ll.v.ev) || deselect_event(rr.v.ev)) {
+            if (deselect_event(ll.v) || deselect_event(rr.v)) {
                 if (ev != nev) {
                     disable_event(ev);
                 }
             } else {
                 if (ev == nev) {
-                    assert(ll.v.ev == nev);
-                    assert(rr.v.ev == nev);
+                    assert(ll.v == nev);
+                    assert(rr.v == nev);
                     bool inserted = false;
                     std::tie(ev, inserted) = events_.insert({std::move(vertex_), add_bundle(l, r)});
                     assert(inserted);
-                    ll.v.ev = rr.v.ev = ev;
+                    ll.v = rr.v = ev;
                 } else {
                     bundle const & b = ev->v;
                     auto const set_event = [&] (pevent & _ev, pendpoint const ep)
@@ -366,8 +365,8 @@ private :
                             assert(std::find(b.l, std::next(b.r), ep) != std::next(b.r));
                         }
                     };
-                    set_event(ll.v.ev, l);
-                    set_event(rr.v.ev, r);
+                    set_event(ll.v, l);
+                    set_event(rr.v, r);
                 }
             }
         }
@@ -420,7 +419,7 @@ private :
                     site const l, site const r,
                     pedge const e)
     {
-        return endpoints_.force_insert(ep, {{l, r, e}, {nev}});
+        return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
 
     void make_first_edge(site const l, site const r)
@@ -442,7 +441,7 @@ private :
             if (less_(_site, r->k)) {
                 break;
             }
-            assert(l->v.ev == r->v.ev); // if fires, then there is problem with precision
+            assert(l->v == r->v); // if fires, then there is problem with precision
             ++r;
         }
         if (l == r) {
@@ -477,9 +476,9 @@ private :
         } else {
             assert(std::next(l) == r); // if fires, then there is problem with precision
             auto const & endpoint_ = *l;
-            if (endpoint_.v.ev != nev) {
-                assert(less_(_site.x, endpoint_.v.ev->k.x()));
-                disable_event(endpoint_.v.ev);
+            if (endpoint_.v != nev) {
+                assert(less_(_site.x, endpoint_.v->k.x()));
+                disable_event(endpoint_.v);
             }
             auto vertex_ = make_vertex(_site, *endpoint_.k.l, *endpoint_.k.r);
             assert(!!vertex_);
@@ -543,7 +542,7 @@ private :
             if (std::exchange(s, l->k.r) != l->k.l) {
                 return false;
             }
-            if (l->v.ev != ev) {
+            if (l->v != ev) {
                 return false;
             }
         } while (l != r);
@@ -594,7 +593,7 @@ private :
             if ((e.b != nv) && (e.e != nv)) {
                 return false;
             }
-            if (ep.v.ev != nev) {
+            if (ep.v != nev) {
                 return false;
             }
         }
