@@ -29,7 +29,7 @@ struct node_base
 
     node_base() = default;
 
-    node_base(void *)
+    node_base(void *) noexcept
         : p(nullptr)
         , l(this)
         , r(this)
@@ -381,10 +381,7 @@ struct tree_iterator
     bool operator == (tree_iterator const & it) const noexcept { return p == it.p; }
     bool operator != (tree_iterator const & it) const noexcept { return !operator == (it); }
 
-    operator tree_iterator< type const > () const
-    {
-        return {p};
-    }
+    operator tree_iterator< type const > () const { return {p}; }
 
 };
 
@@ -413,7 +410,8 @@ private :
 
     node_pointer pool = nullptr;
 
-    node_pointer get_node()
+    node_pointer
+    get_node()
     {
         if (pool) {
             return std::exchange(pool, node_pointer(pool->r));
@@ -469,7 +467,6 @@ public :
         , a(alloc)
     { ; }
 
-    explicit
     tree(compare_type const & comp, allocator_type && alloc = allocator_type{})
         : c(comp)
         , a(std::move(alloc))
@@ -508,12 +505,12 @@ public :
     void clear() noexcept
     {
         erase(h.p);
+        shrink_to_fit();
         h.c = color::red;
         h.p = nullptr;
         h.l = &h;
         h.r = &h;
         s = 0;
-        shrink_to_fit();
     }
 
     ~tree() noexcept
@@ -530,7 +527,7 @@ public :
     using const_iterator = tree_iterator< value_type const >;
 
     iterator begin() { return {h.l}; }
-    iterator end() { return {base_pointer(&h)}; }
+    iterator end() { return {&h}; }
 
     const_iterator begin() const { return {h.l}; }
     const_iterator end() const { return {base_pointer(&h)}; }

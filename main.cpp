@@ -863,11 +863,15 @@ int main()
         gnuplot_ << voronoi_ << std::endl;
 #endif
         command_line_.insert(0, "gnuplot -p ");
+#ifndef _WIN32
 #if 1
         command_line_.insert(0, "GNUTERM=qt ");
 #elif 0
         command_line_.insert(0, "GNUTERM=wxt ");
 #endif
+#endif
+        log_ << std::flush;
+        gnuplot_ << std::flush;
         if (std::system(command_line_.c_str()) != 0) {
             log_ << "can't run \"" << command_line_ << "\" command\n";
             return EXIT_FAILURE;

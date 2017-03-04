@@ -509,12 +509,7 @@ private :
         return atan2(r.x - l.x, r.y - l.y);
     }
 
-    static
-    value_type
-    angle(endpoint const & ep)
-    {
-        return angle(*ep.l, *ep.r);
-    }
+    static value_type angle(endpoint const & ep) { return angle(*ep.l, *ep.r); }
 
     range< pendpoint >
     endpoint_range(pray const l, pray const r) const
