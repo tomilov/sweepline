@@ -364,7 +364,7 @@ public :
     {
         assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), less{delta}}.size() == sites_.size()));
         log_ << "N = " << sites_.size() << '\n';
-#if 1
+#if 0
         std::sort(std::begin(sites_), std::end(sites_), less{zero});
         sweepline_(std::cbegin(sites_), std::cend(sites_));
 #else
@@ -377,7 +377,7 @@ public :
         }
         std::sort(std::begin(pproxy_), std::end(pproxy_), [&] (site const l, site const r) -> bool
         {
-            return less{eps}(*l, *r);
+            return less{zero}(*l, *r);
         });
         pproxy_.push_back(send);
         using ppoint = typename pproxy::const_iterator;
@@ -387,13 +387,14 @@ public :
 
             ppoint p;
 
-            point_proxy(ppoint pp) : p(pp) { ; }
-            operator site const & () const { return *p; }
+            point_proxy(ppoint const pp) : p(pp) { ; }
+            operator site () const { return *p; }
 
             point_proxy & operator ++ () { ++p; return *this; }
             point_proxy operator ++ (int) { return {p++}; }
 
             point const & operator * () const { return **p; }
+            point const * operator -> () const { return &operator * (); }
 
             bool operator == (point_proxy const & rhs) const { return (p == rhs.p); }
             bool operator != (point_proxy const & rhs) const { return !operator == (rhs); }
@@ -637,6 +638,10 @@ struct alignas(__m128d) point
 
 int main()
 {
+    using std::chrono::duration_cast;
+    using std::chrono::microseconds;
+    using std::chrono::steady_clock;
+
     using voronoi_type = voronoi< point >;
     std::ostream & log_ = std::clog;
     voronoi_type voronoi_{log_};
@@ -798,15 +803,18 @@ int main()
 # endif
         //log_ << in_.str() << '\n';
 #endif
-        in_ >> voronoi_;
+        {
+            auto const start = steady_clock::now();
+            in_ >> voronoi_;
+            log_ << "input time = "
+                 << duration_cast< microseconds >(steady_clock::now() - start).count()
+                 << "us\n";
+        }
         //voronoi_.swap_xy();
         //voronoi_.shift_xy(value_type(10000), value_type(10000));
     }
     { // run
-        using std::chrono::duration_cast;
-        using std::chrono::microseconds;
-        using std::chrono::steady_clock;
-        log_ << "begin sweepline\n";
+        log_ << "start\n";
         auto const start = steady_clock::now();
         try {
             for (std::size_t i = 0; i < 1; ++i) {
@@ -873,7 +881,7 @@ int main()
         log_ << std::flush;
         gnuplot_ << std::flush;
         if (std::system(command_line_.c_str()) != 0) {
-            log_ << "can't run \"" << command_line_ << "\" command\n";
+            log_ << "error occured during execution of \"" << command_line_ << "\" command line\n";
             return EXIT_FAILURE;
         }
     }
