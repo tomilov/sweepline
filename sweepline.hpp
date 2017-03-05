@@ -542,7 +542,7 @@ private :
                       site const l, site const r)
     {
         auto lr = endpoint_range(b.l, b.r);
-        // All the edges from [*lr.l; *lr.r]->first.e can be stored near the associate vertex if needed
+        // All the edges from (*lr.l ... *lr.r)->k.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.l, lr.r));
         pvertex const v = vertices_.insert(nv, _vertex);
         remove_event(ev, b);

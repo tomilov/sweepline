@@ -22,16 +22,13 @@ struct voronoi
 
     using size_type = std::size_t;
 
-    std::ostream & log_;
-
     bool draw_indices = false;
     bool draw_circles = false;
 
-    // bounding box
-
     value_type eps = value_type(10) * std::numeric_limits< value_type >::epsilon();
-
     value_type delta = value_type(0.001);
+
+    std::ostream & log_;
 
     explicit
     voronoi(std::ostream & _log)
@@ -303,9 +300,6 @@ public :
     }
 
     using points = std::vector< point >;
-    using site = typename points::const_iterator;
-
-    using sweepline_type = sweepline< site, point, value_type >;
 
 private :
 
@@ -313,12 +307,12 @@ private :
 
     void input(std::istream & _in)
     {
-        size_type N = 0;
-        if (!(_in >> N)) {
+        size_type M = 0;
+        if (!(_in >> M)) {
             assert(false);
         }
-        sites_.reserve(N);
-        for (size_type n = 0; n < N; ++n) {
+        sites_.reserve(M);
+        for (size_type m = 0; m < M; ++m) {
             sites_.emplace_back();
             point & point_ = sites_.back();
             if (!(_in >> point_.x)) {
@@ -357,6 +351,10 @@ public :
             point_.y += dy;
         }
     }
+
+    using site = typename points::const_iterator;
+
+    using sweepline_type = sweepline< site, point, value_type >;
 
     sweepline_type sweepline_{eps};
 
