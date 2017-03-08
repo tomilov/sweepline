@@ -225,7 +225,15 @@ private :
 
     using events = rb_tree::map< vertex, bundle const, less >;
 
-    struct pevent : events::iterator { pevent(typename events::iterator const it) : events::iterator(it) { ; } };
+    struct pevent
+            : events::iterator
+    {
+
+        pevent(typename events::iterator const it)
+            : events::iterator{it}
+        { ; }
+
+    };
 
     endpoints endpoints_{less_};
     pendpoint const nep = std::end(endpoints_);
@@ -539,7 +547,8 @@ private :
     }
 
     void finish_cells(pevent const ev,
-                      vertex const & _vertex, bundle const & b,
+                      vertex const & _vertex,
+                      bundle const & b,
                       site const l, site const r)
     {
         auto lr = endpoint_range(b.l, b.r);
@@ -589,6 +598,29 @@ private :
         return true;
     }
 
+    bool process_events(site const l, site const r)
+    {
+        point const & point_ = *l;
+        while (!events_.empty()) {
+            pevent const ev = std::begin(events_);
+            auto const & event_ = *ev;
+            value_type const & x = event_.k.x();
+            if (less_(point_.x, x)) {
+                break;
+            } else if (!less_(x, point_.x)) {
+                value_type const & y = event_.k.y();
+                if (less_(point_.y, y)) {
+                    break;
+                } else if (!less_(y, point_.y)) {
+                    finish_cells(ev, event_.k, event_.v, l, r);
+                    return false;
+                }
+            }
+            finish_cells(ev, event_.k, event_.v, l, l);
+        }
+        return true;
+    }
+
 public :
 
     template< typename iterator >
@@ -605,26 +637,7 @@ public :
         }
         begin_cell(l++);
         while (++l != r) {
-            bool next = false;
-            while (!events_.empty()) {
-                pevent const ev = std::begin(events_);
-                auto const & event_ = *ev;
-                value_type const & x = event_.k.x();
-                if (less_(l->x, x)) {
-                    break;
-                } else if (!less_(x, l->x)) {
-                    value_type const & y = event_.k.y();
-                    if (less_(l->y, y)) {
-                        break;
-                    } else if (!less_(y, l->y)) {
-                        finish_cells(ev, event_.k, event_.v, l, r);
-                        next = true;
-                        break;
-                    }
-                }
-                finish_cells(ev, event_.k, event_.v, l, l);
-            }
-            if (!next) {
+            if (process_events(l, r)) {
                 begin_cell(l);
             }
         }
@@ -633,7 +646,7 @@ public :
             auto const & event_ = *ev;
             finish_cells(ev, event_.k, event_.v, r, r);
         }
-        //assert(std::is_sorted(std::begin(vertices_), nv, less_)); // almost true
+        assert(std::is_sorted(std::begin(vertices_), nv, less_));
         assert(rev == std::begin(rays_));
         assert(check_last_endpoints());
         endpoints_.clear();

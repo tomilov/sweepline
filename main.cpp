@@ -16,6 +16,35 @@
 #include <cassert>
 #include <cmath>
 
+template< typename iterator >
+struct proxy_iterator
+{
+
+    using iterator_type     = typename std::iterator_traits< iterator >::value_type;
+    using iterator_traits   = std::iterator_traits< iterator_type >;
+
+    using iterator_category = std::forward_iterator_tag;
+    using value_type        = typename iterator_traits::value_type;
+    using difference_type   = typename iterator_traits::difference_type;
+    using pointer           = typename iterator_traits::pointer;
+    using reference         = typename iterator_traits::reference;
+
+    iterator it;
+
+    proxy_iterator(iterator const i) : it{i} { ; }
+    operator iterator_type () const { return *it; }
+
+    proxy_iterator & operator ++ () { ++it; return *this; }
+    proxy_iterator operator ++ (int) { return {it++}; }
+
+    reference operator * () const { return **it; }
+    pointer operator -> () const { return &operator * (); }
+
+    bool operator == (proxy_iterator const & i) const { return (it == i.it); }
+    bool operator != (proxy_iterator const & i) const { return !operator == (i); }
+
+};
+
 template< typename point, typename value_type = decltype(std::declval< point >().x) >
 struct voronoi
 {
@@ -303,7 +332,7 @@ public :
 
 private :
 
-    points sites_;
+    points points_;
 
     void input(std::istream & _in)
     {
@@ -311,10 +340,10 @@ private :
         if (!(_in >> M)) {
             assert(false);
         }
-        sites_.reserve(M);
+        points_.reserve(M);
         for (size_type m = 0; m < M; ++m) {
-            sites_.emplace_back();
-            point & point_ = sites_.back();
+            points_.emplace_back();
+            point & point_ = points_.back();
             if (!(_in >> point_.x)) {
                 assert(false);
             }
@@ -337,7 +366,7 @@ public :
     void
     swap_xy()
     {
-        for (point & point_ : sites_) {
+        for (point & point_ : points_) {
             using std::swap;
             swap(point_.x, point_.y);
         }
@@ -346,7 +375,7 @@ public :
     void
     shift_xy(value_type const & dx, value_type const & dy)
     {
-        for (point & point_ : sites_) {
+        for (point & point_ : points_) {
             point_.x += dx;
             point_.y += dy;
         }
@@ -360,45 +389,26 @@ public :
 
     void operator () ()
     {
-        assert((std::set< point, less >{std::cbegin(sites_), std::cend(sites_), less{delta}}.size() == sites_.size()));
-        log_ << "N = " << sites_.size() << '\n';
+        assert((std::set< point, less >{std::cbegin(points_), std::cend(points_), less{delta}}.size() == points_.size()));
+        log_ << "N = " << points_.size() << '\n';
 #if 0
-        std::sort(std::begin(sites_), std::end(sites_), less{zero});
-        sweepline_(std::cbegin(sites_), std::cend(sites_));
+        std::sort(std::begin(points_), std::end(points_));
+        sweepline_(std::cbegin(points_), std::cend(points_));
 #else
-        using pproxy = std::vector< site >;
-        pproxy pproxy_;
-        pproxy_.reserve(sites_.size());
-        auto const send = std::cend(sites_);
-        for (auto p = std::cbegin(sites_); p != send; ++p) {
-            pproxy_.push_back(p);
+        using sites = std::vector< site >;
+        sites sites_;
+        {
+            sites_.reserve(points_.size() + 1);
+            auto const send = std::cend(points_);
+            for (auto s = std::cbegin(points_); s != send; ++s) {
+                sites_.push_back(s);
+            }
+            auto const sless = [] (site const l, site const r) -> bool { return *l < *r; };
+            std::sort(std::begin(sites_), std::end(sites_), sless);
+            sites_.push_back(send);
         }
-        std::sort(std::begin(pproxy_), std::end(pproxy_), [&] (site const l, site const r) -> bool
-        {
-            return less{zero}(*l, *r);
-        });
-        pproxy_.push_back(send);
-        using ppoint = typename pproxy::const_iterator;
-        struct point_proxy
-                : std::iterator< std::forward_iterator_tag, point const >
-        {
-
-            ppoint p;
-
-            point_proxy(ppoint const pp) : p(pp) { ; }
-            operator site () const { return *p; }
-
-            point_proxy & operator ++ () { ++p; return *this; }
-            point_proxy operator ++ (int) { return {p++}; }
-
-            point const & operator * () const { return **p; }
-            point const * operator -> () const { return &operator * (); }
-
-            bool operator == (point_proxy const & rhs) const { return (p == rhs.p); }
-            bool operator != (point_proxy const & rhs) const { return !operator == (rhs); }
-
-        };
-        sweepline_(point_proxy{std::cbegin(pproxy_)}, point_proxy{std::prev(std::cend(pproxy_))});
+        using psite = proxy_iterator< typename sites::const_iterator >;
+        sweepline_(psite{std::cbegin(sites_)}, psite{std::prev(std::cend(sites_))});
 #endif
     }
 
@@ -409,12 +419,12 @@ public :
                 V const & _vertices,
                 E const & _edges) const
     {
-        if (sites_.empty()) {
+        if (points_.empty()) {
             _gnuplot << "print 'no point to process'\n;";
             return;
         }
         // pmin, pmax denotes bounding box
-        point vmin = sites_.front();
+        point vmin = points_.front();
         point vmax = vmin;
         auto const pminmax = [&] (point const & p)
         {
@@ -429,7 +439,7 @@ public :
                 vmax.y = p.y;
             }
         };
-        std::for_each(std::next(std::cbegin(sites_)), std::cend(sites_), pminmax);
+        std::for_each(std::next(std::cbegin(points_)), std::cend(points_), pminmax);
         assert(value_type(-0.5) < zoom);
         if (vmin.x + delta < vmax.x) {
             value_type dx = vmax.x - vmin.x;
@@ -463,7 +473,7 @@ public :
         {
             _gnuplot << "$sites << EOI\n";
             size_type i = 0;
-            for (point const & point_ : sites_) {
+            for (point const & point_ : points_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
             }
             _gnuplot << "EOI\n";
@@ -541,7 +551,7 @@ public :
             _gnuplot << "EOI\n";
         }
         _gnuplot << "plot";
-        _gnuplot << " '$sites' with points title 'sites # " << sites_.size() << "'";
+        _gnuplot << " '$sites' with points title 'sites # " << points_.size() << "'";
         if (draw_indices) {
             _gnuplot << ", '$sites' with labels offset character 0, character 1 notitle";
         }
@@ -631,6 +641,11 @@ struct alignas(__m128d) point
 {
 
     value_type x, y;
+
+    bool operator < (point const & p) const
+    {
+        return std::tie(x, y) < std::tie(p.x, p.y);
+    }
 
 };
 

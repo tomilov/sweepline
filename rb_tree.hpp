@@ -321,35 +321,22 @@ rebalance_for_erase(base_pointer const z, node_base & h) noexcept
 }
 
 template< typename type >
-struct node;
-
-template< typename type >
-struct node< type const >
+struct node
         : node_base
 {
 
-    type const * pointer() const noexcept { return &storage.value; }
+    union { type value; };
 
-protected :
+    node() noexcept { ; }
 
-    union storage_type
-    {
+    node(node const &) = delete;
+    node(node &&) = delete;
+    void operator = (node const &) = delete;
+    void operator = (node &&) = delete;
 
-        storage_type() noexcept { ; }
-        ~storage_type() noexcept { ; }
+    ~node() { ; }
 
-        type value;
-
-    } storage;
-
-};
-
-template< typename type >
-struct node
-        : node< type const >
-{
-
-    type * pointer() noexcept { return &node< type const >::storage.value; }
+    type * pointer() noexcept { return &value; }
 
 };
 
@@ -462,14 +449,19 @@ public :
 
     tree() = default;
 
+    tree(tree const &) = delete;
+    tree(tree &&) = delete;
+    void operator = (tree const &) = delete;
+    void operator = (tree &&) = delete;
+
     tree(compare_type const & comp, allocator_type const & alloc)
-        : c(comp)
-        , a(alloc)
+        : c{comp}
+        , a{alloc}
     { ; }
 
     tree(compare_type const & comp, allocator_type && alloc = allocator_type{})
-        : c(comp)
-        , a(std::move(alloc))
+        : c{comp}
+        , a{std::move(alloc)}
     { ; }
 
     size_type size() const noexcept { return s; }
@@ -513,11 +505,6 @@ public :
     {
         clear();
     }
-
-    tree(tree const &) = delete;
-    tree(tree &&) = delete;
-    void operator = (tree const &) = delete;
-    void operator = (tree &&) = delete;
 
     using iterator = tree_iterator< value_type >;
     using const_iterator = tree_iterator< value_type const >;
@@ -746,7 +733,7 @@ class adapt_compare
 public :
 
     adapt_compare(compare const & comp)
-        : c(comp)
+        : c{comp}
     { ; }
 
     template< typename L, typename R >
