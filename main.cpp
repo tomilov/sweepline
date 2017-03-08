@@ -121,7 +121,7 @@ public :
     void
     ball(std::ostream & _out, value_type const radius, size_type const N)
     {
-        std::set< point, less > points_{less{delta}};
+        std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
         value_type const twosqreps = eps;
         constexpr size_type M = 1000; // number of attempts
@@ -138,7 +138,7 @@ public :
                 } else {
                     p.x = p.y = zero;
                 }
-                if (points_.insert(std::move(p)).second) {
+                if (unique_points_.insert(std::move(p)).second) {
                     break;
                 }
             } while (++m < M);
@@ -148,7 +148,7 @@ public :
                 break;
             }
         }
-        for (point const & point_ : points_) {
+        for (point const & point_ : unique_points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
     }
@@ -156,7 +156,7 @@ public :
     void
     square(std::ostream & _out, value_type const bbox, size_type const N)
     {
-        std::set< point, less > points_{less{delta}};
+        std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed square
@@ -169,7 +169,7 @@ public :
                 p.y -= one;
                 p.x *= bbox;
                 p.y *= bbox;
-                if (points_.insert(std::move(p)).second) {
+                if (unique_points_.insert(std::move(p)).second) {
                     break;
                 }
             } while (++m < M);
@@ -179,7 +179,7 @@ public :
                 break;
             }
         }
-        for (point const & point_ : points_) {
+        for (point const & point_ : unique_points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
     }

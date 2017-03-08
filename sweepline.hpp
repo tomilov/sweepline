@@ -61,6 +61,8 @@ struct sweepline
         assert(!(_eps < value_type(0)));
     }
 
+    using pedge = std::size_t;
+
     struct vertex // circumscribed circle
     {
 
@@ -69,6 +71,8 @@ struct sweepline
 
         value_type x() const { return c.x + R; }
         value_type const & y() const { return c.y; }
+
+        std::deque< pedge > edges_; // collapsing edges
 
     };
 
@@ -87,7 +91,6 @@ struct sweepline
     };
 
     using edges = std::deque< edge >;
-    using pedge = typename edges::size_type;
 
     // Voronoi diagram:
     // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator of std::list is not preserved during these operations
@@ -273,7 +276,7 @@ private :
         y /= alpha;
         assert(less_.eps * less_.eps < beta + x * x + y * y);
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
-        return {{{x, y}, sqrt(beta + x * x + y * y)}};
+        return {{{x, y}, sqrt(beta + x * x + y * y), {}}};
     }
 
     void add_ray(pray const rr, pendpoint const l)
@@ -319,6 +322,7 @@ private :
         assert(b.l != b.r);
         assert(nray != b.r);
         remove_bundle(b);
+        assert(std::next(b.r) == nray);
         for (auto l = b.l; l != nray; ++l) {
             pendpoint const ep = *l;
             assert(ep->v == ev);
@@ -394,6 +398,7 @@ private :
     void trunc_edge(pedge const e, pvertex const v)
     {
         edge & edge_ = edges_[e];
+        v->edges_.push_back(e);
         assert(v != nv);
         if (edge_.b == nv) {
             if (edge_.e == nv) { // orientate:
@@ -433,9 +438,21 @@ private :
         return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
 
-    template< typename iterator >
-    void begin_cell(iterator s)
+    pendpoint
+    add_cell(site const c, site const s)
     {
+        pedge const e = add_edge(c, s, nv);
+        pendpoint const r = insert_endpoint(nep, c, s, e);
+        if (less_(c->x, s->x))  {
+            pendpoint const rr = insert_endpoint(nep, s, c, e);
+            assert(std::next(r) == rr);
+        }
+        return r;
+    }
+
+    void begin_cell(site const s)
+    {
+        assert(!endpoints_.empty());
         pendpoint l = endpoints_.lower_bound(*s);
         pendpoint r = l;
         while ((r != nep) && !less_(*s, r->k)) {
@@ -444,20 +461,12 @@ private :
         }
         if (l == r) {
             if (l == nep) { // append to the rightmost endpoint
-                site const c = endpoints_.empty() ? s++ : (--l, l->k.r);
-                pedge const e = add_edge(c, s, nv);
-                r = insert_endpoint(nep, c, s, e);
-                if (less_(c->x, s->x))  {
-                    [[maybe_unused]] pendpoint const rr = insert_endpoint(nep, s, c, e);
-                    assert(std::next(r) == rr);
-                }
-                if (l == nep) {
-                    return;
-                }
+                --l;
+                r = add_cell(l->k.r, s);
             } else if (l == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 site const c = r->k.l;
                 pedge const e = add_edge(s, c, nv);
-                [[maybe_unused]] pendpoint const ll = insert_endpoint(r, c, s, e);
+                pendpoint const ll = insert_endpoint(r, c, s, e);
                 l = insert_endpoint(r, s, c, e);
                 assert(std::next(ll) == l);
             } else { // insert in the middle of the beachline (hottest branch in general case)
@@ -523,7 +532,7 @@ private :
             {
                 return angle(ll->k) < angle(rr->k);
             };
-#if 1
+#if 0
             assert(std::next(r) == nray);
             rays crays_;
             crays_.splice(std::cend(crays_), rays_, l, nray);
@@ -566,7 +575,7 @@ private :
     {
         remove_bundle(b);
         auto lr = endpoint_range(b.l, b.r);
-        // All the edges from (*lr.l ... *lr.r)->k.e can be stored near the associate vertex if needed
+        // All the edges from (*(lr.l ... lr.r))->k.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.l, lr.r));
         pvertex const v = vertices_.insert(nv, _vertex);
         events_.erase(ev);
@@ -641,15 +650,18 @@ public :
     void operator () (iterator l, iterator const r)
     {
         assert(std::is_sorted(l, r, less_));
+        assert(endpoints_.empty());
         assert(vertices_.empty());
         assert(edges_.empty());
         if (l == r) {
             return;
         }
-        if (std::next(l) == r) {
+        iterator const ll = std::next(l);
+        if (ll == r) {
             return;
         }
-        begin_cell(l++);
+        add_cell(l, ll);
+        l = ll;
         while (++l != r) {
             if (process_events(l, r)) {
                 begin_cell(l);
