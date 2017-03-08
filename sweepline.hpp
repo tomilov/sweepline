@@ -78,8 +78,11 @@ struct sweepline
     struct edge // ((l, r), (b, e)) is CW
     {
 
-        site l, r;
-        pvertex b, e;
+        site const l;
+        site const r;
+
+        pvertex b;
+        pvertex e;
 
     };
 
@@ -301,13 +304,12 @@ private :
         }
     }
 
-    void remove_event(pevent const ev, bundle const & b)
+    void remove_bundle(bundle const & b)
     {
         rays_.splice(nray, rays_, b.l, std::next(b.r));
         if (rev == nray) {
             rev = b.l;
         }
-        events_.erase(ev);
     }
 
     void disable_event(pevent const ev)
@@ -316,13 +318,13 @@ private :
         bundle const & b = ev->v;
         assert(b.l != b.r);
         assert(nray != b.r);
-        pray const r = std::next(b.r);
-        for (auto l = b.l; l != r; ++l) {
+        remove_bundle(b);
+        for (auto l = b.l; l != nray; ++l) {
             pendpoint const ep = *l;
             assert(ep->v == ev);
             ep->v = nev;
         }
-        remove_event(ev, b);
+        events_.erase(ev);
     }
 
     void check_event(pendpoint const l, pendpoint const r)
@@ -508,7 +510,7 @@ private :
     static value_type angle(endpoint const & ep) { return angle(*ep.l, *ep.r); }
 
     range< pendpoint >
-    endpoint_range(pray const l, pray const r) const
+    endpoint_range(pray l, pray const r)
     {
         assert(r != nray);
         assert(0 < std::distance(l, r));
@@ -520,8 +522,18 @@ private :
             {
                 return angle(ll->k) < angle(rr->k);
             };
+#if 0
+            assert(std::next(r) == nray);
+            rays crays_;
+            crays_.splice(std::cend(crays_), rays_, l, nray);
+            crays_.sort(angle_less);
+            l = std::begin(crays_);
+            rays_.splice(nray, std::move(crays_));
+            return {*l, *std::prev(nray)};
+#else
             auto const lr = std::minmax_element(l, std::next(r), angle_less);
             return {*lr.first, *lr.second};
+#endif
         }
     }
 
@@ -551,11 +563,12 @@ private :
                       bundle const & b,
                       site const l, site const r)
     {
+        remove_bundle(b);
         auto lr = endpoint_range(b.l, b.r);
         // All the edges from (*lr.l ... *lr.r)->k.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.l, lr.r));
         pvertex const v = vertices_.insert(nv, _vertex);
-        remove_event(ev, b);
+        events_.erase(ev);
         site const ll = lr.l->k.l;
         site const rr = lr.r->k.r;
         ++lr.r;
