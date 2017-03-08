@@ -433,7 +433,8 @@ private :
         return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
 
-    void begin_cell(site s)
+    template< typename iterator >
+    void begin_cell(iterator s)
     {
         pendpoint l = endpoints_.lower_bound(*s);
         pendpoint r = l;
@@ -522,7 +523,7 @@ private :
             {
                 return angle(ll->k) < angle(rr->k);
             };
-#if 0
+#if 1
             assert(std::next(r) == nray);
             rays crays_;
             crays_.splice(std::cend(crays_), rays_, l, nray);

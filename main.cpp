@@ -800,7 +800,7 @@ int main()
             voronoi_.seed(seed);
             //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
-#  if 1
+#  if 0
         voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
