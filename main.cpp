@@ -528,7 +528,7 @@ public :
                         pout(p);
                         pout(trunc_edge((beg ? l : r), (end ? l : r), p));
                     }
-                } else if (beg && end) {
+                } else if (beg) {
                     pout(edge_.b->c);
                     pout(edge_.e->c);
                 } else {

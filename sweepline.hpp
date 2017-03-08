@@ -141,7 +141,7 @@ private :
         // Endpoints removed strictly before a violation of this invariant to prevent its occurrence.
 
         // The body of this function is unreachable.
-        // Gives correct results only when used against std::map from libc++, but doing so is UB.
+        // It still gives correct results, but only when used against std::map from libc++, but doing so is UB.
         //[[noreturn]]
         bool operator () (endpoint const & l, endpoint const & r) const
         {
@@ -381,36 +381,37 @@ private :
         return e;
     }
 
-    void trunc_edge(edge & e, pvertex const v) const
+    void trunc_edge(pedge const e, pvertex const v)
     {
+        edge & edge_ = edges_[e];
         assert(v != nv);
-        if (e.b == nv) {
-            if (e.e == nv) { // orientate:
-                point const & l = *e.l;
-                point const & r = *e.r;
+        if (edge_.b == nv) {
+            if (edge_.e == nv) { // orientate:
+                point const & l = *edge_.l;
+                point const & r = *edge_.r;
                 point const & c = v->c;
                 if (r.x < l.x) {
                     if (c.y < l.y) {
-                        e.b = v;
+                        edge_.b = v;
                         return;
                     }
                 } else if (l.x < r.x) {
                     if (r.y < c.y) {
-                        e.b = v;
+                        edge_.b = v;
                         return;
                     }
                 } else {
                     assert(!(r.y < l.y));
                 }
-                e.e = v;
+                edge_.e = v;
             } else {
-                assert(e.e != v);
-                e.b = v;
+                assert(edge_.e != v);
+                edge_.b = v;
             }
         } else {
-            assert(e.b != v);
-            assert(e.e == nv);
-            e.e = v;
+            assert(edge_.b != v);
+            assert(edge_.e == nv);
+            edge_.e = v;
         }
     }
 
@@ -472,7 +473,7 @@ private :
             assert(!!vertex_);
             assert(events_.find(*vertex_) == nev);
             pvertex const v = vertices_.insert(nv, std::move(*vertex_));
-            trunc_edge(edges_[endpoint_.k.e], v);
+            trunc_edge(endpoint_.k.e, v);
             pedge const le = add_edge(endpoint_.k.l, s, v);
             pedge const re = add_edge(s, endpoint_.k.r, v);
             pendpoint const ep = insert_endpoint(r, s, endpoint_.k.r, re);
@@ -550,7 +551,7 @@ private :
         site const rr = lr.r->k.r;
         ++lr.r;
         do {
-            trunc_edge(edges_[lr.l->k.e], v);
+            trunc_edge(lr.l->k.e, v);
             endpoints_.erase(lr.l++);
         } while (lr.l != lr.r);
         if (l == r) {

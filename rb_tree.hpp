@@ -30,10 +30,10 @@ struct node_base
     node_base() = default;
 
     node_base(void *) noexcept
-        : p(nullptr)
-        , l(this)
-        , r(this)
-        , c(color::red)
+        : p{nullptr}
+        , l{this}
+        , r{this}
+        , c{color::red}
     { ; }
 
 };
@@ -479,16 +479,12 @@ public :
     void reserve(size_type n)
     {
         node_pointer p = pool;
+        while (p && (s < n)) {
+            p = p->r;
+            --n;
+        }
         while (s < n) {
-            if (p) {
-                p = p->r;
-            } else {
-                while (s < n) {
-                    put_node(get_node());
-                    --n;
-                }
-                return;
-            }
+            put_node(get_node());
             --n;
         }
     }
@@ -644,27 +640,27 @@ private :
 
     template< typename K >
     base_pointer
-    insert_unique(base_pointer const l, base_pointer const r, K && k)
+    insert_unique(base_pointer l, base_pointer const r, K && k)
     {
         if (r) {
             bool const insert_left = (l || (r == &h) || /*c(k, value(r))*/ !c(value(r), k));
-            node_pointer const z = create_node(std::forward< K >(k));
-            insert_and_rebalance(insert_left, z, r, h);
+            l = create_node(std::forward< K >(k));
+            insert_and_rebalance(insert_left, l, r, h);
             ++s;
-            return z;
+            return l;
         }
         return l;
     }
 
     template< typename K >
     base_pointer
-    force_insert_unique(base_pointer const l, base_pointer const r, K && k)
+    force_insert_unique(base_pointer l, base_pointer const r, K && k)
     {
         bool const insert_left = (l || (r == &h));
-        node_pointer const n = create_node(std::forward< K >(k));
-        insert_and_rebalance(insert_left, n, r, h);
+        l = create_node(std::forward< K >(k));
+        insert_and_rebalance(insert_left, l, r, h);
         ++s;
-        return n;
+        return l;
     }
 
 public :
