@@ -84,8 +84,8 @@ struct sweepline
         pvertex b;
         pvertex e;
 
-        void flip() // !(e->c < b->c) && ((b != nv) || (e == nv))
-        {
+        void flip() // ((e == nv) || !(e->c < b->c)) && ((b != nv) || (e == nv))
+        { // making flip a no-op is also correct, but invariant mentioned above won't hold
             using std::swap;
             swap(l, r);
             swap(b, e);
