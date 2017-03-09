@@ -72,8 +72,6 @@ struct sweepline
         value_type x() const { return c.x + R; }
         value_type const & y() const { return c.y; }
 
-        std::deque< pedge > edges_; // collapsing edges
-
     };
 
     using vertices = std::list< vertex >;
@@ -102,11 +100,22 @@ struct sweepline
 
 private :
 
+    static
+    value_type
+    angle(point const & l, point const & r)
+    {
+        using std::atan2;
+        return atan2(r.x - l.x, r.y - l.y);
+    }
+
     struct endpoint
     {
 
-        site l, r;
-        pedge e;
+        site const l;
+        site const r;
+        pedge const e;
+
+        value_type angle() const { return sweepline::angle(*l, *r); }
 
     };
 
@@ -231,15 +240,8 @@ private :
 
     using events = rb_tree::map< vertex, bundle const, less >;
 
-    struct pevent
-            : events::iterator
-    {
-
-        pevent(typename events::iterator const it)
-            : events::iterator{it}
-        { ; }
-
-    };
+    using event = typename events::iterator;
+    struct pevent : event { pevent(event const it) : event{it} { ; } };
 
     endpoints endpoints_{less_};
     pendpoint const nep = std::end(endpoints_);
@@ -276,7 +278,7 @@ private :
         y /= alpha;
         assert(less_.eps * less_.eps < beta + x * x + y * y);
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
-        return {{{x, y}, sqrt(beta + x * x + y * y), {}}};
+        return {{{x, y}, sqrt(beta + x * x + y * y)}};
     }
 
     void add_ray(pray const rr, pendpoint const l)
@@ -398,7 +400,6 @@ private :
     void trunc_edge(pedge const e, pvertex const v)
     {
         edge & edge_ = edges_[e];
-        v->edges_.push_back(e);
         assert(v != nv);
         if (edge_.b == nv) {
             if (edge_.e == nv) { // orientate:
@@ -509,28 +510,17 @@ private :
         }
     }
 
-    static
-    value_type
-    angle(point const & l, point const & r)
-    {
-        using std::atan2;
-        return atan2(r.x - l.x, r.y - l.y);
-    }
-
-    static value_type angle(endpoint const & ep) { return angle(*ep.l, *ep.r); }
-
     range< pendpoint >
-    endpoint_range(pray l, pray const r)
+    endpoint_range(pray l, pray r)
     {
         assert(r != nray);
-        assert(0 < std::distance(l, r));
+        assert(l != r);
         if (std::next(l) == r) {
             assert(std::next(*l) == *r);
-            return {*l, *r};
         } else {
             auto const angle_less = [] (pendpoint const ll, pendpoint const rr) -> bool
             {
-                return angle(ll->k) < angle(rr->k);
+                return ll->k.angle() < rr->k.angle();
             };
 #if 0
             assert(std::next(r) == nray);
@@ -539,12 +529,12 @@ private :
             crays_.sort(angle_less);
             l = std::begin(crays_);
             rays_.splice(nray, std::move(crays_));
-            return {*l, *std::prev(nray)};
+            r = std::prev(nray);
 #else
-            auto const lr = std::minmax_element(l, std::next(r), angle_less);
-            return {*lr.first, *lr.second};
+            std::tie(l, r) = std::minmax_element(l, std::next(r), angle_less);
 #endif
         }
+        return {*l, *r};
     }
 
     bool check_endpoint_range(pevent const ev, pendpoint l, pendpoint const r) const
