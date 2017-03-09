@@ -61,8 +61,6 @@ struct sweepline
         assert(!(_eps < value_type(0)));
     }
 
-    using pedge = std::size_t;
-
     struct vertex // circumscribed circle
     {
 
@@ -80,21 +78,29 @@ struct sweepline
     struct edge // ((l, r), (b, e)) is CW
     {
 
-        site const l;
-        site const r;
+        site l;
+        site r;
 
         pvertex b;
         pvertex e;
 
+        void flip() // !(e->c < b->c) && ((b != nv) || (e == nv))
+        {
+            using std::swap;
+            swap(l, r);
+            swap(b, e);
+        }
+
     };
 
     using edges = std::deque< edge >;
+    using pedge = typename edges::size_type;
 
     // Voronoi diagram:
     // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator of std::list is not preserved during these operations
     // {
     vertices vertices_;
-    pvertex const nv = std::end(vertices_); // inf
+    pvertex const nv = std::end(vertices_); // infty
     edges edges_;
     // }
 
@@ -113,6 +119,7 @@ private :
 
         site const l;
         site const r;
+
         pedge const e;
 
         value_type angle() const { return sweepline::angle(*l, *r); }
@@ -420,6 +427,8 @@ private :
                     assert(!(r.y < l.y));
                 }
                 edge_.e = v;
+                edge_.flip();
+                return;
             } else {
                 assert(edge_.e != v);
                 edge_.b = v;
@@ -428,6 +437,11 @@ private :
             assert(edge_.b != v);
             assert(edge_.e == nv);
             edge_.e = v;
+        }
+        point const & l = edge_.b->c;
+        point const & r = edge_.e->c;
+        if (std::tie(r.x, r.y) < std::tie(l.x, l.y)) {
+            edge_.flip();
         }
     }
 
@@ -662,7 +676,7 @@ public :
             auto const & event_ = *ev;
             finish_cells(ev, event_.k, event_.v, r, r);
         }
-        assert(std::is_sorted(std::begin(vertices_), nv, less_));
+        //assert(std::is_sorted(std::begin(vertices_), nv, less_)); // almost true
         assert(rev == std::begin(rays_));
         assert(check_last_endpoints());
         endpoints_.clear();

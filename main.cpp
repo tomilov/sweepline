@@ -533,12 +533,14 @@ public :
                 point const & l = *edge_.l;
                 point const & r = *edge_.r;
                 if (beg != end) {
+                    assert(beg); // disable this, if flip at the mid of the sweepline<>::trunc_edge does not exist
                     point const & p = (beg ? edge_.b : edge_.e)->c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge((beg ? l : r), (end ? l : r), p));
                     }
                 } else if (beg) {
+                    assert(!(edge_.e->c < edge_.b->c)); // disable this, if flip at the end of the sweepline<>::trunc_edge does not exist
                     pout(edge_.b->c);
                     pout(edge_.e->c);
                 } else {
