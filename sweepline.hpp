@@ -247,8 +247,8 @@ private :
 
     using events = rb_tree::map< vertex, bundle const, less >;
 
-    using event = typename events::iterator;
-    struct pevent : event { pevent(event const it) : event{it} { ; } };
+    using pevent_base = typename events::iterator;
+    struct pevent : pevent_base { pevent(pevent_base const it) : pevent_base{it} { ; } };
 
     endpoints endpoints_{less_};
     pendpoint const nep = std::end(endpoints_);
@@ -536,8 +536,8 @@ private :
             {
                 return ll->k.angle() < rr->k.angle();
             };
-#if 0
             assert(std::next(r) == nray);
+#if 0
             rays crays_;
             crays_.splice(std::cend(crays_), rays_, l, nray);
             crays_.sort(angle_less);
@@ -545,7 +545,7 @@ private :
             rays_.splice(nray, std::move(crays_));
             r = std::prev(nray);
 #else
-            std::tie(l, r) = std::minmax_element(l, std::next(r), angle_less);
+            std::tie(l, r) = std::minmax_element(l, nray, angle_less);
 #endif
         }
         return {*l, *r};
@@ -660,12 +660,11 @@ public :
         if (l == r) {
             return;
         }
-        iterator const ll = std::next(l);
-        if (ll == r) {
+        iterator const ll = l;
+        if (++l == r) {
             return;
         }
-        add_cell(l, ll);
-        l = ll;
+        add_cell(ll, l);
         while (++l != r) {
             if (process_events(l, r)) {
                 begin_cell(l);
