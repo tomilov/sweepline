@@ -61,6 +61,14 @@ struct sweepline
         assert(!(_eps < value_type(0)));
     }
 
+    static
+    value_type
+    angle(point const & l, point const & r)
+    {
+        using std::atan2;
+        return atan2(r.x - l.x, r.y - l.y);
+    }
+
     struct vertex // circumscribed circle
     {
 
@@ -78,11 +86,8 @@ struct sweepline
     struct edge // ((l, r), (b, e)) is CW
     {
 
-        site l;
-        site r;
-
-        pvertex b;
-        pvertex e;
+        site l, r;
+        pvertex b, e;
 
         void flip() // ((e == nv) || !(e->c < b->c)) && ((b != nv) || (e == nv))
         { // making flip a no-op is also correct, but invariant mentioned above won't hold
@@ -105,14 +110,6 @@ struct sweepline
     // }
 
 private :
-
-    static
-    value_type
-    angle(point const & l, point const & r)
-    {
-        using std::atan2;
-        return atan2(r.x - l.x, r.y - l.y);
-    }
 
     struct endpoint
     {
@@ -476,6 +473,7 @@ private :
         }
         if (l == r) {
             if (l == nep) { // append to the rightmost endpoint
+                assert(!endpoints_.empty());
                 --l;
                 r = add_cell(l->k.r, s);
             } else if (l == std::begin(endpoints_)) { // prepend to the leftmost endpoint

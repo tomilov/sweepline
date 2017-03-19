@@ -31,7 +31,6 @@ struct proxy_iterator
 
     iterator it;
 
-    proxy_iterator(iterator const i) : it{i} { ; }
     operator iterator_type () const { return *it; }
 
     proxy_iterator & operator ++ () { ++it; return *this; }
@@ -40,8 +39,8 @@ struct proxy_iterator
     reference operator * () const { return **it; }
     pointer operator -> () const { return &operator * (); }
 
-    bool operator == (proxy_iterator const & i) const { return (it == i.it); }
-    bool operator != (proxy_iterator const & i) const { return !operator == (i); }
+    bool operator == (proxy_iterator const pi) const { return (it == pi.it); }
+    bool operator != (proxy_iterator const pi) const { return (it != pi.it); }
 
 };
 
@@ -123,14 +122,13 @@ public :
     {
         std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
-        value_type const twosqreps = eps;
         constexpr size_type M = 1000; // number of attempts
         for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
             size_type m = 0;
             do {
                 point p{normal_(rng), normal_(rng)};
                 value_type norm = p.x * p.x + p.y * p.y;
-                if (twosqreps < norm) {
+                if (eps < norm) {
                     using std::sqrt;
                     norm = radius * sqrt(zero_to_one_(rng) / std::move(norm));
                     p.x *= norm;
@@ -465,7 +463,8 @@ public :
         {
             _gnuplot << "set size square;\n"
                         "set key left;\n"
-                        "unset colorbox;\n";
+                        "unset colorbox;\n"
+                        "set cbrange [-1:1];\n";
             _gnuplot << "set xrange [" << pmin.x << ':' << pmax.x << "];\n";
             _gnuplot << "set yrange [" << pmin.y << ':' << pmax.y << "];\n";
             _gnuplot << "set size ratio -1;\n";
@@ -813,7 +812,7 @@ int main()
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
 #  else
-        voronoi_.ball(in_, value_type(10000), 100000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
+        voronoi_.ball(in_, value_type(10000), 10000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
 #  endif
 # endif
         //log_ << in_.str() << '\n';
@@ -887,7 +886,7 @@ int main()
 #endif
         command_line_.insert(0, "gnuplot -p ");
 #ifndef _WIN32
-#if 1
+#if 0
         command_line_.insert(0, "GNUTERM=qt ");
 #elif 0
         command_line_.insert(0, "GNUTERM=wxt ");
