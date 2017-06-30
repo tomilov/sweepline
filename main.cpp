@@ -410,6 +410,56 @@ public :
 #endif
     }
 
+    struct trunc_edge
+    {
+
+        point const & l;
+        point const & r;
+        point const & p;
+        point const & vmin;
+        point const & vmax;
+        value_type const & eps_;
+
+        value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
+        value_type const dy = l.x - r.x;
+
+        point px(value_type const & y) const { return {(p.x + (y - p.y) * dx / dy), y}; }
+
+        point py(value_type const & x) const
+        {
+            value_type const y = p.y + (x - p.x) * dy / dx;
+            if (+eps_ < dy) {
+                if (vmax.y < y) {
+                    return px(vmax.y);
+                }
+            } else if (dy < -eps_) {
+                if (y < vmin.y) {
+                    return px(vmin.y);
+                }
+            }
+            return {x, y};
+        }
+
+        operator point () const
+        {
+            if (+eps_ < dx) {
+                return py(vmax.x);
+            } else if (dx < -eps_) {
+                return py(vmin.x);
+            } else {
+                if (+eps_ < dy) {
+                    return {p.x, vmax.y};
+                } else if (dy < -eps_) {
+                    return {p.x, vmin.y};
+                } else {
+                    assert(false);
+                    return {p.x, p.y};
+                }
+            }
+        }
+
+    };
+
     value_type zoom = value_type(0.2);
 
     template< typename V, typename E >
@@ -485,42 +535,8 @@ public :
             }
             _gnuplot << "EOI\n";
         }
-        auto const trunc_edge = [&] (point const & l, point const & r, point const & p) -> point
-        {
-            value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
-            value_type const dy = l.x - r.x;
-            auto const px = [&] (value_type const & y) -> point { return {(p.x + (y - p.y) * dx / dy), y}; };
-            auto const py = [&] (value_type const & x) -> point
-            {
-                value_type const y = p.y + (x - p.x) * dy / dx;
-                if (+eps < dy) {
-                    if (vmax.y < y) {
-                        return px(vmax.y);
-                    }
-                } else if (dy < -eps) {
-                    if (y < vmin.y) {
-                        return px(vmin.y);
-                    }
-                }
-                return {x, y};
-            };
-            if (+eps < dx) {
-                return py(vmax.x);
-            } else if (dx < -eps) {
-                return py(vmin.x);
-            } else {
-                if (+eps < dy) {
-                    return {p.x, vmax.y};
-                } else if (dy < -eps) {
-                    return {p.x, vmin.y};
-                } else {
-                    assert(false);
-                    return {p.x, p.y};
-                }
-            }
-        };
         if (!_edges.empty()) {
-            auto const pout = [&] (auto const & p)
+            auto const pout = [&] (point const & p)
             {
                 _gnuplot << p.x << ' ' << p.y << '\n';
             };
@@ -536,7 +552,7 @@ public :
                     point const & p = (beg ? edge_.b : edge_.e)->c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
-                        pout(trunc_edge((beg ? l : r), (end ? l : r), p));
+                        pout(trunc_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
                     assert(!(edge_.e->c < edge_.b->c)); // disable this, if flip at the end of the sweepline<>::trunc_edge does not exist
@@ -544,8 +560,8 @@ public :
                     pout(edge_.e->c);
                 } else {
                     point const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
-                    pout(trunc_edge(l, r, p));
-                    pout(trunc_edge(r, l, p));
+                    pout(trunc_edge{l, r, p, vmin, vmax, eps});
+                    pout(trunc_edge{r, l, p, vmin, vmax, eps});
                 }
                 _gnuplot << "\n"; // separate lines
             }
@@ -554,7 +570,7 @@ public :
         _gnuplot << "plot";
         _gnuplot << " '$sites' with points title 'sites # " << points_.size() << "'";
         if (draw_indices) {
-            _gnuplot << ", '$sites' with labels offset character 0, character 1 notitle";
+            _gnuplot << ", '' with labels offset character 0, character 1 notitle";
         }
         if (draw_circles && !_vertices.empty()) {
             _gnuplot << ", '$circles' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
@@ -812,7 +828,7 @@ int main()
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
 #  else
-        voronoi_.ball(in_, value_type(10000), 10000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
+        voronoi_.ball(in_, value_type(10000), 1000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
 #  endif
 # endif
         //log_ << in_.str() << '\n';
