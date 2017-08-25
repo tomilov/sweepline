@@ -29,10 +29,10 @@ struct node_base
 
     node_base() = default;
 
-    node_base(void *) noexcept
+    node_base(base_pointer self) noexcept
         : p{nullptr}
-        , l{this}
-        , r{this}
+        , l{self}
+        , r{self}
         , c{color::red}
     { ; }
 
@@ -431,7 +431,7 @@ private :
         put_node(node_pointer(n));
     }
 
-    node_base h{{}};
+    node_base h{&h};
 
     size_type s = 0;
 
@@ -494,10 +494,7 @@ public :
     {
         erase(h.p);
         shrink_to_fit();
-        h.c = color::red;
-        h.p = nullptr;
-        h.l = &h;
-        h.r = &h;
+        h = {&h};
         s = 0;
     }
 

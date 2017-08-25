@@ -871,7 +871,7 @@ int main()
         log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
         log_ << "edges # " << sweepline_.edges_.size() << '\n';
         std::string command_line_ = "sweepline.plt";
-        std::ofstream f(command_line_);
+        std::ofstream f{command_line_};
         std::ostream & gnuplot_ = f;//std::cout;
 #if 0
         { // clone (O(|vertices| * |edges|))
