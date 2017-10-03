@@ -828,7 +828,7 @@ int main()
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
 #  else
-        voronoi_.ball(in_, value_type(10000), 1000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
+        voronoi_.ball(in_, value_type(10000), 100000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
 #  endif
 # endif
         //log_ << in_.str() << '\n';
