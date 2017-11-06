@@ -8,7 +8,7 @@ How to use:
     { 
         value_type x, y; 
         bool operator < (point const & p) const
-        { return std::tie(x, y) < std::tie(p.x, p.y);
+        { return std::tie(x, y) < std::tie(p.x, p.y); }
     };
     using points = std::vector< point >
     using site = typename points::const_iterator;
