@@ -39,8 +39,8 @@ struct proxy_iterator
     reference operator * () const { return **it; }
     pointer operator -> () const { return &operator * (); }
 
-    bool operator == (proxy_iterator const pi) const { return (it == pi.it); }
-    bool operator != (proxy_iterator const pi) const { return (it != pi.it); }
+    bool operator == (const proxy_iterator pi) const { return (it == pi.it); }
+    bool operator != (const proxy_iterator pi) const { return (it != pi.it); }
 
 };
 
@@ -69,8 +69,8 @@ struct voronoi
 
 private :
 
-    value_type const zero = value_type(0);
-    value_type const one = value_type(1);
+    const value_type zero = value_type(0);
+    const value_type one = value_type(1);
 
     std::mt19937 rng;
     std::normal_distribution< value_type > normal_;
@@ -81,7 +81,7 @@ public :
     using seed_type = typename std::mt19937::result_type;
 
     void
-    seed(seed_type const seed)
+    seed(const seed_type seed)
     {
         log_ << "seed = " << seed << '\n';
         rng.seed(seed);
@@ -90,16 +90,16 @@ public :
     struct less
     {
 
-        value_type const & eps;
+        const value_type & eps;
 
-        bool operator () (value_type const & l,
-                          value_type const & r) const
+        bool operator () (const value_type & l,
+                          const value_type & r) const
         {
             return l + eps < r;
         }
 
-        bool operator () (value_type const & lx, value_type const & ly,
-                          value_type const & rx, value_type const & ry) const
+        bool operator () (const value_type & lx, const value_type & ly,
+                          const value_type & rx, const value_type & ry) const
         {
             if (operator () (lx, rx)) {
                 return true;
@@ -110,7 +110,7 @@ public :
             }
         }
 
-        bool operator () (point const & l, point const & r) const
+        bool operator () (const point & l, const point & r) const
         {
             return operator () (l.x, l.y, r.x, r.y);
         }
@@ -118,7 +118,7 @@ public :
     };
 
     void
-    ball(std::ostream & _out, value_type const radius, size_type const N)
+    ball(std::ostream & _out, const value_type radius, const size_type N)
     {
         std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
@@ -146,13 +146,13 @@ public :
                 break;
             }
         }
-        for (point const & point_ : unique_points_) {
+        for (const point & point_ : unique_points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
     }
 
     void
-    square(std::ostream & _out, value_type const bbox, size_type const N)
+    square(std::ostream & _out, const value_type bbox, const size_type N)
     {
         std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
@@ -177,15 +177,15 @@ public :
                 break;
             }
         }
-        for (point const & point_ : unique_points_) {
+        for (const point & point_ : unique_points_) {
             _out << point_.x << ' ' << point_.y << '\n';
         }
     }
 
     void
-    rectangle_grid(std::ostream & _out, size_type const bbox) const
+    rectangle_grid(std::ostream & _out, const size_type bbox) const
     {
-        size_type const N = 1 + 4 * bbox * (bbox + 1);
+        const size_type N = 1 + 4 * bbox * (bbox + 1);
         _out << N << '\n';
         _out << "0 0\n";
         for (size_type x = 1; x <= bbox; ++x) {
@@ -203,9 +203,9 @@ public :
     }
 
     void
-    diagonal_grid(std::ostream & _out, size_type const bbox) const
+    diagonal_grid(std::ostream & _out, const size_type bbox) const
     {
-        size_type const N = (1 + 2 * bbox * (bbox + 1));
+        const size_type N = (1 + 2 * bbox * (bbox + 1));
         _out << N << '\n';
         _out << "0 0\n";
         size_type i = 1;
@@ -222,17 +222,17 @@ public :
     }
 
     void
-    hexagonal_grid(std::ostream & _out, size_type const size) const
+    hexagonal_grid(std::ostream & _out, const size_type size) const
     {
-        size_type const N = (size + size) * (size + 1);
+        const size_type N = (size + size) * (size + 1);
         _out << N << '\n';
         using std::sqrt;
-        value_type const step = sqrt(value_type(3));
+        const value_type step = sqrt(value_type(3));
         size_type i = 0;
         for (size_type x = 1; x <= size; ++x) {
-            value_type const xx = value_type(x) * step;
+            const value_type xx = value_type(x) * step;
             if ((x % 2) == 0) {
-                value_type const yy = value_type(3 * (x - 1));
+                const value_type yy = value_type(3 * (x - 1));
                 _out << "0 " << yy << '\n';
                 _out << "0 -" << yy << '\n';
             } else {
@@ -241,7 +241,7 @@ public :
             }
             i += 2;
             for (size_type y = 1 + (x % 2); y <= size; y += 2) {
-                size_type const yy = 3 * y;
+                const size_type yy = 3 * y;
                 _out << xx << ' ' << yy << '\n';
                 _out << xx << " -" << yy << '\n';
                 _out << '-' << xx << ' ' << yy << '\n';
@@ -250,7 +250,7 @@ public :
             }
         }
         if ((size % 2) != 0) {
-            value_type const yy = value_type(3 * size);
+            const value_type yy = value_type(3 * size);
             _out << "0 " << yy << '\n';
             _out << "0 -" << yy << '\n';
             i += 2;
@@ -259,23 +259,23 @@ public :
     }
 
     void
-    triangular_grid(std::ostream & _out, size_type const size) const
+    triangular_grid(std::ostream & _out, const size_type size) const
     {
-        size_type const N = (1 + size + size) * (size + size);
+        const size_type N = (1 + size + size) * (size + size);
         _out << N << '\n';
         using std::sqrt;
-        value_type const step = sqrt(value_type(3));
+        const value_type step = sqrt(value_type(3));
         size_type i = 0;
         for (size_type x = 1; x <= size; ++x) {
-            size_type const xx = 3 * x;
+            const size_type xx = 3 * x;
             {
-                value_type const yy = value_type(step) * (xx - 1 - (x % 2));
+                const value_type yy = value_type(step) * (xx - 1 - (x % 2));
                 _out << "0 " << yy << '\n';
                 _out << "0 -" << yy << '\n';
             }
             i += 2;
             for (size_type y = 1; y <= size; ++y) {
-                value_type const yy = step * value_type(3 * y - 1 - ((y + x) % 2));
+                const value_type yy = step * value_type(3 * y - 1 - ((y + x) % 2));
                 _out << xx << ' ' << yy << '\n';
                 _out << xx << " -" << yy << '\n';
                 _out << '-' << xx << ' ' << yy << '\n';
@@ -290,7 +290,7 @@ public :
 
     template< std::size_t nsqr >
     void
-    quadrant(std::ostream & _out, size_type const max, ipoint const (& q)[nsqr]) const
+    quadrant(std::ostream & _out, const size_type max, const ipoint (& q)[nsqr]) const
     {
         if (0 == max) {
             _out << (nsqr * 8) << '\n';
@@ -301,9 +301,9 @@ public :
             _out << max << " 0\n";
             _out << '-' << max << " 0\n";
         }
-        auto const qprint = [&] (bool const swap, bool const sx, bool const sy)
+        const auto qprint = [&] (const bool swap, const bool sx, const bool sy)
         {
-            for (ipoint const & p : q) {
+            for (const ipoint & p : q) {
                 assert(p.x != 0);
                 assert(p.y != 0);
                 if (sx) {
@@ -371,7 +371,7 @@ public :
     }
 
     void
-    shift_xy(value_type const & dx, value_type const & dy)
+    shift_xy(const value_type & dx, const value_type & dy)
     {
         for (point & point_ : points_) {
             point_.x += dx;
@@ -397,11 +397,11 @@ public :
         sites sites_;
         {
             sites_.reserve(points_.size() + 1);
-            auto const send = std::cend(points_);
+            const auto send = std::cend(points_);
             for (auto s = std::cbegin(points_); s != send; ++s) {
                 sites_.push_back(s);
             }
-            auto const sless = [] (site const l, site const r) -> bool { return *l < *r; };
+            const auto sless = [] (const site l, const site r) -> bool { return *l < *r; };
             std::sort(std::begin(sites_), std::end(sites_), sless);
             sites_.push_back(send);
         }
@@ -413,21 +413,21 @@ public :
     struct trunc_edge
     {
 
-        point const & l;
-        point const & r;
-        point const & p;
-        point const & vmin;
-        point const & vmax;
-        value_type const & eps_;
+        const point & l;
+        const point & r;
+        const point & p;
+        const point & vmin;
+        const point & vmax;
+        const value_type & eps_;
 
-        value_type const dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
-        value_type const dy = l.x - r.x;
+        const value_type dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
+        const value_type dy = l.x - r.x;
 
-        point px(value_type const & y) const { return {(p.x + (y - p.y) * dx / dy), y}; }
+        point px(const value_type & y) const { return {(p.x + (y - p.y) * dx / dy), y}; }
 
-        point py(value_type const & x) const
+        point py(const value_type & x) const
         {
-            value_type const y = p.y + (x - p.x) * dy / dx;
+            const value_type y = p.y + (x - p.x) * dy / dx;
             if (+eps_ < dy) {
                 if (vmax.y < y) {
                     return px(vmax.y);
@@ -464,8 +464,8 @@ public :
 
     template< typename V, typename E >
     void output(std::ostream & _gnuplot,
-                V const & _vertices,
-                E const & _edges) const
+                const V & _vertices,
+                const E & _edges) const
     {
         if (points_.empty()) {
             _gnuplot << "print 'no point to process'\n;";
@@ -474,7 +474,7 @@ public :
         // pmin, pmax denotes bounding box
         point vmin = points_.front();
         point vmax = vmin;
-        auto const pminmax = [&] (point const & p)
+        const auto pminmax = [&] (const point & p)
         {
             if (p.x < vmin.x) {
                 vmin.x = p.x;
@@ -509,7 +509,7 @@ public :
         }
         point pmin = vmin;
         point pmax = vmax;
-        std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (auto const & v) { pminmax(v.c); });
+        std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (const auto & v) { pminmax(v.c); });
         {
             _gnuplot << "set size square;\n"
                         "set key left;\n"
@@ -522,7 +522,7 @@ public :
         {
             _gnuplot << "$sites << EOI\n";
             size_type i = 0;
-            for (point const & point_ : points_) {
+            for (const point & point_ : points_) {
                 _gnuplot << point_.x << ' ' << point_.y << ' ' << i++ << '\n';
             }
             _gnuplot << "EOI\n";
@@ -530,26 +530,26 @@ public :
         if (draw_circles && !_vertices.empty()) {
             _gnuplot << "$circles << EOI\n";
             size_type i = 0;
-            for (auto const & vertex_ : _vertices) {
+            for (const auto & vertex_ : _vertices) {
                 _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
             }
             _gnuplot << "EOI\n";
         }
         if (!_edges.empty()) {
-            auto const pout = [&] (point const & p)
+            const auto pout = [&] (const point & p)
             {
                 _gnuplot << p.x << ' ' << p.y << '\n';
             };
             _gnuplot << "$edges << EOI\n";
-            auto const nv = std::end(_vertices);
-            for (auto const & edge_ : _edges) {
-                bool const beg = (edge_.b != nv);
-                bool const end = (edge_.e != nv);
-                point const & l = *edge_.l;
-                point const & r = *edge_.r;
+            const auto nv = std::end(_vertices);
+            for (const auto & edge_ : _edges) {
+                const bool beg = (edge_.b != nv);
+                const bool end = (edge_.e != nv);
+                const point & l = *edge_.l;
+                const point & r = *edge_.r;
                 if (beg != end) {
                     assert(beg); // disable this, if flip at the mid of the sweepline<>::trunc_edge does not exist
-                    point const & p = (beg ? edge_.b : edge_.e)->c;
+                    const point & p = (beg ? edge_.b : edge_.e)->c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
@@ -559,7 +559,7 @@ public :
                     pout(edge_.b->c);
                     pout(edge_.e->c);
                 } else {
-                    point const p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
+                    const point p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
                     pout(trunc_edge{l, r, p, vmin, vmax, eps});
                     pout(trunc_edge{r, l, p, vmin, vmax, eps});
                 }
@@ -593,7 +593,7 @@ public :
 
     friend
     std::ostream &
-    operator << (std::ostream & _gnuplot, voronoi const & _voronoi)
+    operator << (std::ostream & _gnuplot, const voronoi & _voronoi)
     {
         _voronoi.output(_gnuplot);
         return _gnuplot;
@@ -641,7 +641,7 @@ std::size_t length = 0;
 
 inline
 std::string
-get_demangled_name(char const * const symbol) noexcept
+get_demangled_name(const char * const symbol) noexcept
 {
     if (!symbol) {
         return "<null>";
@@ -659,7 +659,7 @@ struct alignas(__m128d) point
 
     value_type x, y;
 
-    bool operator < (point const & p) const
+    bool operator < (const point & p) const
     {
         return std::tie(x, y) < std::tie(p.x, p.y);
     }
@@ -809,10 +809,10 @@ int main()
         {
             using seed_type = typename voronoi_type::seed_type;
 #  if 0
-            seed_type const seed = 2911579113;
+            const seed_type seed = 2911579113;
 #  else
             std::random_device D;
-            auto const seed = static_cast< seed_type >(D());
+            const auto seed = static_cast< seed_type >(D());
 #  endif
             voronoi_.seed(seed);
             //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
@@ -834,7 +834,7 @@ int main()
         //log_ << in_.str() << '\n';
 #endif
         {
-            auto const start = steady_clock::now();
+            const auto start = steady_clock::now();
             in_ >> voronoi_;
             log_ << "input time = "
                  << duration_cast< microseconds >(steady_clock::now() - start).count()
@@ -845,7 +845,7 @@ int main()
     }
     { // run
         log_ << "start\n";
-        auto const start = steady_clock::now();
+        const auto start = steady_clock::now();
         try {
             for (std::size_t i = 0; i < 1; ++i) {
                 voronoi_.sweepline_.clear();
@@ -867,7 +867,7 @@ int main()
         //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
         //voronoi_.draw_indices = false;
         using sweepline_type = typename voronoi_type::sweepline_type;
-        sweepline_type const & sweepline_ = voronoi_.sweepline_;
+        const sweepline_type & sweepline_ = voronoi_.sweepline_;
         log_ << "vertices # " << sweepline_.vertices_.size() << '\n';
         log_ << "edges # " << sweepline_.edges_.size() << '\n';
         std::string command_line_ = "sweepline.plt";
@@ -878,14 +878,14 @@ int main()
             using vertices = std::vector< typename sweepline_type::vertex >;
             using pvertex = typename vertices::const_iterator;
             using site = typename voronoi_type::site;
-            vertices const vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
-            pvertex const nv = std::cend(vertices_);
-            auto const vclone = [&] (typename sweepline_type::pvertex const v) -> pvertex
+            const vertices vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
+            const pvertex nv = std::cend(vertices_);
+            const auto vclone = [&] (typename sweepline_type::const pvertex v) -> pvertex
             {
                 return std::prev(nv, std::distance(v, sweepline_.nv));
             };
             struct edge { site l, r; pvertex b, e; };
-            auto const eclone = [&] (typename sweepline_type::edge const & _edge) -> edge
+            const auto eclone = [&] (typename sweepline_type::const edge & _edge) -> edge
             {
                 return {_edge.l, _edge.r, vclone(_edge.b), vclone(_edge.e)};
             };
