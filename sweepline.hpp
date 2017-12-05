@@ -78,7 +78,10 @@ struct sweepline
     using vertices = std::list< vertex >;
     using pvertex = typename vertices::iterator;
 
-    struct edge // ((l, r), (b, e)) is CW
+    // ((l, r), (b, e)) is CW
+    // if (b == nv), then (b == (-infty, infty)), if (e == nv), then (a == (+infty, infty))
+    // in all other cases (b->c < e->c)
+    struct edge
     {
 
         site l, r;
@@ -100,8 +103,8 @@ struct sweepline
 private :
 
     static
-    void flip(edge & _edge) // ((e == nv) || !(e->c < b->c)) && ((b != nv) || (e == nv))
-    { // making flip a no-op is also correct, but invariant mentioned above won't hold
+    void flip(edge & _edge)
+    {
         using std::swap;
         swap(_edge.l, _edge.r);
         swap(_edge.b, _edge.e);
@@ -395,6 +398,7 @@ private :
     add_edge(const site l, const site r, const pvertex v)
     {
         assert(l != r);
+        assert((v != nv) || (l->y < r->y));
         const pedge e = edges_.size();
         edges_.push_back({l, r, v, nv});
         return e;
@@ -402,12 +406,13 @@ private :
 
     void trunc_edge(const pedge e, const pvertex v)
     {
-        edge & edge_ = edges_[e];
         assert(v != nv);
+        edge & edge_ = edges_[e];
         if (edge_.b == nv) {
             if (edge_.e == nv) { // orientate:
                 const point & l = *edge_.l;
                 const point & r = *edge_.r;
+                assert(l.y < r.y);
                 const point & c = v->c;
                 if (r.x < l.x) {
                     if (c.y < l.y) {
@@ -423,7 +428,6 @@ private :
                     assert(!(r.y < l.y));
                 }
                 edge_.e = v;
-                flip(edge_);
                 return;
             } else {
                 assert(edge_.e != v);
@@ -450,6 +454,7 @@ private :
     pendpoint
     add_cell(const site c, const site s)
     {
+        assert(*c < *s);
         const pedge e = add_edge(c, s, nv);
         const pendpoint r = insert_endpoint(nep, c, s, e);
         if (less_(c->x, s->x))  {
@@ -470,7 +475,6 @@ private :
         }
         if (l == r) {
             if (l == nep) { // append to the rightmost endpoint
-                assert(!endpoints_.empty());
                 --l;
                 r = add_cell(l->k.r, s);
             } else if (l == std::begin(endpoints_)) { // prepend to the leftmost endpoint
@@ -496,7 +500,7 @@ private :
             assert(std::next(l) == r); // if fires, then there is problem with precision
             const auto & endpoint_ = *l;
             if (endpoint_.v != nev) {
-                assert(less_(s->x, endpoint_.v->k.x()));
+                assert(less_(s->x, endpoint_.v->k.x())); // ?
                 disable_event(endpoint_.v);
             }
             auto vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
