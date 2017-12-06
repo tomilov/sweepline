@@ -183,7 +183,7 @@ public :
     }
 
     void
-    rectangle_grid(std::ostream & _out, const size_type bbox) const
+    rectangular_grid(std::ostream & _out, const size_type bbox) const
     {
         const size_type N = 1 + 4 * bbox * (bbox + 1);
         _out << N << '\n';
@@ -548,14 +548,13 @@ public :
                 const point & l = *edge_.l;
                 const point & r = *edge_.r;
                 if (beg != end) {
-                    assert(beg); // disable this, if flip at the mid of the sweepline<>::trunc_edge does not exist
                     const point & p = (beg ? edge_.b : edge_.e)->c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(trunc_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
-                    assert(!(edge_.e->c < edge_.b->c)); // disable this, if flip at the end of the sweepline<>::trunc_edge does not exist
+                    assert(less{eps}(edge_.b->c.x, edge_.b->c.y, edge_.e->c.x, edge_.e->c.y));
                     pout(edge_.b->c);
                     pout(edge_.e->c);
                 } else {
@@ -665,6 +664,12 @@ struct alignas(__m128d) point
     }
 
 };
+
+inline
+std::ostream & operator << (std::ostream & out, const point & p)
+{
+    return out << p.x << ' ' << p.y;
+}
 
 int main()
 {
@@ -805,7 +810,7 @@ int main()
                                       {3500, 4275}, {3720, 4085}, {3861, 3952}});
 #  endif
 # else
-        // Rectangle grid, diagonal grid or points uniformely distributed into a circle or square:
+        // Rectangular, rectangular pi / 4 rotated, hexagonal, triangular grids and points uniformely distributed into a circle or square:
         {
             using seed_type = typename voronoi_type::seed_type;
 #  if 0
@@ -818,13 +823,13 @@ int main()
             //gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
 #  if 0
-        voronoi_.rectangle_grid(in_, 10); voronoi_.draw_circles = true;
+        voronoi_.rectangular_grid(in_, 10); voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
 #  elif 0
-        voronoi_.hexagonal_grid(in_, 20); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        voronoi_.hexagonal_grid(in_, 20); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
 #  elif 0
-        voronoi_.triangular_grid(in_, 21); voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        voronoi_.triangular_grid(in_, 24); voronoi_.eps = value_type(0.000000001); //voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
 #  else
@@ -904,7 +909,7 @@ int main()
 #ifndef _WIN32
 #if 0
         command_line_.insert(0, "GNUTERM=qt ");
-#elif 0
+#elif 1
         command_line_.insert(0, "GNUTERM=wxt ");
 #endif
 #endif

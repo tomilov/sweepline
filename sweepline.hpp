@@ -102,14 +102,6 @@ struct sweepline
 
 private :
 
-    static
-    void flip(edge & _edge)
-    {
-        using std::swap;
-        swap(_edge.l, _edge.r);
-        swap(_edge.b, _edge.e);
-    }
-
     struct endpoint
     {
 
@@ -398,9 +390,12 @@ private :
     add_edge(const site l, const site r, const pvertex v)
     {
         assert(l != r);
-        assert((v != nv) || (l->y < r->y));
         const pedge e = edges_.size();
-        edges_.push_back({l, r, v, nv});
+        if (l->y < r->y) {
+            edges_.push_back({l, r, v, nv});
+        } else {
+            edges_.push_back({r, l, nv, v});
+        }
         return e;
     }
 
@@ -408,39 +403,34 @@ private :
     {
         assert(v != nv);
         edge & edge_ = edges_[e];
-        if (edge_.b == nv) {
-            if (edge_.e == nv) { // orientate:
-                const point & l = *edge_.l;
-                const point & r = *edge_.r;
-                assert(l.y < r.y);
-                const point & c = v->c;
-                if (r.x < l.x) {
-                    if (c.y < l.y) {
-                        edge_.b = v;
-                        return;
-                    }
-                } else if (l.x < r.x) {
-                    if (r.y < c.y) {
-                        edge_.b = v;
-                        return;
-                    }
-                } else {
-                    assert(!(r.y < l.y));
-                }
-                edge_.e = v;
-                return;
-            } else {
-                assert(edge_.e != v);
-                edge_.b = v;
-            }
-        } else {
+        if (edge_.b != nv) {
             assert(edge_.b != v);
             assert(edge_.e == nv);
             edge_.e = v;
+        } else if (edge_.e != nv) {
+            assert(edge_.e != v);
+            edge_.b = v;
+        } else {
+            const point & l = *edge_.l;
+            const point & r = *edge_.r;
+            assert(!(r.y < l.y));
+            const point & c = v->c;
+            if (r.x < l.x) {
+                if (c.y < l.y) {
+                    edge_.b = v;
+                    return;
+                }
+            } else if (l.x < r.x) {
+                if (r.y < c.y) {
+                    edge_.b = v;
+                    return;
+                }
+            }
+            edge_.e = v;
+            return;
         }
-        if (edge_.e->c < edge_.b->c) {
-            flip(edge_);
-        }
+        assert(!(edge_.r->y < edge_.l->y));
+        assert(less_(edge_.b->c.x, edge_.b->c.y, edge_.e->c.x, edge_.e->c.y));
     }
 
     pendpoint
