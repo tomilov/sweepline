@@ -175,8 +175,7 @@ private :
         }
 #endif
 
-        value_type
-        intersect(const point & l, const point & r,
+        value_type intersect(const point & l, const point & r,
                   const value_type & directrix) const
         {
             if (operator () (r.x, l.x)) {
@@ -205,8 +204,7 @@ private :
             return (b + sqrt(D)) / a;
         }
 
-        value_type
-        intersect(const endpoint & ep, const value_type & directrix) const
+        value_type intersect(const endpoint & ep, const value_type & directrix) const
         {
             return intersect(*ep.l, *ep.r, directrix);
         }
@@ -290,8 +288,7 @@ private :
         }
     }
 
-    bundle
-    add_bundle(const pendpoint l, const pendpoint r)
+    bundle add_bundle(const pendpoint l, const pendpoint r)
     {
         if (rev == nray) {
             return {rays_.insert(nray, l), rays_.insert(nray, r)};
@@ -386,8 +383,7 @@ private :
         }
     }
 
-    pedge
-    add_edge(const site l, const site r, const pvertex v)
+    pedge add_edge(const site l, const site r, const pvertex v)
     {
         assert(l != r);
         const pedge e = edges_.size();
@@ -433,16 +429,14 @@ private :
         assert(less_(edge_.b->c.x, edge_.b->c.y, edge_.e->c.x, edge_.e->c.y));
     }
 
-    pendpoint
-    insert_endpoint(const pendpoint ep,
+    pendpoint insert_endpoint(const pendpoint ep,
                     const site l, const site r,
                     const pedge e)
     {
         return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
 
-    pendpoint
-    add_cell(const site c, const site s)
+    pendpoint add_cell(const site c, const site s)
     {
         assert(*c < *s);
         const pedge e = add_edge(c, s, nv);

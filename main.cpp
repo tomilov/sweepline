@@ -80,8 +80,7 @@ public :
 
     using seed_type = typename std::mt19937::result_type;
 
-    void
-    seed(const seed_type seed)
+    void seed(const seed_type seed)
     {
         log_ << "seed = " << seed << '\n';
         rng.seed(seed);
@@ -117,8 +116,7 @@ public :
 
     };
 
-    void
-    ball(std::ostream & _out, const value_type radius, const size_type N)
+    void ball(std::ostream & _out, const value_type radius, const size_type N)
     {
         std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
@@ -151,8 +149,7 @@ public :
         }
     }
 
-    void
-    square(std::ostream & _out, const value_type bbox, const size_type N)
+    void square(std::ostream & _out, const value_type bbox, const size_type N)
     {
         std::set< point, less > unique_points_{less{delta}};
         _out << N << '\n';
@@ -182,8 +179,7 @@ public :
         }
     }
 
-    void
-    rectangular_grid(std::ostream & _out, const size_type bbox) const
+    void rectangular_grid(std::ostream & _out, const size_type bbox) const
     {
         const size_type N = 1 + 4 * bbox * (bbox + 1);
         _out << N << '\n';
@@ -202,8 +198,7 @@ public :
         }
     }
 
-    void
-    diagonal_grid(std::ostream & _out, const size_type bbox) const
+    void diagonal_grid(std::ostream & _out, const size_type bbox) const
     {
         const size_type N = (1 + 2 * bbox * (bbox + 1));
         _out << N << '\n';
@@ -221,8 +216,7 @@ public :
         assert(N == i);
     }
 
-    void
-    hexagonal_grid(std::ostream & _out, const size_type size) const
+    void hexagonal_grid(std::ostream & _out, const size_type size) const
     {
         const size_type N = (size + size) * (size + 1);
         _out << N << '\n';
@@ -258,8 +252,7 @@ public :
         assert(i == N);
     }
 
-    void
-    triangular_grid(std::ostream & _out, const size_type size) const
+    void triangular_grid(std::ostream & _out, const size_type size) const
     {
         const size_type N = (1 + size + size) * (size + size);
         _out << N << '\n';
@@ -289,8 +282,7 @@ public :
     struct ipoint { size_type x, y; };
 
     template< std::size_t nsqr >
-    void
-    quadrant(std::ostream & _out, const size_type max, const ipoint (& q)[nsqr]) const
+    void quadrant(std::ostream & _out, const size_type max, const ipoint (& q)[nsqr]) const
     {
         if (0 == max) {
             _out << (nsqr * 8) << '\n';
@@ -354,15 +346,13 @@ private :
 public :
 
     friend
-    std::istream &
-    operator >> (std::istream & _in, voronoi & _voronoi)
+    std::istream & operator >> (std::istream & _in, voronoi & _voronoi)
     {
         _voronoi.input(_in);
         return _in;
     }
 
-    void
-    swap_xy()
+    void swap_xy()
     {
         for (point & point_ : points_) {
             using std::swap;
@@ -370,8 +360,7 @@ public :
         }
     }
 
-    void
-    shift_xy(const value_type & dx, const value_type & dy)
+    void shift_xy(const value_type & dx, const value_type & dy)
     {
         for (point & point_ : points_) {
             point_.x += dx;
@@ -582,8 +571,7 @@ public :
 
 private :
 
-    void
-    output(std::ostream & _out) const
+    void output(std::ostream & _out) const
     {
         return output(_out, sweepline_.vertices_, sweepline_.edges_);
     }
@@ -591,8 +579,7 @@ private :
 public :
 
     friend
-    std::ostream &
-    operator << (std::ostream & _gnuplot, const voronoi & _voronoi)
+    std::ostream & operator << (std::ostream & _gnuplot, const voronoi & _voronoi)
     {
         _voronoi.output(_gnuplot);
         return _gnuplot;
@@ -632,7 +619,7 @@ namespace
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
 #endif
 std::mutex m;
-std::unique_ptr< char, decltype(std::free) & > demangled_name{nullptr, std::free};
+std::unique_ptr< char, decltype((std::free)) > demangled_name{nullptr, std::free};
 std::size_t length = 0;
 #pragma GCC diagnostic pop
 
