@@ -368,6 +368,19 @@ public :
         }
     }
 
+    void rotate(const value_type & angle)
+    {
+        using std::cos;
+        using std::sin;
+        const value_type cosine = cos(angle);
+        const value_type sine = sin(angle);
+        for (point & point_ : points_) {
+            value_type x = cosine * point_.x - sine * point_.y;
+            point_.y = sine * point_.x + cosine * point_.y;
+            point_.x = std::move(x);
+        }
+    }
+
     using site = typename points::const_iterator;
 
     using sweepline_type = sweepline< site, point, value_type >;
@@ -832,6 +845,7 @@ int main()
                  << duration_cast< microseconds >(steady_clock::now() - start).count()
                  << "us\n";
         }
+        //voronoi_.rotate(M_PI_4);
         //voronoi_.swap_xy();
         //voronoi_.shift_xy(value_type(10000), value_type(10000));
     }
@@ -896,7 +910,7 @@ int main()
 #ifndef _WIN32
 #if 0
         command_line_.insert(0, "GNUTERM=qt ");
-#elif 1
+#elif 0
         command_line_.insert(0, "GNUTERM=wxt ");
 #endif
 #endif
