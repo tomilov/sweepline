@@ -543,7 +543,7 @@ public :
                         pout(trunc_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
-                    assert(less{eps}(edge_.b->c.x, edge_.b->c.y, edge_.e->c.x, edge_.e->c.y));
+                    assert(edge_.b->c < edge_.e->c);
                     pout(edge_.b->c);
                     pout(edge_.e->c);
                 } else {

@@ -148,35 +148,10 @@ private :
             return operator () (l.x(), l.y(), r.x(), r.y());
         }
 
-        // During sweepline motion arcs shrinks and growz, but relative y-order of endpoints remains the same.
-        // Endpoints removed strictly before a violation of this invariant to prevent its occurrence.
-
-#if 0
-        // The body of this function is unreachable.
-        // It still gives correct results, but only when used against std::map from libc++, but doing so is UB.
-        //[[noreturn]]
-        bool operator () (const endpoint & l, const endpoint & r) const
-        {
-            //__builtin_unreachable();
-            //throw this;
-            if (l.l == r.l) {
-                return true;
-            }
-            if (r.r == l.r) {
-                return true;
-            }
-            if (l.r == r.l) {
-                return true;
-            }
-            if (l.l == r.r) {
-                return false;
-            }
-            return operator () (std::max(*l.l, *l.r, *this), std::max(*r.l, *r.r, *this));
-        }
-#endif
+        bool operator () (const endpoint & l, const endpoint & r) const = delete;
 
         value_type intersect(const point & l, const point & r,
-                  const value_type & directrix) const
+                             const value_type & directrix) const
         {
             if (operator () (r.x, l.x)) {
                 if (!operator () (l.x, directrix)) {
@@ -217,6 +192,11 @@ private :
         bool operator () (const endpoint & l, const point & r) const
         {
             return operator () (intersect(l, r.x), r.y);
+        }
+
+        bool operator () (const point & l, const point & r) const
+        {
+            return operator () (l.x, l.y, r.x, r.y);
         }
 
     } const less_;
@@ -387,11 +367,7 @@ private :
     {
         assert(l != r);
         const pedge e = edges_.size();
-        if (l->y < r->y) {
-            edges_.push_back({l, r, v, nv});
-        } else {
-            edges_.push_back({r, l, nv, v});
-        }
+        edges_.push_back({l, r, v, nv});
         return e;
     }
 
@@ -409,29 +385,49 @@ private :
         } else {
             const point & l = *edge_.l;
             const point & r = *edge_.r;
-            assert(!(r.y < l.y));
             const point & c = v->c;
-            if (r.x < l.x) {
-                if (c.y < l.y) {
-                    edge_.b = v;
-                    return;
+            if (r.y < l.y) {
+                if (l.x < r.x) {
+                    if (c.y < r.y) {
+                        edge_.e = v;
+                        return;
+                    }
+                } else if (r.x < l.x) {
+                    if (l.y < c.y) {
+                        edge_.e = v;
+                        return;
+                    }
+                } else {
+                    assert((r.y < c.y) && (c.y < l.y));
                 }
-            } else if (l.x < r.x) {
-                if (r.y < c.y) {
-                    edge_.b = v;
-                    return;
+                edge_.b = v;
+            } else {
+                if (r.x < l.x) {
+                    if (c.y < l.y) {
+                        edge_.b = v;
+                        return;
+                    }
+                } else if (l.x < r.x) {
+                    if (r.y < c.y) {
+                        edge_.b = v;
+                        return;
+                    }
+                } else {
+                    assert((l.y < c.y) && (c.y < r.y));
                 }
+                edge_.e = v;
             }
-            edge_.e = v;
             return;
         }
-        assert(!(edge_.r->y < edge_.l->y));
-        assert(less_(edge_.b->c.x, edge_.b->c.y, edge_.e->c.x, edge_.e->c.y));
+        if (edge_.e->c < edge_.b->c) {
+            std::swap(edge_.b, edge_.e);
+            std::swap(edge_.l, edge_.r);
+        }
     }
 
     pendpoint insert_endpoint(const pendpoint ep,
-                    const site l, const site r,
-                    const pedge e)
+                              const site l, const site r,
+                              const pedge e)
     {
         return endpoints_.force_insert(ep, {{l, r, e}, nev});
     }
@@ -441,7 +437,7 @@ private :
         assert(*c < *s);
         const pedge e = add_edge(c, s, nv);
         const pendpoint r = insert_endpoint(nep, c, s, e);
-        if (less_(c->x, s->x))  {
+        if (c->x < s->x)  {
             const pendpoint rr = insert_endpoint(nep, s, c, e);
             assert(std::next(r) == rr);
         }
