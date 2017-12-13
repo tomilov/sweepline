@@ -79,7 +79,7 @@ struct sweepline
     using pvertex = typename vertices::iterator;
 
     // ((l, r), (b, e)) is CW
-    // if (b == nv), then (b == (-infty, infty)), if (e == nv), then (a == (+infty, infty))
+    // if (b == nv), then (b == (-infty, infty)), if (e == nv), then (e == (+infty, infty))
     // in all other cases (b->c < e->c)
     struct edge
     {
@@ -192,11 +192,6 @@ private :
         bool operator () (const endpoint & l, const point & r) const
         {
             return operator () (intersect(l, r.x), r.y);
-        }
-
-        bool operator () (const point & l, const point & r) const
-        {
-            return operator () (l.x, l.y, r.x, r.y);
         }
 
     } const less_;
@@ -367,11 +362,17 @@ private :
     {
         assert(l != r);
         const pedge e = edges_.size();
-        edges_.push_back({l, r, v, nv});
+        const point & ll = *l;
+        const point & rr = *r;
+        if ((ll.y < rr.y) || (!(rr.y < ll.y) && (rr.x < ll.x))) {
+            edges_.push_back({l, r, v, nv});
+        } else {
+            edges_.push_back({r, l, nv, v});
+        }
         return e;
     }
 
-    void trunc_edge(const pedge e, const pvertex v)
+    void truncate_edge(const pedge e, const pvertex v)
     {
         assert(v != nv);
         edge & edge_ = edges_[e];
@@ -386,37 +387,22 @@ private :
             const point & l = *edge_.l;
             const point & r = *edge_.r;
             const point & c = v->c;
-            if (r.y < l.y) {
-                if (l.x < r.x) {
-                    if (c.y < r.y) {
-                        edge_.e = v;
-                        return;
-                    }
-                } else if (r.x < l.x) {
-                    if (l.y < c.y) {
-                        edge_.e = v;
-                        return;
-                    }
-                } else {
-                    assert((r.y < c.y) && (c.y < l.y));
+            assert(!(r.y < l.y));
+            if (r.x < l.x) {
+                if (c.y < l.y) {
+                    edge_.b = v;
+                    return;
                 }
-                edge_.b = v;
+            } else if (l.x < r.x) {
+                if (r.y < c.y) {
+                    edge_.b = v;
+                    return;
+                }
             } else {
-                if (r.x < l.x) {
-                    if (c.y < l.y) {
-                        edge_.b = v;
-                        return;
-                    }
-                } else if (l.x < r.x) {
-                    if (r.y < c.y) {
-                        edge_.b = v;
-                        return;
-                    }
-                } else {
-                    assert((l.y < c.y) && (c.y < r.y));
-                }
-                edge_.e = v;
+                assert(l.y < c.y);
+                assert(c.y < r.y);
             }
+            edge_.e = v;
             return;
         }
         if (edge_.e->c < edge_.b->c) {
@@ -487,7 +473,7 @@ private :
             assert(!!vertex_);
             assert(events_.find(*vertex_) == nev);
             const pvertex v = vertices_.insert(nv, std::move(*vertex_));
-            trunc_edge(endpoint_.k.e, v);
+            truncate_edge(endpoint_.k.e, v);
             const pedge le = add_edge(endpoint_.k.l, s, v);
             const pedge re = add_edge(s, endpoint_.k.r, v);
             const pendpoint ep = insert_endpoint(r, s, endpoint_.k.r, re);
@@ -566,7 +552,7 @@ private :
         const site rr = lr.r->k.r;
         ++lr.r;
         do {
-            trunc_edge(lr.l->k.e, v);
+            truncate_edge(lr.l->k.e, v);
             endpoints_.erase(lr.l++);
         } while (lr.l != lr.r);
         if (l == r) {

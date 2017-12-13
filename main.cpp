@@ -12,6 +12,9 @@
 #include <istream>
 #include <ostream>
 #include <sstream>
+#ifndef NDEBUG
+#include <unordered_set>
+#endif
 
 #include <cassert>
 #include <cmath>
@@ -126,7 +129,7 @@ public :
             do {
                 point p{normal_(rng), normal_(rng)};
                 value_type norm = p.x * p.x + p.y * p.y;
-                if (eps < norm) {
+                if (eps * eps < norm) {
                     using std::sqrt;
                     norm = radius * sqrt(zero_to_one_(rng) / std::move(norm));
                     p.x *= norm;
@@ -409,17 +412,42 @@ public :
         }
         using psite = proxy_iterator< typename sites::const_iterator >;
         sweepline_(psite{std::cbegin(sites_)}, psite{std::prev(std::cend(sites_))});
+#ifndef NDEBUG
+        using pvertex = typename sweepline_type::pvertex;
+        const auto vhash = [] (const pvertex v)
+        {
+            return std::hash< typename std::iterator_traits< pvertex >::pointer >{}(&*v);
+        };
+        using vpoints_type = std::unordered_multiset< pvertex, decltype((vhash)) >;
+        vpoints_type bpoints_{sweepline_.vertices_.size() * 3, vhash};
+        vpoints_type epoints_{sweepline_.vertices_.size() * 3, vhash};
+        for (const auto & edge_ : sweepline_.edges_) {
+            if (edge_.b != sweepline_.nv) {
+                bpoints_.insert(edge_.b);
+            }
+            if (edge_.e != sweepline_.nv) {
+                epoints_.insert(edge_.e);
+            }
+        }
+        for (auto v = std::begin(sweepline_.vertices_); v != std::end(sweepline_.vertices_); ++v) {
+            const size_type b = bpoints_.count(v);
+            assert(0 < b);
+            assert(epoints_.count(v) + b > 2);
+        }
+#endif
 #endif
     }
 
-    struct trunc_edge
+    struct truncate_edge
     {
 
         const point & l;
         const point & r;
         const point & p;
+
         const point & vmin;
         const point & vmax;
+
         const value_type & eps_;
 
         const value_type dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
@@ -553,7 +581,7 @@ public :
                     const point & p = (beg ? edge_.b : edge_.e)->c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
-                        pout(trunc_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
+                        pout(truncate_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
                     assert(edge_.b->c < edge_.e->c);
@@ -561,8 +589,8 @@ public :
                     pout(edge_.e->c);
                 } else {
                     const point p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
-                    pout(trunc_edge{l, r, p, vmin, vmax, eps});
-                    pout(trunc_edge{r, l, p, vmin, vmax, eps});
+                    pout(truncate_edge{l, r, p, vmin, vmax, eps});
+                    pout(truncate_edge{r, l, p, vmin, vmax, eps});
                 }
                 _gnuplot << "\n"; // separate lines
             }
