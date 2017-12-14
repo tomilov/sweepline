@@ -411,7 +411,7 @@ private :
         n->r = std::exchange(pool, n);
     }
 
-    template< typename... types >
+    template< typename ...types >
     node_pointer
     create_node(types &&... values)
     {
@@ -516,12 +516,12 @@ public :
     const_iterator cend() const { return {base_pointer(&h)}; }
 
     iterator
-    erase(const iterator x) noexcept
+    erase(const const_iterator x) noexcept
     {
-        const iterator r = std::next(x);
+        const const_iterator r = std::next(x);
         drop_node(rebalance_for_erase(x.p, h));
         --s;
-        return r;
+        return {base_pointer(r.p)};
     }
 
 private :

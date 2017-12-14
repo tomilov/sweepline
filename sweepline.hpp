@@ -73,6 +73,11 @@ struct sweepline
         value_type x() const { return c.x + R; }
         const value_type & y() const { return c.y; }
 
+        bool operator < (const vertex & v) const
+        {
+            return c < v.c;
+        }
+
     };
 
     using vertices = std::list< vertex >;
