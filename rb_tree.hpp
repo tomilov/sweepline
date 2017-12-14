@@ -413,7 +413,7 @@ private :
 
     template< typename ...types >
     node_pointer
-    create_node(types &&... values)
+    create_node(types &... values)
     {
         const node_pointer n = get_node();
         try {
@@ -528,15 +528,16 @@ private :
 
     static const value_type & value(const base_pointer n) { return *node_pointer(n)->pointer(); }
 
+    template< typename ...P >
     pair< base_pointer, base_pointer >
-    get_insert_unique_pos(const value_type & v) const
+    get_insert_unique_pos(const value_type & v, P &... p) const
     {
         base_pointer x = h.p;
         auto y = base_pointer(&h);
         bool comp = true;
         while (x) {
             y = x;
-            comp = c(v, value(x));
+            comp = c(v, value(x), p...);
             x = comp ? x->l : x->r;
         }
         base_pointer j = y;
@@ -547,56 +548,51 @@ private :
                 j = decrement(j);
             }
         }
-        if (c(value(j), v)) {
+        if (c(value(j), v, p...)) {
             return {x, y};
         }
         return {j, nullptr};
     }
 
-    template< typename K >
+    template< typename K, typename ...P >
     pair< base_pointer, base_pointer >
-    get_insert_hint_unique_pos(const base_pointer hint, const K & k) const
+    get_insert_hint_unique_pos(const base_pointer hint, const K & k, P &... p) const
     {
         if (hint == &h) {
-            if (!empty() && c(value(h.r), k)) {
+            if (!empty() && c(value(h.r), k, p...)) {
                 return {nullptr, h.r};
-            } else {
-                return get_insert_unique_pos(k);
             }
-        } else if (c(k, value(hint))) {
+        } else if (c(k, value(hint), p...)) {
             if (hint == h.l) {
                 return {hint, hint};
             } else {
                 const base_pointer before = decrement(hint);
-                if (c(value(before), k)) {
+                if (c(value(before), k, p...)) {
                     if (before->r) {
                         return {hint, hint};
                     } else {
                         return {nullptr, before};
                     }
-                } else {
-                    return get_insert_unique_pos(k);
                 }
             }
-        } else if (c(value(hint), k)) {
+        } else if (c(value(hint), k, p...)) {
             base_pointer after = hint;
             if (hint == h.r) {
                 return {nullptr, hint};
             } else {
                 after = increment(after);
-                if (c(k, value(after))) {
+                if (c(k, value(after), p...)) {
                     if (hint->r) {
                         return {after, after};
                     } else {
                         return {nullptr, hint};
                     }
-                } else {
-                    return get_insert_unique_pos(k);
                 }
             }
         } else {
             return {hint, nullptr};
         }
+        return get_insert_unique_pos< P... >(k, p...);
     }
 
     pair< base_pointer, base_pointer >
@@ -609,26 +605,23 @@ private :
                 return {nullptr, h.r};
             }
         } else {
-            if (hint == h.l) {
-                return {hint, hint};
-            } else {
+            if (hint != h.l) {
                 const base_pointer before = decrement(hint);
-                if (before->r) {
-                    return {hint, hint};
-                } else {
+                if (!before->r) {
                     return {nullptr, before};
                 }
             }
+            return {hint, hint};
         }
     }
 
-    template< typename K >
+    template< typename K, typename ...P >
     base_pointer
-    insert_unique(base_pointer l, const base_pointer r, K && k)
+    insert_unique(base_pointer l, const base_pointer r, K & k, P &... p)
     {
         if (r) {
-            const bool insert_left = (l || (r == &h) || /*c(k, value(r))*/ !c(value(r), k));
-            l = create_node(std::forward< K >(k));
+            const bool insert_left = (l || (r == &h) || /*c(k, value(r))*/ !c(value(r), k, p...));
+            l = create_node< K >(k);
             insert_and_rebalance(insert_left, l, r, h);
             ++s;
             return l;
@@ -638,10 +631,10 @@ private :
 
     template< typename K >
     base_pointer
-    force_insert_unique(base_pointer l, const base_pointer r, K && k)
+    force_insert_unique(base_pointer l, const base_pointer r, K & k)
     {
         const bool insert_left = (l || (r == &h));
-        l = create_node(std::forward< K >(k));
+        l = create_node< K >(k);
         insert_and_rebalance(insert_left, l, r, h);
         ++s;
         return l;
@@ -649,20 +642,20 @@ private :
 
 public :
 
-    template< typename K = value_type >
+    template< typename K = value_type, typename ...P >
     std::pair< iterator, bool >
-    insert(K && k)
+    insert(K && k, P &... p)
     {
-        pair< base_pointer, base_pointer > const lr = get_insert_unique_pos(k);
-        return {{insert_unique(lr.k, lr.v, std::forward< K >(k))}, (lr.v != nullptr)};
+        pair< base_pointer, base_pointer > const lr = get_insert_unique_pos(k, p...);
+        return {{insert_unique< K >(lr.k, lr.v, k)}, (lr.v != nullptr)};
     }
 
-    template< typename K = value_type >
+    template< typename K = value_type, typename ...P >
     iterator
-    insert(const iterator hint, K && k)
+    insert(const iterator hint, K && k, P &... p)
     {
-        pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p, k);
-        return {insert_unique(lr.k, lr.v, std::forward< K >(k))};
+        pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p, k, p...);
+        return {insert_unique< K >(lr.k, lr.v, k)};
     }
 
     template< typename K = value_type >
@@ -670,17 +663,17 @@ public :
     force_insert(const iterator hint, K && k)
     {
         pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p);
-        return {force_insert_unique(lr.k, lr.v, std::forward< K >(k))};
+        return {force_insert_unique< K >(lr.k, lr.v, k)};
     }
 
-    template< typename K = value_type >
+    template< typename K = value_type, typename ...P >
     iterator
-    lower_bound(const K & k)
+    lower_bound(const K & k, P &... p)
     {
         base_pointer l = h.p;
         base_pointer r = &h;
         while (l) {
-            if (c(value(l), k)) {
+            if (c(value(l), k, p...)) {
                 l = l->r;
             } else {
                 r = l;
@@ -690,12 +683,12 @@ public :
         return {r};
     }
 
-    template< typename K = value_type >
+    template< typename K = value_type, typename ...P >
     iterator
-    find(const K & k)
+    find(const K & k, P &... p)
     {
         const iterator r = lower_bound(k);
-        if ((r != end()) && c(k, *r)) {
+        if ((r != end()) && c(k, *r, p...)) {
             return end();
         }
         return r;
@@ -733,10 +726,10 @@ public :
         : c{comp}
     { ; }
 
-    template< typename L, typename R >
-    bool operator () (const L & l, const R & r) const
+    template< typename L, typename R, typename ...P >
+    bool operator () (const L & l, const R & r, P &... p) const
     {
-        return c(key(l), key(r));
+        return c(key(l), key(r), p...);
     }
 
 };
