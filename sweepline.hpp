@@ -408,7 +408,13 @@ private :
             edge_.e = v;
             return;
         }
-        assert(!less_(vertices_[edge_.e].c, vertices_[edge_.b].c));
+        // workaround for floating point math
+        point & ve = vertices_[edge_.e].c;
+        const point & vb = vertices_[edge_.b].c;
+        if (ve.x < vb.x) {
+            ve.x = vb.x;
+        }
+        assert(vb < ve);
     }
 
     pendpoint insert_endpoint(const pendpoint ep,
