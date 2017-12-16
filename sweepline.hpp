@@ -153,6 +153,11 @@ private :
             return operator () (l.x(), l.y(), r.x(), r.y());
         }
 
+        bool operator () (const point & l, const point & r) const
+        {
+            return operator () (l.x, l.y, r.x, r.y);
+        }
+
         bool operator () (const endpoint & l, const endpoint & r) const = delete;
 
         value_type intersect(const point & l, const point & r,
@@ -410,10 +415,7 @@ private :
             edge_.e = v;
             return;
         }
-        if (edge_.e->c < edge_.b->c) {
-            std::swap(edge_.b, edge_.e);
-            std::swap(edge_.l, edge_.r);
-        }
+        assert(!less_(edge_.e->c, edge_.b->c));
     }
 
     pendpoint insert_endpoint(const pendpoint ep,

@@ -585,7 +585,7 @@ public :
                         pout(truncate_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
-                    assert(edge_.b->c < edge_.e->c);
+                    assert(!less{eps}(edge_.e->c, edge_.b->c));
                     pout(edge_.b->c);
                     pout(edge_.e->c);
                 } else {
