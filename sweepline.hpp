@@ -46,15 +46,6 @@ template< typename site,
 struct sweepline
 {
 
-    static_assert(std::is_base_of< std::forward_iterator_tag, typename std::iterator_traits< site >::iterator_category >::value,
-                  "multipass guarantee required");
-
-    static_assert(std::is_same< decltype(std::declval< point >().x), decltype(std::declval< point >().y) >::value,
-                  "point format error");
-
-    static_assert(std::is_same< decltype(std::declval< point >() < std::declval< point >()), bool >::value,
-                  "points cannot be ordered");
-
     sweepline(const value_type && _eps) = delete;
 
     explicit
@@ -80,8 +71,8 @@ struct sweepline
 
     };
 
-    using vertices = std::list< vertex >;
-    using pvertex = typename vertices::iterator;
+    using vertices = std::deque< vertex >;
+    using pvertex = typename vertices::size_type;
 
     // ((l, r), (b, e)) is CW
     // if (b == nv), then (b == (-infty, infty)), if (e == nv), then (e == (+infty, infty))
@@ -97,13 +88,9 @@ struct sweepline
     using edges = std::deque< edge >;
     using pedge = typename edges::size_type;
 
-    // Voronoi diagram:
-    // NOTE: logically diagram is neither copyable nor moveable due to past the end iterator of std::list is not preserved during these operations
-    // {
-    vertices vertices_;
-    const pvertex nv = std::end(vertices_); // infty
-    edges edges_;
-    // }
+    vertices vertices_; // size <= 2 * n − 5
+    const pvertex nv = std::numeric_limits< pvertex >::max(); // infty
+    edges edges_; // size <= 3 * n − 6
 
 private :
 
@@ -396,7 +383,7 @@ private :
         } else {
             const point & l = *edge_.l;
             const point & r = *edge_.r;
-            const point & c = v->c;
+            const point & c = vertices_[v].c;
             assert(!(r.y < l.y));
             if (r.x < l.x) {
                 if (c.y < l.y) {
@@ -415,7 +402,7 @@ private :
             edge_.e = v;
             return;
         }
-        assert(!less_(edge_.e->c, edge_.b->c));
+        assert(!less_(vertices_[edge_.e].c, vertices_[edge_.b].c));
     }
 
     pendpoint insert_endpoint(const pendpoint ep,
@@ -479,7 +466,8 @@ private :
             auto vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
             assert(!!vertex_);
             assert(events_.find(*vertex_) == nev);
-            const pvertex v = vertices_.insert(nv, std::move(*vertex_));
+            const pvertex v = vertices_.size();
+            vertices_.push_back(std::move(*vertex_));
             truncate_edge(endpoint_.k.e, v);
             const pedge le = add_edge(endpoint_.k.l, s, v);
             const pedge re = add_edge(s, endpoint_.k.r, v);
@@ -553,7 +541,8 @@ private :
         auto lr = endpoint_range(b.l, b.r);
         // All the edges from (*(lr.l ... lr.r))->k.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.l, lr.r));
-        const pvertex v = vertices_.insert(nv, _vertex);
+        const pvertex v = vertices_.size();
+        vertices_.push_back(_vertex);
         events_.erase(ev);
         const site ll = lr.l->k.l;
         const site rr = lr.r->k.r;
@@ -625,6 +614,8 @@ public :
     template< typename iterator >
     void operator () (iterator l, const iterator r)
     {
+        static_assert(std::is_base_of< std::forward_iterator_tag, typename std::iterator_traits< iterator >::iterator_category >::value,
+                      "multipass guarantee required");
         assert(std::is_sorted(l, r));
         assert(endpoints_.empty());
         assert(vertices_.empty());

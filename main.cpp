@@ -572,22 +572,22 @@ public :
                 _gnuplot << p.x << ' ' << p.y << '\n';
             };
             _gnuplot << "$edges << EOI\n";
-            const auto nv = std::end(_vertices);
+            const auto nv = sweepline_.nv;
             for (const auto & edge_ : _edges) {
                 const bool beg = (edge_.b != nv);
                 const bool end = (edge_.e != nv);
                 const point & l = *edge_.l;
                 const point & r = *edge_.r;
                 if (beg != end) {
-                    const point & p = (beg ? edge_.b : edge_.e)->c;
+                    const point & p = _vertices[beg ? edge_.b : edge_.e].c;
                     if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
                         pout(p);
                         pout(truncate_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
                     assert(!less{eps}(edge_.e->c, edge_.b->c));
-                    pout(edge_.b->c);
-                    pout(edge_.e->c);
+                    pout(_vertices[edge_.b].c);
+                    pout(_vertices[edge_.e].c);
                 } else {
                     const point p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
                     pout(truncate_edge{l, r, p, vmin, vmax, eps});
@@ -908,33 +908,7 @@ int main()
         std::string command_line_ = "sweepline.plt";
         std::ofstream f{command_line_};
         std::ostream & gnuplot_ = f;//std::cout;
-#if 0
-        { // clone (O(|vertices| * |edges|))
-            using vertices = std::vector< typename sweepline_type::vertex >;
-            using pvertex = typename vertices::const_iterator;
-            using site = typename voronoi_type::site;
-            const vertices vertices_{std::cbegin(sweepline_.vertices_), std::cend(sweepline_.vertices_)};
-            const pvertex nv = std::cend(vertices_);
-            const auto vclone = [&] (typename sweepline_type::const pvertex v) -> pvertex
-            {
-                return std::prev(nv, std::distance(v, sweepline_.nv));
-            };
-            struct edge { site l, r; pvertex b, e; };
-            const auto eclone = [&] (typename sweepline_type::const edge & _edge) -> edge
-            {
-                return {_edge.l, _edge.r, vclone(_edge.b), vclone(_edge.e)};
-            };
-            std::vector< edge > edges_;
-            edges_.reserve(sweepline_.edges_.size());
-            std::transform(std::cbegin(sweepline_.edges_), std::cend(sweepline_.edges_),
-                           std::back_inserter(edges_),
-                           eclone);
-            voronoi_.output(gnuplot_, vertices_, edges_);
-            gnuplot_ << std::endl;
-        }
-#else
         gnuplot_ << voronoi_ << std::endl;
-#endif
         command_line_.insert(0, "gnuplot -p ");
 #ifndef _WIN32
 #if 0
