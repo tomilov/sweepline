@@ -528,16 +528,16 @@ private :
 
     static const value_type & value(const base_pointer n) { return *node_pointer(n)->pointer(); }
 
-    template< typename ...P >
+    template< typename K, typename ...P >
     pair< base_pointer, base_pointer >
-    get_insert_unique_pos(const value_type & v, P &... p) const
+    get_insert_unique_pos(const K & k, P &... p) const
     {
         base_pointer x = h.p;
         auto y = base_pointer(&h);
         bool comp = true;
         while (x) {
             y = x;
-            comp = c(v, value(x), p...);
+            comp = c(k, value(x), p...);
             x = comp ? x->l : x->r;
         }
         base_pointer j = y;
@@ -548,7 +548,7 @@ private :
                 j = decrement(j);
             }
         }
-        if (c(value(j), v, p...)) {
+        if (c(value(j), k, p...)) {
             return {x, y};
         }
         return {j, nullptr};
@@ -592,7 +592,7 @@ private :
         } else {
             return {hint, nullptr};
         }
-        return get_insert_unique_pos< P... >(k, p...);
+        return get_insert_unique_pos< K, P... >(k, p...);
     }
 
     pair< base_pointer, base_pointer >
@@ -646,21 +646,21 @@ public :
     std::pair< iterator, bool >
     insert(K && k, P &... p)
     {
-        pair< base_pointer, base_pointer > const lr = get_insert_unique_pos(k, p...);
-        return {{insert_unique< K >(lr.k, lr.v, k)}, (lr.v != nullptr)};
+        pair< base_pointer, base_pointer > const lr = get_insert_unique_pos< K, P... >(k, p...);
+        return {{insert_unique< K >(lr.k, lr.v, k, p...)}, (lr.v != nullptr)};
     }
 
     template< typename K = value_type, typename ...P >
     iterator
-    insert(const iterator hint, K && k, P &... p)
+    insert(const const_iterator hint, K && k, P &... p)
     {
         pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p, k, p...);
-        return {insert_unique< K >(lr.k, lr.v, k)};
+        return {insert_unique< K >(lr.k, lr.v, k, p...)};
     }
 
     template< typename K = value_type >
     iterator
-    force_insert(const iterator hint, K && k)
+    force_insert(const const_iterator hint, K && k)
     {
         pair< base_pointer, base_pointer > const lr = get_insert_hint_unique_pos(hint.p);
         return {force_insert_unique< K >(lr.k, lr.v, k)};
@@ -687,7 +687,7 @@ public :
     iterator
     find(const K & k, P &... p)
     {
-        const iterator r = lower_bound(k);
+        const iterator r = lower_bound(k, p...);
         if ((r != end()) && c(k, *r, p...)) {
             return end();
         }

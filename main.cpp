@@ -419,20 +419,21 @@ public :
             return std::hash< typename std::iterator_traits< pvertex >::pointer >{}(&*v);
         };
         using vpoints_type = std::unordered_multiset< pvertex, decltype((vhash)) >;
-        vpoints_type bpoints_{sweepline_.vertices_.size() * 3, vhash};
-        vpoints_type epoints_{sweepline_.vertices_.size() * 3, vhash};
+        const size_type capacity_ = 1 + (sweepline_.vertices_.size() * 3) / 2;
+        vpoints_type heads{capacity_, vhash};
+        vpoints_type tails{capacity_, vhash};
         for (const auto & edge_ : sweepline_.edges_) {
             if (edge_.b != sweepline_.nv) {
-                bpoints_.insert(edge_.b);
+                heads.insert(edge_.b);
             }
             if (edge_.e != sweepline_.nv) {
-                epoints_.insert(edge_.e);
+                tails.insert(edge_.e);
             }
         }
         for (auto v = std::begin(sweepline_.vertices_); v != std::end(sweepline_.vertices_); ++v) {
-            const size_type b = bpoints_.count(v);
+            const size_type b = heads.count(v);
             assert(0 < b);
-            assert(epoints_.count(v) + b > 2);
+            assert(2 < tails.count(v) + b);
         }
 #endif
 #endif
