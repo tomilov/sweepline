@@ -12,9 +12,6 @@
 #include <istream>
 #include <ostream>
 #include <sstream>
-#ifndef NDEBUG
-#include <unordered_set>
-#endif
 
 #include <cassert>
 #include <cmath>
@@ -413,23 +410,23 @@ public :
         using psite = proxy_iterator< typename sites::const_iterator >;
         sweepline_(psite{std::cbegin(sites_)}, psite{std::prev(std::cend(sites_))});
 #ifndef NDEBUG
-        using pvertex = typename sweepline_type::pvertex;
-        using vpoints_type = std::unordered_multiset< pvertex >;
-        const size_type capacity_ = 1 + (sweepline_.vertices_.size() * 3) / 2;
-        vpoints_type heads{capacity_};
-        vpoints_type tails{capacity_};
+        using vpoints_type = std::vector< size_type >;
+        const size_type vsize = sweepline_.vertices_.size();
+        vpoints_type heads(vsize);
+        vpoints_type tails(vsize);
         for (const auto & edge_ : sweepline_.edges_) {
             if (edge_.b != sweepline_.nv) {
-                heads.insert(edge_.b);
+                ++heads[edge_.b];
             }
             if (edge_.e != sweepline_.nv) {
-                tails.insert(edge_.e);
+                ++tails[edge_.e];
             }
         }
-        for (pvertex v = 0; v < sweepline_.vertices_.size(); ++v) {
-            const size_type b = heads.count(v);
+        using pvertex = typename sweepline_type::pvertex;
+        for (pvertex v = 0; v < vsize; ++v) {
+            const size_type b = heads[v];
             assert(0 < b);
-            assert(2 < tails.count(v) + b);
+            assert(2 < tails[v] + b);
         }
 #endif
 #endif
