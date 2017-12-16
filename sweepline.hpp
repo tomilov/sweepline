@@ -410,9 +410,9 @@ private :
         }
         // workaround for floating point math
         point & ve = vertices_[edge_.e].c;
-        const point & vb = vertices_[edge_.b].c;
+        point & vb = vertices_[edge_.b].c;
         if (ve.x < vb.x) {
-            ve.x = vb.x;
+            ve.x = vb.x = (vb.x + ve.x) / value_type(2);
         }
         assert(vb < ve);
     }
