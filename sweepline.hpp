@@ -64,11 +64,6 @@ struct sweepline
         point c; // circumcenter
         value_type R; // circumradius
 
-        bool operator < (const vertex & v) const
-        {
-            return c < v.c;
-        }
-
     };
 
     using vertices = std::deque< vertex >;
