@@ -437,7 +437,7 @@ public :
 
         const point & l;
         const point & r;
-        const point & p;
+        const point & b;
 
         const point & vmin;
         const point & vmax;
@@ -447,11 +447,11 @@ public :
         const value_type dx = r.y - l.y; // +pi/2 rotation (dy, -dx)
         const value_type dy = l.x - r.x;
 
-        point px(const value_type & y) const { return {(p.x + (y - p.y) * dx / dy), y}; }
+        point px(const value_type & y) const { return {(b.x + (y - b.y) * dx / dy), y}; }
 
         point py(const value_type & x) const
         {
-            const value_type y = p.y + (x - p.x) * dy / dx;
+            const value_type y = b.y + (x - b.x) * dy / dx;
             if (+eps_ < dy) {
                 if (vmax.y < y) {
                     return px(vmax.y);
@@ -464,7 +464,7 @@ public :
             return {x, y};
         }
 
-        operator point () const
+        operator point () const // e
         {
             if (+eps_ < dx) {
                 return py(vmax.x);
@@ -472,12 +472,12 @@ public :
                 return py(vmin.x);
             } else {
                 if (+eps_ < dy) {
-                    return {p.x, vmax.y};
+                    return {b.x, vmax.y};
                 } else if (dy < -eps_) {
-                    return {p.x, vmin.y};
+                    return {b.x, vmin.y};
                 } else {
                     assert(false);
-                    return {p.x, p.y};
+                    return {b.x, b.y};
                 }
             }
         }
