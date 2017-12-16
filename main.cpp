@@ -414,14 +414,10 @@ public :
         sweepline_(psite{std::cbegin(sites_)}, psite{std::prev(std::cend(sites_))});
 #ifndef NDEBUG
         using pvertex = typename sweepline_type::pvertex;
-        const auto vhash = [] (const pvertex v)
-        {
-            return std::hash< typename std::iterator_traits< pvertex >::pointer >{}(&*v);
-        };
-        using vpoints_type = std::unordered_multiset< pvertex, decltype((vhash)) >;
+        using vpoints_type = std::unordered_multiset< pvertex >;
         const size_type capacity_ = 1 + (sweepline_.vertices_.size() * 3) / 2;
-        vpoints_type heads{capacity_, vhash};
-        vpoints_type tails{capacity_, vhash};
+        vpoints_type heads{capacity_};
+        vpoints_type tails{capacity_};
         for (const auto & edge_ : sweepline_.edges_) {
             if (edge_.b != sweepline_.nv) {
                 heads.insert(edge_.b);
@@ -430,7 +426,7 @@ public :
                 tails.insert(edge_.e);
             }
         }
-        for (auto v = std::begin(sweepline_.vertices_); v != std::end(sweepline_.vertices_); ++v) {
+        for (pvertex v = 0; v < sweepline_.vertices_.size(); ++v) {
             const size_type b = heads.count(v);
             assert(0 < b);
             assert(2 < tails.count(v) + b);
@@ -585,7 +581,7 @@ public :
                         pout(truncate_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
                     }
                 } else if (beg) {
-                    assert(!less{eps}(edge_.e->c, edge_.b->c));
+                    assert(!less{eps}(_vertices[edge_.e].c, _vertices[edge_.b].c));
                     pout(_vertices[edge_.b].c);
                     pout(_vertices[edge_.e].c);
                 } else {

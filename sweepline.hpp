@@ -46,6 +46,9 @@ template< typename site,
 struct sweepline
 {
 
+    static_assert(std::is_base_of< std::forward_iterator_tag, typename std::iterator_traits< site >::iterator_category >::value,
+                  "multipass guarantee required");
+
     sweepline(const value_type && _eps) = delete;
 
     explicit
@@ -60,9 +63,6 @@ struct sweepline
 
         point c; // circumcenter
         value_type R; // circumradius
-
-        value_type x() const { return c.x + R; }
-        const value_type & y() const { return c.y; }
 
         bool operator < (const vertex & v) const
         {
@@ -112,6 +112,12 @@ private :
 
     };
 
+    static
+    value_type event_x(const vertex & v)
+    {
+        return v.c.x + v.R;
+    }
+
     struct less
     {
 
@@ -137,7 +143,7 @@ private :
 
         bool operator () (const vertex & l, const vertex & r) const
         {
-            return operator () (l.x(), l.y(), r.x(), r.y());
+            return operator () (event_x(l), l.c.y, event_x(r), r.c.y);
         }
 
         bool operator () (const point & l, const point & r) const
@@ -309,12 +315,12 @@ private :
         if (auto v = make_vertex(*ll.k.l, *ll.k.r, *rr.k.r)) {
             vertex & vertex_ = *v;
             pevent ev = events_.find(vertex_);
-            const value_type & x = vertex_.x();
+            const value_type & x = event_x(vertex_);
             const auto deselect_event = [&] (const pevent _ev) -> bool
             {
                 if (_ev != nev) {
                     if (_ev != ev) {
-                        const value_type & xx = _ev->k.x();
+                        const value_type & xx = event_x(_ev->k);
                         if (less_(xx, x)) {
                             return true;
                         }
@@ -460,7 +466,7 @@ private :
             assert(std::next(l) == r); // if fires, then there is problem with precision
             const auto & endpoint_ = *l;
             if (endpoint_.v != nev) {
-                assert(less_(s->x, endpoint_.v->k.x())); // ?
+                assert(less_(s->x, event_x(endpoint_.v->k))); // ?
                 disable_event(endpoint_.v);
             }
             auto vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
@@ -592,11 +598,11 @@ private :
         while (!events_.empty()) {
             const pevent ev = std::begin(events_);
             const auto & event_ = *ev;
-            const value_type & x = event_.k.x();
+            const value_type & x = event_x(event_.k);
             if (less_(point_.x, x)) {
                 break;
             } else if (!less_(x, point_.x)) {
-                const value_type & y = event_.k.y();
+                const value_type & y = event_.k.c.y;
                 if (less_(point_.y, y)) {
                     break;
                 } else if (!less_(y, point_.y)) {
