@@ -70,7 +70,7 @@ struct sweepline
     using pvertex = typename vertices::size_type;
 
     // ((l, r), (b, e)) is CW
-    // if (b == nv), then (b == (-infty, infty)), if (e == nv), then (e == (+infty, infty))
+    // (b == inf) means (b == (-infty, infty)); (e == inf) means (e == (+infty, infty))
     // in all other cases (b->c < e->c)
     struct edge
     {
@@ -84,7 +84,7 @@ struct sweepline
     using pedge = typename edges::size_type;
 
     vertices vertices_; // size <= 2 * n − 5
-    const pvertex nv = std::numeric_limits< pvertex >::max(); // infty
+    const pvertex inf = std::numeric_limits< pvertex >::max();
     edges edges_; // size <= 3 * n − 6
 
 private :
@@ -363,22 +363,22 @@ private :
         const point & ll = *l;
         const point & rr = *r;
         if ((ll.y < rr.y) || (!(rr.y < ll.y) && (rr.x < ll.x))) {
-            edges_.push_back({l, r, v, nv});
+            edges_.push_back({l, r, v, inf});
         } else {
-            edges_.push_back({r, l, nv, v});
+            edges_.push_back({r, l, inf, v});
         }
         return e;
     }
 
     void truncate_edge(const pedge e, const pvertex v)
     {
-        assert(v != nv);
+        assert(v != inf);
         edge & edge_ = edges_[e];
-        if (edge_.b != nv) {
+        if (edge_.b != inf) {
             assert(edge_.b != v);
-            assert(edge_.e == nv);
+            assert(edge_.e == inf);
             edge_.e = v;
-        } else if (edge_.e != nv) {
+        } else if (edge_.e != inf) {
             assert(edge_.e != v);
             edge_.b = v;
         } else {
@@ -422,7 +422,7 @@ private :
     pendpoint add_cell(const site c, const site s)
     {
         assert(*c < *s);
-        const pedge e = add_edge(c, s, nv);
+        const pedge e = add_edge(c, s, inf);
         const pendpoint r = insert_endpoint(nep, c, s, e);
         if (c->x < s->x)  {
             const pendpoint rr = insert_endpoint(nep, s, c, e);
@@ -446,7 +446,7 @@ private :
                 r = add_cell(l->k.r, s);
             } else if (l == std::begin(endpoints_)) { // prepend to the leftmost endpoint
                 const site c = r->k.l;
-                const pedge e = add_edge(s, c, nv);
+                const pedge e = add_edge(s, c, inf);
                 const pendpoint ll = insert_endpoint(r, c, s, e);
                 l = insert_endpoint(r, s, c, e);
                 assert(std::next(ll) == l);
@@ -454,7 +454,7 @@ private :
                 --l;
                 const site c = l->k.r;
                 assert(c == r->k.l);
-                const pedge e = add_edge(c, s, nv);
+                const pedge e = add_edge(c, s, inf);
                 const pendpoint ll = insert_endpoint(r, c, s, e);
                 const pendpoint rr = insert_endpoint(r, s, c, e);
                 assert(std::next(ll) == rr);
@@ -583,7 +583,7 @@ private :
     {
         for (const auto & ep : endpoints_) {
             const edge & e = edges_[ep.k.e];
-            if ((e.b != nv) && (e.e != nv)) {
+            if ((e.b != inf) && (e.e != inf)) {
                 return false;
             }
             if (ep.v != nev) {

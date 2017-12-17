@@ -415,10 +415,10 @@ public :
         vpoints_type heads(vsize);
         vpoints_type tails(vsize);
         for (const auto & edge_ : sweepline_.edges_) {
-            if (edge_.b != sweepline_.nv) {
+            if (edge_.b != sweepline_.inf) {
                 ++heads[edge_.b];
             }
-            if (edge_.e != sweepline_.nv) {
+            if (edge_.e != sweepline_.inf) {
                 ++tails[edge_.e];
             }
         }
@@ -565,10 +565,10 @@ public :
                 _gnuplot << p.x << ' ' << p.y << '\n';
             };
             _gnuplot << "$edges << EOI\n";
-            const auto nv = sweepline_.nv;
+            const auto inf = sweepline_.inf;
             for (const auto & edge_ : _edges) {
-                const bool beg = (edge_.b != nv);
-                const bool end = (edge_.e != nv);
+                const bool beg = (edge_.b != inf);
+                const bool end = (edge_.e != inf);
                 const point & l = *edge_.l;
                 const point & r = *edge_.r;
                 if (beg != end) {
