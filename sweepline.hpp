@@ -229,25 +229,22 @@ private :
     {
         const point ca = {a.x - c.x, a.y - c.y};
         const point cb = {b.x - c.x, b.y - c.y};
-        value_type alpha = ca.x * cb.y - ca.y * cb.x;
-        if (!(less_.eps < -alpha)) {
+        value_type D = ca.y * cb.x - ca.x * cb.y;
+        if (!(less_.eps < D)) {
             return {};
         }
+        D += D;
         const value_type A = a.x * a.x + a.y * a.y;
         const value_type B = b.x * b.x + b.y * b.y;
         const value_type C = c.x * c.x + c.y * c.y;
         const value_type CA = A - C;
         const value_type CB = B - C;
-        value_type x = CA * cb.y - CB * ca.y;
-        value_type y = ca.x * CB - cb.x * CA;
-        value_type beta = a.x * (b.y * C - c.y * B) + b.x * (c.y * A - a.y * C) + c.x * (a.y * B - b.y * A);
-        beta /= alpha;
-        alpha += alpha;
-        x /= alpha;
-        y /= alpha;
-        assert(less_.eps * less_.eps < beta + x * x + y * y);
+        const value_type x = (CB * ca.y - CA * cb.y) / D;
+        const value_type y = (cb.x * CA - ca.x * CB) / D;
+        const value_type dx = x - a.x;
+        const value_type dy = y - a.y;
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
-        return {{{x, y}, sqrt(beta + x * x + y * y)}};
+        return {{{x, y}, sqrt(dx * dx + dy * dy)}};
     }
 
     void add_ray(const pray rr, const pendpoint l)
