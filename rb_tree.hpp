@@ -685,6 +685,35 @@ public :
 
     template< typename K = value_type, typename ...P >
     iterator
+    upper_bound(const K & k, P &... p)
+    {
+        base_pointer l = h.p;
+        base_pointer r = &h;
+        while (l) {
+            if (c(k, value(l), p...)) {
+                r = l;
+                l = l->l;
+            } else {
+                l = l->r;
+            }
+        }
+        return {r};
+    }
+
+    template< typename K = value_type, typename ...P >
+    std::pair< iterator, iterator >
+    equal_range(const K & k, P &... p)
+    {
+        auto l = lower_bound(k, p...);
+        auto r = l;
+        while ((r != end()) && !c(k, *r, p...)) {
+            ++r;
+        }
+        return {l, r};
+    }
+
+    template< typename K = value_type, typename ...P >
+    iterator
     find(const K & k, P &... p)
     {
         const iterator r = lower_bound(k, p...);

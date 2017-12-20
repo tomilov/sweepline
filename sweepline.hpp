@@ -431,12 +431,9 @@ private :
     void begin_cell(const site s)
     {
         assert(!endpoints_.empty());
-        pendpoint l = endpoints_.lower_bound(*s);
-        pendpoint r = l;
-        while ((r != nep) && !less_(*s, r->k)) {
-            assert(l->v == r->v); // if fires, then there is problem with precision
-            ++r;
-        }
+        pendpoint l, r;
+        std::tie(l, r) = endpoints_.equal_range(*s);
+        assert(l->v == r->v); // if fires, then there is problem with precision
         if (l == r) {
             if (l == nep) { // append to the rightmost endpoint
                 --l;

@@ -842,7 +842,6 @@ int main()
             const auto seed = static_cast< seed_type >(D());
 #  endif
             voronoi_.seed(seed);
-            gnuplot_ << "set title 'seed = 0x" << std::hex << std::nouppercase << seed << ", N = " <<  std::dec << N << "'\n";
         }
 #  if 0
         voronoi_.rectangular_grid(in_, 10); voronoi_.draw_circles = true;
