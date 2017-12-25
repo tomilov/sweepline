@@ -334,10 +334,7 @@ private :
         for (size_type m = 0; m < M; ++m) {
             points_.emplace_back();
             point & point_ = points_.back();
-            if (!(_in >> point_.x)) {
-                assert(false);
-            }
-            if (!(_in >> point_.y)) {
+            if (!(_in >> point_)) {
                 assert(false);
             }
         }
@@ -375,9 +372,7 @@ public :
         const value_type cosine = cos(angle);
         const value_type sine = sin(angle);
         for (point & point_ : points_) {
-            value_type x = cosine * point_.x - sine * point_.y;
-            point_.y = sine * point_.x + cosine * point_.y;
-            point_.x = std::move(x);
+            point_.rotate(cosine, sine);
         }
     }
 
@@ -685,13 +680,25 @@ struct alignas(__m128d) point
         return std::tie(x, y) < std::tie(p.x, p.y);
     }
 
-};
+    void rotate(const value_type & cosine,
+                const value_type & sine)
+    {
+        value_type z = cosine * x - sine * y;
+        y = sine * x + cosine * y;
+        x = z;
+    }
 
-inline
-std::ostream & operator << (std::ostream & out, const point & p)
-{
-    return out << p.x << ' ' << p.y;
-}
+    friend std::istream & operator >> (std::istream & in, point & p)
+    {
+        return in >> p.x >> p.y;
+    }
+
+    friend std::ostream & operator << (std::ostream & out, const point & p)
+    {
+        return out << p.x << ' ' << p.y;
+    }
+
+};
 
 int main()
 {

@@ -320,6 +320,41 @@ rebalance_for_erase(const base_pointer z, node_base & h) noexcept
     return y;
 }
 
+template< typename value_type, typename compare >
+class adapt_compare
+{
+
+    static
+    const auto & key(const value_type & v)
+    {
+        return v.k;
+    }
+
+    template< typename type >
+    static
+    const type & key(const type & v)
+    {
+        return v;
+    }
+
+    compare c;
+
+public :
+
+    adapt_compare() = default;
+
+    adapt_compare(const compare & comp)
+        : c{comp}
+    { ; }
+
+    template< typename L, typename R, typename ...P >
+    bool operator () (const L & l, const R & r, P &... p) const
+    {
+        return c(key(l), key(r), p...);
+    }
+
+};
+
 template< typename type >
 struct node
         : node_base
@@ -528,6 +563,8 @@ private :
 
     static const value_type & value(const base_pointer n) { return *node_pointer(n)->pointer(); }
 
+    static const value_type & value(const iterator x) { return value(x.p); }
+
     template< typename K, typename ...P >
     pair< base_pointer, base_pointer >
     get_insert_unique_pos(const K & k, P &... p) const
@@ -706,7 +743,7 @@ public :
     {
         auto l = lower_bound(k, p...);
         auto r = l;
-        while ((r != end()) && !c(k, *r, p...)) {
+        while ((r != end()) && !c(k, value(r), p...)) {
             ++r;
         }
         return {l, r};
@@ -717,7 +754,32 @@ public :
     find(const K & k, P &... p)
     {
         const iterator r = lower_bound(k, p...);
-        if ((r != end()) && c(k, *r, p...)) {
+        if ((r != end()) && c(k, value(r), p...)) {
+            return end();
+        }
+        return r;
+    }
+
+    template< typename C, typename K = value_type, typename ...P >
+    iterator
+    search(const K & k, C & c, P &... p)
+    {
+        if (empty()) {
+            return end();
+        }
+        iterator r = upper_bound(k, p...);
+        adapt_compare< value_type, C & > a{c};
+        if (r != end()) {
+            if (a(k, value(r), p...)) {
+                if (r == begin()) {
+                    return end();
+                }
+            } else {
+                return r;
+            }
+        }
+        --r;
+        if (a(value(r), k, p...)) {
             return end();
         }
         return r;
@@ -729,39 +791,6 @@ template< typename key_type,
           typename compare = std::less< key_type >,
           typename allocator_type = std::allocator< key_type > >
 using set = tree< key_type, compare, allocator_type >;
-
-template< typename value_type, typename compare >
-class adapt_compare
-{
-
-    static
-    const auto & key(const value_type & v)
-    {
-        return v.k;
-    }
-
-    template< typename type >
-    static
-    const type & key(const type & v)
-    {
-        return v;
-    }
-
-    compare c;
-
-public :
-
-    adapt_compare(const compare & comp)
-        : c{comp}
-    { ; }
-
-    template< typename L, typename R, typename ...P >
-    bool operator () (const L & l, const R & r, P &... p) const
-    {
-        return c(key(l), key(r), p...);
-    }
-
-};
 
 template< typename key_type,
           typename mapped_type,
