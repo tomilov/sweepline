@@ -246,17 +246,12 @@ private :
             return {};
         }
         D += D;
-        const value_type A = a.x * a.x + a.y * a.y;
-        const value_type B = b.x * b.x + b.y * b.y;
-        const value_type C = c.x * c.x + c.y * c.y;
-        const value_type CA = A - C;
-        const value_type CB = B - C;
-        const value_type x = (CB * ca.y - CA * cb.y) / D;
-        const value_type y = (cb.x * CA - ca.x * CB) / D;
-        const value_type dx = x - a.x;
-        const value_type dy = y - a.y;
+        const value_type A = ca.x * ca.x + ca.y * ca.y;
+        const value_type B = cb.x * cb.x + cb.y * cb.y;
+        const value_type x = (B * ca.y - A * cb.y) / D;
+        const value_type y = (cb.x * A - ca.x * B) / D;
         using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
-        return {{{x, y}, sqrt(dx * dx + dy * dy)}};
+        return {{{c.x + x, c.y + y}, sqrt(x * x + y * y)}};
     }
 
     void add_ray(const pray rr, const pendpoint l)
@@ -445,7 +440,6 @@ private :
         assert(!endpoints_.empty());
         pendpoint l, r;
         std::tie(l, r) = endpoints_.equal_range(*s);
-        assert(l->v == r->v); // if fires, then there is problem with precision
         if (l == r) {
             if (l == nep) { // append to the rightmost endpoint
                 --l;
@@ -536,9 +530,11 @@ private :
         do {
             ++l;
             if (std::exchange(s, l->k.r) != l->k.l) {
+                assert(false);
                 return false;
             }
             if (l->v != ev) {
+                assert(false);
                 return false;
             }
         } while (l != r);
@@ -552,7 +548,6 @@ private :
     {
         remove_bundle(b);
         auto lr = endpoint_range(b.l, b.r);
-        // All the edges from (*(lr.l ... lr.r))->k.e can be stored near the associate vertex if needed
         assert(check_endpoint_range(ev, lr.l, lr.r));
         const pvertex v = vertices_.size();
         vertices_.push_back(_vertex);

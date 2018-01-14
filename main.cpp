@@ -854,8 +854,8 @@ int main()
         voronoi_.rectangular_grid(in_, 10); voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
-#  elif 0
-        voronoi_.hexagonal_grid(in_, 20); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+#  elif 1
+        voronoi_.hexagonal_grid(in_, 1); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.triangular_grid(in_, 24); voronoi_.eps = value_type(0.000000001); //voronoi_.draw_circles = true;
 #  elif 0
@@ -864,7 +864,7 @@ int main()
         voronoi_.ball(in_, value_type(10000), 100000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
 #  endif
 # endif
-        //log_ << in_.str() << '\n';
+        log_ << in_.str() << '\n';
 #endif
         {
             const auto start = steady_clock::now();
@@ -916,6 +916,7 @@ int main()
         command_line_.insert(0, "GNUTERM=wxt ");
 #endif
 #endif
+        command_line_.append(" &");
         log_ << std::flush;
         gnuplot_ << std::flush;
         if (std::system(command_line_.c_str()) != 0) {
