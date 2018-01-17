@@ -89,6 +89,9 @@ struct sweepline
 
 private :
 
+    template< typename type >
+    struct range { type l, r; };
+
     struct endpoint
     {
 
@@ -146,50 +149,50 @@ private :
             return operator () (l.x, l.y, r.x, r.y);
         }
 
-        bool operator () (const endpoint & l, const endpoint & r) const = delete;
-
-        value_type intersect(const point & l, const point & r,
-                             const value_type & directrix) const
+        bool operator () (const point & l, const point & r, const point & p, const bool b) const
         {
-            if (operator () (r.x, l.x)) {
-                if (!operator () (l.x, directrix)) {
-                    assert(!operator () (directrix, l.x));
-                    return l.y;
+            const auto f = [this] (const value_type & l, const value_type & r, const bool b) -> bool
+            {
+                if (b) {
+                    return operator () (l, r);
+                } else {
+                    return operator () (r, l);
                 }
-            } else if (operator () (l.x, r.x)) {
-                if (!operator () (r.x, directrix)) {
-                    assert(!operator () (directrix, r.x));
-                    return r.y;
+            };
+            const auto g = [&] (const bool b) -> bool
+            {
+                value_type dx = (l.x + r.x) / value_type(2) + (p.y - (l.y + r.y) / value_type(2)) * (r.y - l.y) / (l.x - r.x);
+                const value_type dxy = p.x - dx;
+                dx -= r.x;
+                const value_type dy = r.y - p.y;
+                return f(dy * dy + dx * dx, dxy * dxy, b);
+            };
+            if (operator () (l.x, r.x)) {
+                if (operator () (p.y, r.y)) {
+                    return g(b);
+                } else {
+                    return b;
                 }
-            } else { // a ~= 0
-                assert(!operator () (directrix, l.x));
-                assert(!operator () (directrix, r.x));
-                return (l.y + r.y) / value_type(2);
+            } else if (operator () (r.x, l.x)) {
+                if (operator () (l.y, p.y)) {
+                    return g(!b);
+                } else {
+                    return !b;
+                }
+            } else {
+                assert(operator () (l.y, r.y));
+                return f((l.y + r.y) / value_type(2), p.y, b);
             }
-            const value_type a = l.x - r.x;
-            const value_type ld = l.x - directrix;
-            const value_type rd = r.x - directrix;
-            const value_type b = r.y * ld - l.y * rd; // -b
-            const value_type c = r.y * r.y * ld - l.y * l.y * rd - ld * rd * a;
-            const value_type D = b * b - a * c;
-            assert(!(D < value_type(0)));
-            using std::sqrt;
-            return (b + sqrt(D)) / a;
-        }
-
-        value_type intersect(const endpoint & ep, const value_type & directrix) const
-        {
-            return intersect(*ep.l, *ep.r, directrix);
         }
 
         bool operator () (const point & l, const endpoint & r) const
         {
-            return operator () (l.y, intersect(r, l.x));
+            return operator () (*r.l, *r.r, l, false);
         }
 
         bool operator () (const endpoint & l, const point & r) const
         {
-            return operator () (intersect(l, r.x), r.y);
+            return operator () (*l.l, *l.r, r, true);
         }
 
     } const less_;
@@ -201,9 +204,6 @@ private :
 
     using rays = std::list< pendpoint >;
     using pray = typename rays::iterator;
-
-    template< typename type >
-    struct range { type l, r; };
 
     using bundle = range< const pray >;
 
@@ -242,8 +242,8 @@ private :
         const point ca = {a.x - c.x, a.y - c.y};
         const point cb = {b.x - c.x, b.y - c.y};
         value_type D = ca.y * cb.x - ca.x * cb.y;
-        if (!(less_.eps < D)) {
-            return {};
+        if (!(less_.eps < D)) { // if not CW
+            return {}; // interesting, that probability of this branch is exactly = 0.4 for points in general positions
         }
         D += D;
         const value_type A = ca.x * ca.x + ca.y * ca.y;
@@ -428,7 +428,7 @@ private :
         assert(*c < *s);
         const pedge e = add_edge(c, s, inf);
         const pendpoint r = insert_endpoint(nep, c, s, e);
-        if (c->x < s->x)  {
+        if (less_(c->x, s->x))  {
             const pendpoint rr = insert_endpoint(nep, s, c, e);
             assert(std::next(r) == rr);
         }
@@ -467,12 +467,14 @@ private :
             assert(std::next(l) == r); // if fires, then there is problem with precision
             const auto & endpoint_ = *l;
             if (endpoint_.v != nev) {
-                assert(less_(s->x, event_x(endpoint_.v->k))); // ?
+                assert(less_(s->x, event_x(endpoint_.v->k)));
                 disable_event(endpoint_.v);
             }
             auto vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
             assert(!!vertex_);
             assert(events_.find(*vertex_) == nev);
+            assert(!less_(s->x, s->y, event_x(*vertex_), vertex_->c.y)); // vertex and site are equivalent
+            assert(!less_(event_x(*vertex_), vertex_->c.y, s->x, s->y)); // vertex and site are equivalent
             const pvertex v = vertices_.size();
             vertices_.push_back(std::move(*vertex_));
             truncate_edge(endpoint_.k.e, v);

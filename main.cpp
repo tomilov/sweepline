@@ -72,13 +72,13 @@ private :
     const value_type zero = value_type(0);
     const value_type one = value_type(1);
 
-    std::mt19937 rng;
+    std::mt19937_64 rng;
     std::normal_distribution< value_type > normal_;
     std::uniform_real_distribution< value_type > zero_to_one_{zero, std::nextafter(one, one + one)};
 
 public :
 
-    using seed_type = typename std::mt19937::result_type;
+    using seed_type = typename std::mt19937_64::result_type;
 
     void seed(const seed_type seed)
     {
@@ -493,6 +493,8 @@ public :
         // pmin, pmax denotes bounding box
         point vmin = points_.front();
         point vmax = vmin;
+//        point vmin = {-10000.0, -10000.0};
+//        point vmax = {10000.0, 10000.0};
         const auto pminmax = [&] (const point & p)
         {
             if (p.x < vmin.x) {
@@ -802,13 +804,25 @@ int main()
                "-3 4\n"
                "-4 -3\n"
                "-4 3\n";
-#  else
+#  elif 0
+        in_ << "3\n"
+               "3 -4\n"
+               "4 -3\n"
+               "5 0\n";
+#  elif 0
         // very good test!
         in_ << "4\n"
                "1 2\n"
                "2 3\n"
                "3 0\n"
                "3 2\n"
+               ;
+#  else
+        in_ << "4\n"
+               "0 1\n"
+               "1 0\n"
+               "2 1\n"
+               "2 3\n"
                ;
 #  endif
 # elif 0
@@ -843,10 +857,13 @@ int main()
         {
             using seed_type = typename voronoi_type::seed_type;
 #  if 0
-            const seed_type seed = 2911579113;
+            const seed_type seed = 16609022368344754547L;
+            //const seed_type seed = 4271940246895875599L;
 #  else
             std::random_device D;
-            const auto seed = static_cast< seed_type >(D());
+            seed_type seed = static_cast< seed_type >(D());
+            seed <<= std::numeric_limits< typename std::random_device::result_type >::digits;
+            seed |= static_cast< seed_type >(D());
 #  endif
             voronoi_.seed(seed);
         }
@@ -854,7 +871,7 @@ int main()
         voronoi_.rectangular_grid(in_, 10); voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
-#  elif 1
+#  elif 0
         voronoi_.hexagonal_grid(in_, 1); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.triangular_grid(in_, 24); voronoi_.eps = value_type(0.000000001); //voronoi_.draw_circles = true;
@@ -864,7 +881,7 @@ int main()
         voronoi_.ball(in_, value_type(10000), 100000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
 #  endif
 # endif
-        log_ << in_.str() << '\n';
+        //log_ << in_.str() << '\n';
 #endif
         {
             const auto start = steady_clock::now();
@@ -879,11 +896,14 @@ int main()
     }
     { // run
         log_ << "start\n";
-        const auto start = steady_clock::now();
         try {
-            for (std::size_t i = 0; i < 1; ++i) {
+            for (std::size_t i = 0; i < 100; ++i) {
                 voronoi_.sweepline_.clear();
+                const auto start = steady_clock::now();
                 voronoi_();
+                log_ << "sweepline time = "
+                     << duration_cast< microseconds >(steady_clock::now() - start).count()
+                     << "us\n";
             }
         } catch (...) {
             log_ <<  RED("Exception catched!") "\n";
@@ -893,10 +913,8 @@ int main()
                 log_ << "unknown exception\n";
             }
         }
-        log_ << "sweepline time = "
-             << duration_cast< microseconds >(steady_clock::now() - start).count()
-             << "us\n";
     }
+    return EXIT_SUCCESS;
     { // output
         //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
         //voronoi_.draw_indices = false;
