@@ -207,19 +207,7 @@ private :
 
     using bundle = range< const pray >;
 
-    struct event_less
-    {
-
-        bool operator () (const vertex & l, const vertex & r) const
-        {
-            const value_type lx = event_x(l);
-            const value_type rx = event_x(r);
-            return std::tie(lx, l.c.y) < std::tie(rx, r.c.y);
-        }
-
-    };
-
-    using events = rb_tree::map< vertex, bundle const, event_less >;
+    using events = rb_tree::map< vertex, bundle const, less >;
 
     using pevent_base = typename events::iterator;
     struct pevent : pevent_base { pevent(const pevent_base it) : pevent_base{it} { ; } };
@@ -231,7 +219,7 @@ private :
     const pray nray = std::end(rays_);
     pray rev = nray; // revocation boundary
 
-    events events_;
+    events events_{less_};
     const pevent nev = std::end(events_);
 
     std::experimental::optional< vertex >
@@ -496,7 +484,9 @@ private :
     range< pendpoint >
     endpoint_range(pray l, pray r)
     {
+        assert(l != nray);
         assert(r != nray);
+        assert(std::next(r) == nray);
         assert(l != r);
         if (std::next(l) == r) {
             assert(std::next(*l) == *r);
@@ -505,7 +495,6 @@ private :
             {
                 return ll->k.angle() < rr->k.angle();
             };
-            assert(std::next(r) == nray);
 #if 0
             rays crays_;
             crays_.splice(std::cend(crays_), rays_, l, nray);

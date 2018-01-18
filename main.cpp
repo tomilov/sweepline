@@ -817,13 +817,19 @@ int main()
                "3 0\n"
                "3 2\n"
                ;
-#  else
+#  elif 0
         in_ << "4\n"
                "0 1\n"
                "1 0\n"
                "2 1\n"
                "2 3\n"
                ;
+#  else
+        in_ << R"(4
+               1.732050807568877 0
+               -1.732050807568877 0
+               0 3
+               0 -3)";
 #  endif
 # elif 0
         // Concentric:
@@ -872,9 +878,9 @@ int main()
 #  elif 0
         voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
 #  elif 0
-        voronoi_.hexagonal_grid(in_, 1); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        voronoi_.hexagonal_grid(in_, 20); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
 #  elif 0
-        voronoi_.triangular_grid(in_, 24); voronoi_.eps = value_type(0.000000001); //voronoi_.draw_circles = true;
+        voronoi_.triangular_grid(in_, 20); voronoi_.eps = value_type(1E-10); //voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
 #  else
