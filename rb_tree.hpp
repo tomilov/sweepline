@@ -767,8 +767,17 @@ public :
         if (empty()) {
             return end();
         }
-        iterator r = upper_bound(k, p...);
         adapt_compare< value_type, C & > a{c};
+        base_pointer l = h.p;
+        base_pointer r = &h;
+        while (l) {
+            if (a(k, value(l), p...)) {
+                r = l;
+                l = l->l;
+            } else {
+                l = l->r;
+            }
+        }
         if (r != end()) {
             if (a(k, value(r), p...)) {
                 if (r == begin()) {

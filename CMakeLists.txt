@@ -26,8 +26,8 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif()
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -DNDEBUG=1 -march=native")
 
-add_compile_options(-fopenmp)
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
+#add_compile_options(-fopenmp)
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
 
 add_executable(${PROJECT_NAME} "main.cpp" "sweepline.hpp" "rb_tree.hpp")
 

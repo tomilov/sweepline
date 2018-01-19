@@ -493,8 +493,6 @@ public :
         // pmin, pmax denotes bounding box
         point vmin = points_.front();
         point vmax = vmin;
-//        point vmin = {-10000.0, -10000.0};
-//        point vmax = {10000.0, 10000.0};
         const auto pminmax = [&] (const point & p)
         {
             if (p.x < vmin.x) {
@@ -532,6 +530,10 @@ public :
         point pmax = vmax;
         std::for_each(std::cbegin(_vertices), std::cend(_vertices), [&] (const auto & v) { pminmax(v.c); });
         {
+            _gnuplot << "set title"
+                        " 'sites #" << points_.size()
+                     << ", vertices #" << _vertices.size()
+                     << ", edges #" << _edges.size() << "';\n";
             _gnuplot << "set size square;\n"
                         "set key left;\n"
                         "unset colorbox;\n"
@@ -548,56 +550,56 @@ public :
             }
             _gnuplot << "EOI\n";
         }
-        if (draw_circles && !_vertices.empty()) {
+        {
             _gnuplot << "$circles << EOI\n";
-            size_type i = 0;
-            for (const auto & vertex_ : _vertices) {
-                _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
+            if (draw_circles) {
+                size_type i = 0;
+                for (const auto & vertex_ : _vertices) {
+                    _gnuplot << vertex_.c.x << ' ' << vertex_.c.y << ' ' << vertex_.R << ' ' << i++ << '\n';
+                }
             }
             _gnuplot << "EOI\n";
         }
-        if (!_edges.empty()) {
-            const auto pout = [&] (const point & p)
-            {
-                _gnuplot << p.x << ' ' << p.y << '\n';
-            };
+        {
             _gnuplot << "$edges << EOI\n";
-            const auto inf = sweepline_.inf;
-            for (const auto & edge_ : _edges) {
-                const bool beg = (edge_.b != inf);
-                const bool end = (edge_.e != inf);
-                const point & l = *edge_.l;
-                const point & r = *edge_.r;
-                if (beg != end) {
-                    const point & p = _vertices[beg ? edge_.b : edge_.e].c;
-                    if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
-                        pout(p);
-                        pout(truncate_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
+            if (!_edges.empty()) {
+                const auto pout = [&] (const point & p)
+                {
+                    _gnuplot << p.x << ' ' << p.y << '\n';
+                };
+                const auto inf = sweepline_.inf;
+                for (const auto & edge_ : _edges) {
+                    const bool beg = (edge_.b != inf);
+                    const bool end = (edge_.e != inf);
+                    const point & l = *edge_.l;
+                    const point & r = *edge_.r;
+                    if (beg != end) {
+                        const point & p = _vertices[beg ? edge_.b : edge_.e].c;
+                        if (!(p.x < vmin.x) && !(vmax.x < p.x) && !(p.y < vmin.y) && !(vmax.y < p.y)) {
+                            pout(p);
+                            pout(truncate_edge{(beg ? l : r), (end ? l : r), p, vmin, vmax, eps});
+                        }
+                    } else if (beg) {
+                        assert(!less{eps}(_vertices[edge_.e].c, _vertices[edge_.b].c));
+                        pout(_vertices[edge_.b].c);
+                        pout(_vertices[edge_.e].c);
+                    } else {
+                        const point p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
+                        pout(truncate_edge{l, r, p, vmin, vmax, eps});
+                        pout(truncate_edge{r, l, p, vmin, vmax, eps});
                     }
-                } else if (beg) {
-                    assert(!less{eps}(_vertices[edge_.e].c, _vertices[edge_.b].c));
-                    pout(_vertices[edge_.b].c);
-                    pout(_vertices[edge_.e].c);
-                } else {
-                    const point p{(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
-                    pout(truncate_edge{l, r, p, vmin, vmax, eps});
-                    pout(truncate_edge{r, l, p, vmin, vmax, eps});
+                    _gnuplot << "\n"; // separate lines
                 }
-                _gnuplot << "\n"; // separate lines
             }
             _gnuplot << "EOI\n";
         }
         _gnuplot << "plot";
-        _gnuplot << " '$sites' with points title 'sites # " << points_.size() << "'";
+        _gnuplot << " '$sites' with points title 'sites'";
         if (draw_indices) {
             _gnuplot << ", '' with labels offset character 0, character 1 notitle";
         }
-        if (draw_circles && !_vertices.empty()) {
-            _gnuplot << ", '$circles' with circles title 'vertices # " << _vertices.size() << "' linecolor palette";
-        }
-        if (!_edges.empty()) {
-            _gnuplot << ", '$edges' with lines title 'edges # " << _edges.size() <<  "'";
-        }
+        _gnuplot << ", '$edges' with lines title 'edges'";
+        _gnuplot << ", '$circles' with circles title 'vertices' linecolor palette";
         _gnuplot << ";\n";
     }
 
@@ -716,8 +718,8 @@ int main()
         std::istream & in_ = std::cin;
 #else
         std::stringstream in_;
-# ifdef _LIBCPP_VERSION
-        in_ >> std::hexfloat;
+# if 0
+        in_ << std::hexfloat;
 # else
         in_.precision(std::numeric_limits< value_type >::digits10 + 1);
 # endif
@@ -868,8 +870,12 @@ int main()
 #  else
             std::random_device D;
             seed_type seed = static_cast< seed_type >(D());
-            seed <<= std::numeric_limits< typename std::random_device::result_type >::digits;
-            seed |= static_cast< seed_type >(D());
+            using result_type = typename std::random_device::result_type;
+            constexpr auto result_size = std::numeric_limits< result_type >::digits;
+            for (auto i = result_size; i < std::numeric_limits< seed_type >::digits; i += result_size) {
+                seed <<= result_size;
+                seed |= static_cast< seed_type >(D());
+            }
 #  endif
             voronoi_.seed(seed);
         }
@@ -879,12 +885,14 @@ int main()
         voronoi_.diagonal_grid(in_, 20); voronoi_.draw_circles = true;
 #  elif 0
         voronoi_.hexagonal_grid(in_, 20); //voronoi_.eps = value_type(0.0001); //voronoi_.draw_circles = true;
+        // swap
 #  elif 0
         voronoi_.triangular_grid(in_, 20); voronoi_.eps = value_type(1E-10); //voronoi_.draw_circles = true;
+        // swap
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
 #  else
-        voronoi_.ball(in_, value_type(10000), 100000); // voronoi_.draw_circles = true; // voronoi_.draw_indices = true;
+        voronoi_.ball(in_, value_type(10000), 100000);
 #  endif
 # endif
         //log_ << in_.str() << '\n';
@@ -920,6 +928,7 @@ int main()
             }
         }
     }
+    //return EXIT_SUCCESS;
     { // output
         //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
         //voronoi_.draw_indices = false;
@@ -932,13 +941,6 @@ int main()
         std::ostream & gnuplot_ = f;//std::cout;
         gnuplot_ << voronoi_ << std::endl;
         command_line_.insert(0, "gnuplot -p ");
-#ifndef _WIN32
-#if 0
-        command_line_.insert(0, "GNUTERM=qt ");
-#elif 0
-        command_line_.insert(0, "GNUTERM=wxt ");
-#endif
-#endif
         command_line_.append(" &");
         log_ << std::flush;
         gnuplot_ << std::flush;

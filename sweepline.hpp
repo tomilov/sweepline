@@ -70,7 +70,7 @@ struct sweepline
     using pvertex = typename vertices::size_type;
 
     // ((l, r), (b, e)) is CW
-    // (b == inf) means (b == (-infty, infty)); (e == inf) means (e == (+infty, infty))
+    // (b == inf) means (b == (-infty, *)); (e == inf) means (e == (+infty, *))
     // in all other cases (b->c < e->c)
     struct edge
     {
@@ -83,14 +83,11 @@ struct sweepline
     using edges = std::deque< edge >;
     using pedge = typename edges::size_type;
 
-    vertices vertices_; // size <= 2 * n − 5
+    vertices vertices_; // 0 <= size <= 2 * n − 5
     const pvertex inf = std::numeric_limits< pvertex >::max();
-    edges edges_; // size <= 3 * n − 6
+    edges edges_; // n - 1 <= size <= 3 * n − 6
 
 private :
-
-    template< typename type >
-    struct range { type l, r; };
 
     struct endpoint
     {
@@ -144,14 +141,9 @@ private :
             return operator () (event_x(l), l.c.y, event_x(r), r.c.y);
         }
 
-        bool operator () (const point & l, const point & r) const
+        bool operator () (const point & l, const point & r, const point & p, const bool right) const
         {
-            return operator () (l.x, l.y, r.x, r.y);
-        }
-
-        bool operator () (const point & l, const point & r, const point & p, const bool b) const
-        {
-            const auto f = [this] (const value_type & l, const value_type & r, const bool b) -> bool
+            const auto swap_cmp = [this] (const value_type & l, const value_type & r, const bool b) -> bool
             {
                 if (b) {
                     return operator () (l, r);
@@ -159,29 +151,30 @@ private :
                     return operator () (r, l);
                 }
             };
-            const auto g = [&] (const bool b) -> bool
+            const auto sqr_dist = [&] (const bool b) -> bool
             {
-                value_type dx = (l.x + r.x) / value_type(2) + (p.y - (l.y + r.y) / value_type(2)) * (r.y - l.y) / (l.x - r.x);
+                const point c = {(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
+                value_type dx = c.x + (p.y - c.y) * (r.y - l.y) / (l.x - r.x);
                 const value_type dxy = p.x - dx;
                 dx -= r.x;
                 const value_type dy = r.y - p.y;
-                return f(dy * dy + dx * dx, dxy * dxy, b);
+                return swap_cmp(dy * dy + dx * dx, dxy * dxy, b);
             };
             if (operator () (l.x, r.x)) {
                 if (operator () (p.y, r.y)) {
-                    return g(b);
+                    return sqr_dist(right);
                 } else {
-                    return b;
+                    return right;
                 }
             } else if (operator () (r.x, l.x)) {
                 if (operator () (l.y, p.y)) {
-                    return g(!b);
+                    return sqr_dist(!right);
                 } else {
-                    return !b;
+                    return !right;
                 }
             } else {
                 assert(operator () (l.y, r.y));
-                return f((l.y + r.y) / value_type(2), p.y, b);
+                return swap_cmp((l.y + r.y) / value_type(2), p.y, right);
             }
         }
 
@@ -204,6 +197,9 @@ private :
 
     using rays = std::list< pendpoint >;
     using pray = typename rays::iterator;
+
+    template< typename type >
+    struct range { type l, r; };
 
     using bundle = range< const pray >;
 
@@ -301,7 +297,7 @@ private :
         assert(ll.k.r == rr.k.l);
         if (auto v = make_vertex(*ll.k.l, *ll.k.r, *rr.k.r)) {
             vertex & vertex_ = *v;
-            pevent ev = events_.search(vertex_, less_);
+            pevent ev = events_.find(vertex_);
             const value_type & x = event_x(vertex_);
             const auto deselect_event = [&] (const pevent _ev) -> bool
             {
@@ -587,23 +583,25 @@ private :
 
     bool process_events(const site l, const site r)
     {
-        const point & point_ = *l;
-        while (!events_.empty()) {
-            const pevent ev = std::begin(events_);
-            const auto & event_ = *ev;
-            const value_type & x = event_x(event_.k);
-            if (less_(point_.x, x)) {
-                break;
-            } else if (!less_(x, point_.x)) {
-                const value_type & y = event_.k.c.y;
-                if (less_(point_.y, y)) {
+        if (!events_.empty()) {
+            const point & point_ = *l;
+            do {
+                const pevent ev = std::begin(events_);
+                const auto & event_ = *ev;
+                const value_type & x = event_x(event_.k);
+                if (less_(point_.x, x)) {
                     break;
-                } else if (!less_(y, point_.y)) {
-                    finish_cells(ev, event_.k, event_.v, l, r);
-                    return false;
+                } else if (!less_(x, point_.x)) {
+                    const value_type & y = event_.k.c.y;
+                    if (less_(point_.y, y)) {
+                        break;
+                    } else if (!less_(y, point_.y)) {
+                        finish_cells(ev, event_.k, event_.v, l, r);
+                        return false;
+                    }
                 }
-            }
-            finish_cells(ev, event_.k, event_.v, l, l);
+                finish_cells(ev, event_.k, event_.v, l, l);
+            } while (!events_.empty());
         }
         return true;
     }
