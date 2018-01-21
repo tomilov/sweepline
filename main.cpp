@@ -911,7 +911,7 @@ int main()
     { // run
         log_ << "start\n";
         try {
-            for (std::size_t i = 0; i < 1; ++i) {
+            for (std::size_t i = 0; i < 100; ++i) {
                 voronoi_.sweepline_.clear();
                 const auto start = steady_clock::now();
                 voronoi_();
@@ -928,7 +928,7 @@ int main()
             }
         }
     }
-    //return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
     { // output
         //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
         //voronoi_.draw_indices = false;

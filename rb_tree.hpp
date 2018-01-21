@@ -13,6 +13,9 @@ namespace rb_tree
 template< typename K, typename V >
 struct pair { K k; V v; };
 
+template< typename type >
+struct range { type l, r; };
+
 enum class color : bool { red = false, black = true };
 
 struct node_base;
@@ -400,8 +403,8 @@ struct tree_iterator
     tree_iterator & operator -- () noexcept { p = decrement(p); return *this; }
     tree_iterator operator -- (int) noexcept { return {std::exchange(p, decrement(p))}; }
 
-    bool operator == (const tree_iterator & it) const noexcept { return p == it.p; }
-    bool operator != (const tree_iterator & it) const noexcept { return !operator == (it); }
+    bool operator == (const tree_iterator it) const noexcept { return p == it.p; }
+    bool operator != (const tree_iterator it) const noexcept { return !operator == (it); }
 
     operator tree_iterator< const type > () const { return {p}; }
 
@@ -680,7 +683,7 @@ private :
 public :
 
     template< typename K = value_type, typename ...P >
-    std::pair< iterator, bool >
+    pair< iterator, bool >
     insert(K && k, P &... p)
     {
         pair< base_pointer, base_pointer > const lr = get_insert_unique_pos< K, P... >(k, p...);
@@ -738,7 +741,7 @@ public :
     }
 
     template< typename K = value_type, typename ...P >
-    std::pair< iterator, iterator >
+    range< iterator >
     equal_range(const K & k, P &... p)
     {
         auto l = lower_bound(k, p...);
@@ -753,45 +756,11 @@ public :
     iterator
     find(const K & k, P &... p)
     {
-        const iterator r = lower_bound(k, p...);
-        if ((r != end()) && c(k, value(r), p...)) {
+        const iterator l = lower_bound(k, p...);
+        if ((l != end()) && c(k, value(l), p...)) {
             return end();
         }
-        return r;
-    }
-
-    template< typename C, typename K = value_type, typename ...P >
-    iterator
-    search(const K & k, C & c, P &... p)
-    {
-        if (empty()) {
-            return end();
-        }
-        adapt_compare< value_type, C & > a{c};
-        base_pointer l = h.p;
-        base_pointer r = &h;
-        while (l) {
-            if (a(k, value(l), p...)) {
-                r = l;
-                l = l->l;
-            } else {
-                l = l->r;
-            }
-        }
-        if (r != end()) {
-            if (a(k, value(r), p...)) {
-                if (r == begin()) {
-                    return end();
-                }
-            } else {
-                return r;
-            }
-        }
-        --r;
-        if (a(value(r), k, p...)) {
-            return end();
-        }
-        return r;
+        return l;
     }
 
 };

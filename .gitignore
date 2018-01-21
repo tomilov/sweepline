@@ -1,10 +1,2 @@
-CMakeFiles/
-CMakeCache.txt
 CMakeLists.txt.user
-Makefile
-cmake_install.cmake
-sweepline.cbp
 sweepline
-sweepline.profile
-prof.pdf
-compile_commands.json
