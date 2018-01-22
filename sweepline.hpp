@@ -32,7 +32,6 @@
 #include <numeric>
 #include <deque>
 #include <list>
-#include <experimental/optional>
 #ifdef DEBUG
 #include <iostream>
 #endif
@@ -143,12 +142,12 @@ private :
 
         bool operator () (const point & l, const point & r, const point & p, const bool right) const
         {
-            const auto swap_cmp = [this] (const value_type & l, const value_type & r, const bool b) -> bool
+            const auto swap_cmp = [this] (const value_type & ll, const value_type & rr, const bool b) -> bool
             {
                 if (b) {
-                    return operator () (l, r);
+                    return operator () (ll, rr);
                 } else {
-                    return operator () (r, l);
+                    return operator () (rr, ll);
                 }
             };
             const auto sqr_dist = [&] (const bool b) -> bool
@@ -218,24 +217,26 @@ private :
     events events_{less_};
     const pevent nev = std::end(events_);
 
-    std::experimental::optional< vertex >
-    make_vertex(const point & a,
-                const point & b,
-                const point & c) const
+    vertex make_vertex(const point & a,
+                       const point & b,
+                       const point & c) const
     {
         const point ca = {a.x - c.x, a.y - c.y};
         const point cb = {b.x - c.x, b.y - c.y};
-        value_type D = ca.y * cb.x - ca.x * cb.y;
-        if (!(less_.eps < D)) { // if not CW
-            return {}; // interesting, that probability of this branch is exactly = 0.4 for points in general positions
+        vertex vertex_{{}, ca.y * cb.x - ca.x * cb.y};
+        if (less_.eps < vertex_.R) { // if CW
+            // interesting, that probability of this branch tends to 0.6 for points in general positions
+            vertex_.R += vertex_.R;
+            const value_type A = ca.x * ca.x + ca.y * ca.y;
+            const value_type B = cb.x * cb.x + cb.y * cb.y;
+            vertex_.c.x = (B * ca.y - A * cb.y) / vertex_.R;
+            vertex_.c.y = (cb.x * A - ca.x * B) / vertex_.R;
+            using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
+            vertex_.R = sqrt(vertex_.c.x * vertex_.c.x + vertex_.c.y * vertex_.c.y);
+            vertex_.c.x += c.x;
+            vertex_.c.y += c.y;
         }
-        D += D;
-        const value_type A = ca.x * ca.x + ca.y * ca.y;
-        const value_type B = cb.x * cb.x + cb.y * cb.y;
-        const value_type x = (B * ca.y - A * cb.y) / D;
-        const value_type y = (cb.x * A - ca.x * B) / D;
-        using std::sqrt; // std::sqrt is required by the IEEE standard be exact (error < 0.5 ulp)
-        return {{{c.x + x, c.y + y}, sqrt(x * x + y * y)}};
+        return vertex_;
     }
 
     void add_ray(const pray rr, const pendpoint l)
@@ -295,8 +296,8 @@ private :
         auto & ll = *l;
         auto & rr = *r;
         assert(ll.k.r == rr.k.l);
-        if (auto v = make_vertex(*ll.k.l, *ll.k.r, *rr.k.r)) {
-            vertex & vertex_ = *v;
+        vertex vertex_ = make_vertex(*ll.k.l, *ll.k.r, *rr.k.r);
+        if (less_.eps < vertex_.R) {
             const value_type & x = event_x(vertex_);
             const auto le = events_.find(vertex_);
             const auto deselect_event = [&] (const pevent ev) -> bool
@@ -346,9 +347,9 @@ private :
     pedge add_edge(const site l, const site r, const pvertex v)
     {
         assert(l != r);
-        const pedge e = edges_.size();
         const point & ll = *l;
         const point & rr = *r;
+        const pedge e = edges_.size();
         if ((ll.y < rr.y) || (!(rr.y < ll.y) && (rr.x < ll.x))) {
             edges_.push_back({l, r, v, inf});
         } else {
@@ -452,13 +453,13 @@ private :
                 assert(less_(s->x, event_x(endpoint_.v->k)));
                 disable_event(endpoint_.v);
             }
-            auto vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
-            assert(!!vertex_);
-            assert(events_.find(*vertex_) == nev);
-            assert(!less_(s->x, s->y, event_x(*vertex_), vertex_->c.y)); // vertex and site are equivalent
-            assert(!less_(event_x(*vertex_), vertex_->c.y, s->x, s->y)); // vertex and site are equivalent
+            vertex vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
+            assert(less_.eps < vertex_.R);
+            assert(events_.find(vertex_) == nev);
+            assert(!less_(s->x, s->y, event_x(vertex_), vertex_.c.y)); // vertex and site are equivalent
+            assert(!less_(event_x(vertex_), vertex_.c.y, s->x, s->y)); // vertex and site are equivalent
             const pvertex v = vertices_.size();
-            vertices_.push_back(std::move(*vertex_));
+            vertices_.push_back(std::move(vertex_));
             truncate_edge(endpoint_.k.e, v);
             const pedge le = add_edge(endpoint_.k.l, s, v);
             const pedge re = add_edge(s, endpoint_.k.r, v);

@@ -34,7 +34,7 @@ struct proxy_iterator
     operator iterator_type () const { return *it; }
 
     proxy_iterator & operator ++ () { ++it; return *this; }
-    proxy_iterator operator ++ (int) { return {it++}; }
+    const proxy_iterator operator ++ (int) { return {it++}; }
 
     reference operator * () const { return **it; }
     pointer operator -> () const { return &operator * (); }
@@ -647,15 +647,17 @@ public :
 namespace
 {
 
-#pragma GCC diagnostic push
 #ifdef __clang__
+#pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
 #endif
 std::mutex m;
 std::unique_ptr< char, decltype((std::free)) > demangled_name{nullptr, std::free};
 std::size_t length = 0;
-#pragma GCC diagnostic pop
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 }
 
@@ -869,7 +871,7 @@ int main()
             //const seed_type seed = 4271940246895875599L;
 #  else
             std::random_device D;
-            seed_type seed = static_cast< seed_type >(D());
+            auto seed = static_cast< seed_type >(D());
             using result_type = typename std::random_device::result_type;
             constexpr auto result_size = std::numeric_limits< result_type >::digits;
             for (auto i = result_size; i < std::numeric_limits< seed_type >::digits; i += result_size) {
@@ -917,7 +919,7 @@ int main()
                 voronoi_();
                 log_ << "sweepline time = "
                      << duration_cast< microseconds >(steady_clock::now() - start).count()
-                     << "us\n";
+                     << " us\n";
             }
         } catch (...) {
             log_ <<  RED("Exception catched!") "\n";
@@ -928,8 +930,7 @@ int main()
             }
         }
     }
-    return EXIT_SUCCESS;
-    { // output
+    if ((false)) { // output
         //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
         //voronoi_.draw_indices = false;
         using sweepline_type = typename voronoi_type::sweepline_type;

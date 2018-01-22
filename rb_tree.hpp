@@ -398,10 +398,10 @@ struct tree_iterator
     reference operator * () const noexcept { return *operator -> (); }
 
     tree_iterator & operator ++ () noexcept { p = increment(p); return *this; }
-    tree_iterator operator ++ (int) noexcept { return {std::exchange(p, increment(p))}; }
+    const tree_iterator operator ++ (int) noexcept { return {std::exchange(p, increment(p))}; }
 
     tree_iterator & operator -- () noexcept { p = decrement(p); return *this; }
-    tree_iterator operator -- (int) noexcept { return {std::exchange(p, decrement(p))}; }
+    const tree_iterator operator -- (int) noexcept { return {std::exchange(p, decrement(p))}; }
 
     bool operator == (const tree_iterator it) const noexcept { return p == it.p; }
     bool operator != (const tree_iterator it) const noexcept { return !operator == (it); }
