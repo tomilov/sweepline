@@ -39,6 +39,7 @@
 #include <cassert>
 #include <cmath>
 
+
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
           typename value_type = decltype(std::declval< point >().x) >
@@ -48,13 +49,11 @@ struct sweepline
     static_assert(std::is_base_of< std::forward_iterator_tag, typename std::iterator_traits< site >::iterator_category >::value,
                   "multipass guarantee required");
 
-    sweepline(const value_type && _eps) = delete;
-
     explicit
-    sweepline(const value_type & _eps)
-        : less_{_eps}
+    sweepline(value_type eps)
+        : less_{std::move(eps)}
     {
-        assert(!(_eps < value_type(0)));
+        assert(!(eps < value_type(0)));
     }
 
     struct vertex // circumscribed circle
@@ -82,9 +81,9 @@ struct sweepline
     using edges = std::deque< edge >;
     using pedge = typename edges::size_type;
 
-    vertices vertices_; // 0 <= size <= 2 * n − 5
+    vertices vertices_; // 0 <= size <= 2 * n ? 5
     const pvertex inf = std::numeric_limits< pvertex >::max();
-    edges edges_; // n - 1 <= size <= 3 * n − 6
+    edges edges_; // n - 1 <= size <= 3 * n ? 6
 
 private :
 
@@ -115,7 +114,8 @@ private :
     struct less
     {
 
-        const value_type & eps;
+        const value_type eps;
+        const value_type eps2 = eps * eps;
 
         bool operator () (const value_type & l,
                           const value_type & r) const
@@ -126,13 +126,23 @@ private :
         bool operator () (const value_type & lx, const value_type & ly,
                           const value_type & rx, const value_type & ry) const
         {
+#if 0
+            // _X86INTRIN_H_INCLUDED
+            const auto r = _mm256_set_pd(ry, ly, rx, lx);
+            const auto i = _bit_scan_forward(_mm256_movemask_pd(_mm256_cmp_pd(_mm256_permute_pd(_mm256_add_pd(r, _mm256_set1_pd(eps)), 0b0101), r, _CMP_LT_OQ)));
+            return (i % 2) != 0;
+#else
             if (operator () (lx, rx)) {
                 return true;
             } else if (operator () (rx, lx)) {
                 return false;
+            } else if (operator () (ly, ry)) {
+                return true;
             } else {
-                return operator () (ly, ry);
+                assert(!operator () (ry, ly));
+                return false;
             }
+#endif
         }
 
         bool operator () (const vertex & l, const vertex & r) const
@@ -142,38 +152,42 @@ private :
 
         bool operator () (const point & l, const point & r, const point & p, const bool right) const
         {
-            const auto swap_cmp = [this] (const value_type & ll, const value_type & rr, const bool b) -> bool
-            {
-                if (b) {
-                    return operator () (ll, rr);
-                } else {
-                    return operator () (rr, ll);
-                }
-            };
-            const auto sqr_dist = [&] (const bool b) -> bool
+            const auto sqr_dist = [&] (const bool left) -> bool
             {
                 const point c = {(l.x + r.x) / value_type(2), (l.y + r.y) / value_type(2)};
                 value_type dx = c.x + (p.y - c.y) * (r.y - l.y) / (l.x - r.x);
-                const value_type dxy = p.x - dx;
+                const value_type & dxy = p.x - dx;
                 dx -= r.x;
-                const value_type dy = r.y - p.y;
-                return swap_cmp(dy * dy + dx * dx, dxy * dxy, b);
+                const value_type & dy = r.y - p.y;
+                const value_type & ll = dy * dy + dx * dx;
+                const value_type & rr = dxy * dxy;
+                if (left) {
+                    return rr + eps2 < ll;
+                } else {
+                    return ll + eps2 < rr;
+                }
             };
             if (operator () (l.x, r.x)) {
                 if (operator () (p.y, r.y)) {
-                    return sqr_dist(right);
+                    return sqr_dist(!right);
                 } else {
                     return right;
                 }
             } else if (operator () (r.x, l.x)) {
                 if (operator () (l.y, p.y)) {
-                    return sqr_dist(!right);
+                    return sqr_dist(right);
                 } else {
                     return !right;
                 }
             } else {
                 assert(operator () (l.y, r.y));
-                return swap_cmp((l.y + r.y) / value_type(2), p.y, right);
+                const value_type & ll = (l.y + r.y) / value_type(2);
+                const value_type & rr = p.y;
+                if (right) {
+                    return operator () (ll, rr);
+                } else {
+                    return operator () (rr, ll);
+                }
             }
         }
 
@@ -224,7 +238,7 @@ private :
         const point ca = {a.x - c.x, a.y - c.y};
         const point cb = {b.x - c.x, b.y - c.y};
         vertex vertex_{{}, ca.y * cb.x - ca.x * cb.y};
-        if (less_.eps < vertex_.R) { // if CW
+        if (less_.eps2 < vertex_.R) { // if CW
             // interesting, that probability of this branch tends to 0.6 for points in general positions
             vertex_.R += vertex_.R;
             const value_type A = ca.x * ca.x + ca.y * ca.y;
@@ -297,7 +311,7 @@ private :
         auto & rr = *r;
         assert(ll.k.r == rr.k.l);
         vertex vertex_ = make_vertex(*ll.k.l, *ll.k.r, *rr.k.r);
-        if (less_.eps < vertex_.R) {
+        if (less_.eps2 < vertex_.R) {
             const value_type & x = event_x(vertex_);
             const auto le = events_.find(vertex_);
             const auto deselect_event = [&] (const pevent ev) -> bool
@@ -350,7 +364,7 @@ private :
         const point & ll = *l;
         const point & rr = *r;
         const pedge e = edges_.size();
-        if ((ll.y < rr.y) || (!(rr.y < ll.y) && (rr.x < ll.x))) {
+        if (std::tie(ll.y, rr.x) < std::tie(rr.y, ll.x)) {
             edges_.push_back({l, r, v, inf});
         } else {
             edges_.push_back({r, l, inf, v});
@@ -392,12 +406,10 @@ private :
             return;
         }
         // workaround for floating point math
-        point & ve = vertices_[edge_.e].c;
-        point & vb = vertices_[edge_.b].c;
-        if (ve.x < vb.x) {
-            ve.x = vb.x = (vb.x + ve.x) / value_type(2);
+        if (vertices_[edge_.e].c < vertices_[edge_.b].c) {
+            std::swap(edge_.l, edge_.r);
+            std::swap(edge_.b, edge_.e);
         }
-        assert(vb < ve);
     }
 
     pendpoint insert_endpoint(const pendpoint ep,
@@ -454,7 +466,7 @@ private :
                 disable_event(endpoint_.v);
             }
             vertex vertex_ = make_vertex(*s, *endpoint_.k.l, *endpoint_.k.r);
-            assert(less_.eps < vertex_.R);
+            assert(less_.eps2 < vertex_.R);
             assert(events_.find(vertex_) == nev);
             assert(!less_(s->x, s->y, event_x(vertex_), vertex_.c.y)); // vertex and site are equivalent
             assert(!less_(event_x(vertex_), vertex_.c.y, s->x, s->y)); // vertex and site are equivalent

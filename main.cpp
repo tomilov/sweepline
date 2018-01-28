@@ -53,8 +53,12 @@ struct voronoi
     bool draw_indices = false;
     bool draw_circles = false;
 
-    value_type eps = value_type(10) * std::numeric_limits< value_type >::epsilon();
-    value_type delta = value_type(0.001);
+    const value_type zero = value_type(0);
+    const value_type one = value_type(1);
+
+    const value_type eps2 = one / value_type(1 << 24);
+    const value_type eps = [&] { using std::sqrt; return sqrt(eps2); }();
+    const value_type delta = value_type(0.001);
 
     std::ostream & log_;
 
@@ -68,9 +72,6 @@ struct voronoi
     }
 
 private :
-
-    const value_type zero = value_type(0);
-    const value_type one = value_type(1);
 
     std::mt19937_64 rng;
     std::normal_distribution< value_type > normal_;
@@ -126,7 +127,7 @@ public :
             do {
                 point p{normal_(rng), normal_(rng)};
                 value_type norm = p.x * p.x + p.y * p.y;
-                if (eps * eps < norm) {
+                if (eps2 < norm) {
                     using std::sqrt;
                     norm = radius * sqrt(zero_to_one_(rng) / std::move(norm));
                     p.x *= norm;
@@ -134,6 +135,30 @@ public :
                 } else {
                     p.x = p.y = zero;
                 }
+                if (unique_points_.insert(std::move(p)).second) {
+                    break;
+                }
+            } while (++m < M);
+            if (m == M) {
+                log_ << "the number (" << M << ") of attempts is exceeded\n";
+                log_ << "only " << n << "points generated\n";
+                break;
+            }
+        }
+        for (const point & point_ : unique_points_) {
+            _out << point_.x << ' ' << point_.y << '\n';
+        }
+    }
+
+    void gauss(std::ostream & _out, const value_type dispersion, const size_type N)
+    {
+        std::set< point, less > unique_points_{less{delta}};
+        _out << N << '\n';
+        constexpr size_type M = 1000; // number of attempts
+        for (size_type n = 0; n < N; ++n) { // points that are uniformely distributed inside of closed ball
+            size_type m = 0;
+            do {
+                point p{normal_(rng) * dispersion, normal_(rng) * dispersion};
                 if (unique_points_.insert(std::move(p)).second) {
                     break;
                 }
@@ -368,9 +393,9 @@ public :
     void rotate(const value_type & angle)
     {
         using std::cos;
-        using std::sin;
+        using std::sqrt;
         const value_type cosine = cos(angle);
-        const value_type sine = sin(angle);
+        const value_type sine = sqrt(one - cosine * cosine);
         for (point & point_ : points_) {
             point_.rotate(cosine, sine);
         }
@@ -867,7 +892,7 @@ int main()
         {
             using seed_type = typename voronoi_type::seed_type;
 #  if 0
-            const seed_type seed = 16609022368344754547L;
+            const seed_type seed = 3465238787838062301;
             //const seed_type seed = 4271940246895875599L;
 #  else
             std::random_device D;
@@ -893,6 +918,8 @@ int main()
         // swap
 #  elif 0
         voronoi_.square(in_, value_type(10000), 100000);
+#  elif 0
+        voronoi_.gauss(in_, value_type(10000), 10000);
 #  else
         voronoi_.ball(in_, value_type(10000), 100000);
 #  endif
@@ -913,7 +940,7 @@ int main()
     { // run
         log_ << "start\n";
         try {
-            for (std::size_t i = 0; i < 100; ++i) {
+            for (std::size_t i = 0; i < 1; ++i) {
                 voronoi_.sweepline_.clear();
                 const auto start = steady_clock::now();
                 voronoi_();
@@ -930,7 +957,7 @@ int main()
             }
         }
     }
-    if ((false)) { // output
+    if ((true)) { // output
         //voronoi_.draw_circles = false; // (sweepline_.vertices_.size() < 300);
         //voronoi_.draw_indices = false;
         using sweepline_type = typename voronoi_type::sweepline_type;

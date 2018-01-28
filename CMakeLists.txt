@@ -2,6 +2,8 @@ project("sweepline" LANGUAGES CXX)
 
 cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
+#set(ENV{LD_PRELOAD} "/usr/lib/libtcmalloc.so.4")
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -16,7 +18,8 @@ set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} -flt
 add_compile_options(-W)
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_compile_options(-Weverything)
-    add_compile_options(-Wno-c++98-compat -Wno-padded)
+    add_compile_options(-Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-padded)
+    add_compile_options(-Wno-gnu-case-range)
 
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++ -isystem /usr/include/libcxxabi")
@@ -26,7 +29,7 @@ else()
     message(FATAL_ERROR "Compiler ${CMAKE_CXX_COMPILER_ID} currently is not supported")
 endif()
 
-set(CMAKE_CXX_FLAGS "-march=native -mtune=native")
+set(CMAKE_CXX_FLAGS "-march=native -mtune=native -mavx")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-ggdb -fno-inline -fno-omit-frame-pointer -DDEBUG")
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -49,7 +52,7 @@ set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG")
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS YES)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
