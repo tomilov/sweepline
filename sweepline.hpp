@@ -126,12 +126,6 @@ private :
         bool operator () (const value_type & lx, const value_type & ly,
                           const value_type & rx, const value_type & ry) const
         {
-#if 0
-            // _X86INTRIN_H_INCLUDED
-            const auto r = _mm256_set_pd(ry, ly, rx, lx);
-            const auto i = _bit_scan_forward(_mm256_movemask_pd(_mm256_cmp_pd(_mm256_permute_pd(_mm256_add_pd(r, _mm256_set1_pd(eps)), 0b0101), r, _CMP_LT_OQ)));
-            return (i % 2) != 0;
-#else
             if (operator () (lx, rx)) {
                 return true;
             } else if (operator () (rx, lx)) {
@@ -142,7 +136,6 @@ private :
                 assert(!operator () (ry, ly));
                 return false;
             }
-#endif
         }
 
         bool operator () (const vertex & l, const vertex & r) const
