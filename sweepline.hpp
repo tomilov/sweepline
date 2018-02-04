@@ -39,7 +39,6 @@
 #include <cassert>
 #include <cmath>
 
-
 template< typename site,
           typename point = typename std::iterator_traits< site >::value_type,
           typename value_type = decltype(std::declval< point >().x) >
@@ -81,9 +80,9 @@ struct sweepline
     using edges = std::deque< edge >;
     using pedge = typename edges::size_type;
 
-    vertices vertices_; // 0 <= size <= 2 * n ? 5
+    vertices vertices_; // 0 <= size <= 2 * n - 2
     const pvertex inf = std::numeric_limits< pvertex >::max();
-    edges edges_; // n - 1 <= size <= 3 * n ? 6
+    edges edges_; // n - 1 <= size <= 3 * n - 3
 
 private :
 

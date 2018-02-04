@@ -664,7 +664,6 @@ private :
             l = create_node< K >(k);
             insert_and_rebalance(insert_left, l, r, h);
             ++s;
-            return l;
         }
         return l;
     }
