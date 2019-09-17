@@ -2,7 +2,7 @@
 Fortune's algorithm for Voronoi diagram generating on the plane. Intended for runtime speed and careful handling of corner cases.
 
 How to use:
-
+```cpp
     using value_type = double;
     struct point 
     { 
@@ -10,7 +10,7 @@ How to use:
         bool operator < (point const & p) const
         { return std::tie(x, y) < std::tie(p.x, p.y); }
     };
-    using points = std::vector< point >
+    using points = std::vector< point >;
     using site = typename points::const_iterator;
     using sweepline_type = sweepline< site, point, value_type >;
     sweepline_type sweepline_{eps};
